@@ -3,8 +3,13 @@
 # dependencies
 node_modules/
 
+# Build output
+/dist/
+build/
+
 # Expo
 .expo/
+.expo-shared/
 dist/
 web-build/
 expo-env.d.ts
@@ -28,6 +33,13 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
+Thumbs.db
+
+# Log files
+*.log
+
+# env files
+.env 
 
 # local env files
 .env*.local
