@@ -1,5 +1,9 @@
 {
   "compilerOptions": {
+    "baseUrl": ".", // Points to the root directory
+    "paths": {
+      "@/*": ["frontend/*"]  // Resolve paths to the 'frontend' folder
+    },
     "target": "esnext",
     "module": "esnext",
     "lib": ["dom", "dom.iterable", "esnext"],
@@ -13,10 +17,8 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-native",
-    "paths": {
-      "@/*": ["./frontend/*"]
-    }
+    "jsx": "react-native"
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+  "include": ["frontend/**/*", "app/**/*", "**/*.ts", "**/*.tsx"],
+  "extends": "expo/tsconfig.base"
 }
