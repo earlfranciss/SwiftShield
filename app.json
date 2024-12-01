@@ -7,7 +7,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./frontend/assets/images/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     
     "splash": {
       "image": "./frontend/assets/images/splash-icon.png",
