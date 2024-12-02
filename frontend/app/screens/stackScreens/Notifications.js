@@ -1,17 +1,29 @@
-// NotificationScreen.js
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import GradientScreen from '../components/GradientScreen';  // Correct import
 
-export default function Notification({ navigation }) {
+export default function Notification({ navigation, route }) {
+  const { isDarkMode, onToggleDarkMode } = route.params;
+
   return (
-    <View style={styles.container}>
-      {/* Back Button */}
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-        <MaterialIcons name="keyboard-arrow-left" size={28} color="#000" />
-      </TouchableOpacity>
+    <View style={{ flex: 1 }}>
+      {/* Apply GradientScreen as a wrapper for content */}
+      <GradientScreen
+        onToggleDarkMode={onToggleDarkMode}
+        isDarkMode={isDarkMode}
+      >
+        <View style={styles.container}>
+          {/* Back Button */}
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <MaterialIcons name="keyboard-arrow-left" size={28} color={isDarkMode ? 'black' : 'green'} />
+          </TouchableOpacity>
 
-      <Text style={styles.text}>This is the Notifications Screen</Text>
+          <Text style={[styles.text, { color: isDarkMode ? 'black' : 'green' }]}>
+            This is the Notifications Screen
+          </Text>
+        </View>
+      </GradientScreen>
     </View>
   );
 }
@@ -19,11 +31,14 @@ export default function Notification({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    
-    backgroundColor: '#fff',
+    padding: 20,
   },
   text: {
     fontSize: 20,
-    color: '#000',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 40,
+    left: 10,
   },
 });
