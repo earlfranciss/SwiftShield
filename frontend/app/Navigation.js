@@ -103,6 +103,13 @@ function TabGroup({ onToggleDarkMode, navigation }) {
                         </View>
                     )
                 },
+                tabBarLabel: ({ focused }) => (
+                  focused ? (
+                    <Text style={{ color: isDarkMode ? '#218555' : '#3AED97', fontSize: 12 }}>
+                      {route.name}
+                    </Text>
+                  ) : null
+                ),
                 tabBarActiveTintColor: isDarkMode ? "#00A757" : "#3AED97", // Green for dark mode, light color for light mode
                 tabBarInactiveTintColor: isDarkMode ? "#AAAAAA" : "#218555", // Darker inactive color for dark mode
                 tabBarStyle: {
@@ -115,7 +122,7 @@ function TabGroup({ onToggleDarkMode, navigation }) {
                 
                 <Tab.Screen 
                     name="Home" 
-                    options={{ headerShown: false, tabBarLabel: ""}}
+                    options={{ headerShown: false}}
                     >
 
                     {() => <GradientScreen onToggleDarkMode={() => 
@@ -128,7 +135,7 @@ function TabGroup({ onToggleDarkMode, navigation }) {
 
                 <Tab.Screen 
                     name="Analytics" 
-                    options={{ headerShown: false, tabBarLabel: ""}}
+                    options={{ headerShown: false}}
                     >
                     {() => <GradientScreen onToggleDarkMode={() => 
                                 setDarkMode(!isDarkMode)} 
@@ -140,7 +147,7 @@ function TabGroup({ onToggleDarkMode, navigation }) {
 
                 <Tab.Screen 
                     name="Logs" 
-                    options={{ headerShown: false, tabBarLabel: ""}}
+                    options={{ headerShown: false}}
                     >
                     {() => <GradientScreen onToggleDarkMode={() => 
                                 setDarkMode(!isDarkMode)} 
@@ -152,7 +159,7 @@ function TabGroup({ onToggleDarkMode, navigation }) {
 
                 <Tab.Screen 
                     name="Settings" 
-                    options={{ headerShown: false, tabBarLabel: ""}}
+                    options={{ headerShown: false}}
                     >
 
                     {() => <GradientScreen onToggleDarkMode={() => 
