@@ -186,7 +186,6 @@
     "expo-linking": "^7.0.3",
     "expo-modules-autolinking": "^2.0.2",
     "expo-modules-core": "^2.0.6",
-    "expo-notifications": "~0.29.8",
     "expo-router": "^4.0.9",
     "expo-splash-screen": "^0.29.13",
     "expo-status-bar": "^2.0.0",
@@ -664,7 +663,8 @@
     "yallist": "^3.1.1",
     "yargs": "^17.7.2",
     "yargs-parser": "^21.1.1",
-    "yocto-queue": "^0.1.0"
+    "yocto-queue": "^0.1.0",
+    "expo-notifications": "~0.29.8"
   },
   "scripts": {
     "start": "expo start",
