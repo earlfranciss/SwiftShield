@@ -1,17 +1,19 @@
 // NotificationScreen.js
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 
-export default function Notification({ navigation }) {
+export default function Notification({ navigation, isDarkMode }) {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#3AED97' : '#fff' }]}>
       {/* Back Button */}
       <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-        <Ionicons name="arrow-back-outline" size={24} color="#000" />
+        <MaterialIcons name="keyboard-arrow-left" size={28} color={isDarkMode ? '#3AED97' : '#000'} />
       </TouchableOpacity>
 
-      <Text style={styles.text}>This is the Notifications Screen</Text>
+      <Text style={[styles.text, { color: isDarkMode ? '#fff' : '#000' }]}>
+        This is the Notifications Screen
+      </Text>
     </View>
   );
 }
@@ -19,11 +21,14 @@ export default function Notification({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    
-    backgroundColor: '#fff',
+    padding: 20,
   },
   text: {
     fontSize: 20,
-    color: '#000',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 40,
+    left: 10,
   },
 });

@@ -38,7 +38,7 @@ function TopBar({ onToggleDarkMode, isDarkMode, navigation }) {
                 />
             </TouchableOpacity>
             {/* Open Notifications */}
-            <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
+            <TouchableOpacity onPress={() => navigation.navigate('Notifications', { isDarkMode })}>
                 <Ionicons 
                     name="notifications-outline" 
                     size={24} 
@@ -55,7 +55,7 @@ function TopBar({ onToggleDarkMode, isDarkMode, navigation }) {
 function GradientScreen({ children, onToggleDarkMode, isDarkMode, navigation }) {
     return (
       <LinearGradient
-        colors={isDarkMode ? ["#F2F2F2", "#66F3AF"] : ["#000000", "#24B073"]}
+        colors={isDarkMode ? ["#FFFFFF", "#66F3AF"] : ["#000000", "#24B073"]}
         start = {{ x: 0.5, y: 0.5}}
         end = {{ x: 1.5, y: 1}}
         style={{ flex: 1 }}
@@ -79,6 +79,7 @@ function TabGroup({ onToggleDarkMode, navigation }) {
             
             <Tab.Navigator 
             screenOptions={({route, navigation}) => ({
+              
                 tabBarIcon: ({color, focused, size}) => {
                     let iconName;
                     let IconLibrary;
@@ -103,10 +104,17 @@ function TabGroup({ onToggleDarkMode, navigation }) {
                         </View>
                     )
                 },
-                tabBarActiveTintColor: isDarkMode ? "#00A757" : "#3AED97", // Green for dark mode, light color for light mode
-                tabBarInactiveTintColor: isDarkMode ? "#AAAAAA" : "#218555", // Darker inactive color for dark mode
+                tabBarLabel: ({ focused }) => (
+                  focused ? (
+                    <Text style={{ color: isDarkMode ? '#218555' : '#3AED97', fontSize: 12 }}>
+                      {route.name}
+                    </Text>
+                  ) : null
+                ),
+                tabBarActiveTintColor: isDarkMode ? "#00A757" : "#3AED97",
+                tabBarInactiveTintColor: isDarkMode ? "#AAAAAA" : "#218555", 
                 tabBarStyle: {
-                    backgroundColor: isDarkMode ? "#FFFFFF" : "#000000", // Black background for dark mode, white for light mode
+                    backgroundColor: isDarkMode ? "#FFFFFF" : "#000000", 
                     height: 56,
                     borderTopWidth: 0,
                 },
@@ -115,7 +123,7 @@ function TabGroup({ onToggleDarkMode, navigation }) {
                 
                 <Tab.Screen 
                     name="Home" 
-                    options={{ headerShown: false, tabBarLabel: ""}}
+                    options={{ headerShown: false}}
                     >
 
                     {() => <GradientScreen onToggleDarkMode={() => 
@@ -128,7 +136,7 @@ function TabGroup({ onToggleDarkMode, navigation }) {
 
                 <Tab.Screen 
                     name="Analytics" 
-                    options={{ headerShown: false, tabBarLabel: ""}}
+                    options={{ headerShown: false}}
                     >
                     {() => <GradientScreen onToggleDarkMode={() => 
                                 setDarkMode(!isDarkMode)} 
@@ -140,7 +148,7 @@ function TabGroup({ onToggleDarkMode, navigation }) {
 
                 <Tab.Screen 
                     name="Logs" 
-                    options={{ headerShown: false, tabBarLabel: ""}}
+                    options={{ headerShown: false}}
                     >
                     {() => <GradientScreen onToggleDarkMode={() => 
                                 setDarkMode(!isDarkMode)} 
@@ -152,7 +160,7 @@ function TabGroup({ onToggleDarkMode, navigation }) {
 
                 <Tab.Screen 
                     name="Settings" 
-                    options={{ headerShown: false, tabBarLabel: ""}}
+                    options={{ headerShown: false}}
                     >
 
                     {() => <GradientScreen onToggleDarkMode={() => 
@@ -167,19 +175,18 @@ function TabGroup({ onToggleDarkMode, navigation }) {
     )
 }
 
-// Main Stack Navigator
 function MainStack() {
-    return (
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Tabs" component={TabGroup} />
-        <Stack.Screen name="Notifications" component={Notifications} />
-      </Stack.Navigator>
-    );
-  }
-  
-  export default function Navigation() {
-    return <MainStack />;
-  }
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Tabs" component={TabGroup} />
+      <Stack.Screen name="Notifications" component={Notifications} />
+    </Stack.Navigator>
+  );
+}
+
+export default function Navigation() {
+  return <MainStack />;
+}
   
 
 // Styles
@@ -201,5 +208,9 @@ const styles = StyleSheet.create({
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
+    },
+    logoText: {
+      fontSize: 14,
+      fontWeight: 'bold',
     },
   });
