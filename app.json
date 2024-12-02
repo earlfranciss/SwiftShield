@@ -8,7 +8,9 @@
     "orientation": "portrait",
     "icon": "./frontend/assets/images/icon.png",
     "userInterfaceStyle": "automatic",
-    
+    "assetBundlePatterns": [
+      "*/assets/fonts/*"
+    ],
     "splash": {
       "image": "./frontend/assets/images/splash-icon.png",
       "resizeMode": "contain",
