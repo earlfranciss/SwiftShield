@@ -4,6 +4,7 @@ import { View, Text, TouchableOpacity, Switch, StyleSheet, Image } from 'react-n
 import React, { useState } from 'react';
 import GradientScreen from './screens/components/GradientScreen';
 import TopBar from './screens/components/TopBar';
+import { NavigationContainer } from '@react-navigation/native';
 //Screens
 import Home from './screens/tabScreens/Home';
 import Analytics from './screens/tabScreens/Analytics';
@@ -12,7 +13,7 @@ import Settings from './screens/tabScreens/Settings';
 import Notifications from './screens/stackScreens/Notifications';
 //Icons
 import { Entypo } from "@expo/vector-icons";
-import Orticons from "@expo/vector-icons/Octicons";
+import Octicons from "@expo/vector-icons/Octicons";
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -45,7 +46,7 @@ function TabGroup({ navigation }) {
               IconLibrary = Entypo;
             } else if(route.name === "Analytics") {
               iconName = "graph";
-              IconLibrary = Orticons;
+              IconLibrary = Octicons;
             } else if(route.name === "Logs") {
               iconName = "list";
               IconLibrary = FontAwesome6;
