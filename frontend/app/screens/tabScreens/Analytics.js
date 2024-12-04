@@ -1,38 +1,39 @@
+import React from "react";
 import { StyleSheet, SafeAreaView, Text, View } from "react-native";
 import LineGraph from "../components/LineGraph";
 import PieGraph from "../components/PieGraph";
 import ThreatLevelCard from "../components/ThreatLevelCard";
-import RecentActivityLogs from "../components/RecentActivityLogs";
+import RecentActivityLogs from "../components/RecentActivityLogs"; // Make sure this is the correct path
 import StatsText from "../components/StatsText";
 
 const threatData = [
   {
     level: "Low",
     count: "9",
-    borderColor: "#3AED97", // Border color
-    textColor: "#3AED97", // Text color for Low
-    countColor: "#3AED97", // Number color for Low
+    borderColor: "#3AED97",
+    textColor: "#3AED97",
+    countColor: "#3AED97",
   },
   {
     level: "Medium",
     count: "5",
     borderColor: "#FFDE59",
-    textColor: "#FFDE59", // Text color for Medium
-    countColor: "#FFDE59", // Number color for Medium
+    textColor: "#FFDE59",
+    countColor: "#FFDE59",
   },
   {
     level: "High",
     count: "3",
     borderColor: "#FF914D",
-    textColor: "#FF914D", // Text color for High
-    countColor: "#FF914D", // Number color for High
+    textColor: "#FF914D",
+    countColor: "#FF914D",
   },
   {
     level: "Critical",
     count: "1",
     borderColor: "#FF4F4F",
-    textColor: "#FF4F4F", // Text color for Critical
-    countColor: "#FF4F4F", // Number color for Critical
+    textColor: "#FF4F4F",
+    countColor: "#FF4F4F",
   },
 ];
 
@@ -41,30 +42,9 @@ const statsData = [
   { label: "Threats Blocked", value: "9" },
 ];
 
-const logs = [
-  {
-    title: "Suspicious Link!",
-    link: "www.malicious.link - SMS",
-    time: "15 mins ago",
-    color: "#FF4F4F",
-  },
-  {
-    title: "Safe Link Verified",
-    link: "www.safe.link - Email",
-    time: "30 mins ago",
-    color: "#3AED97",
-  },
-  {
-    title: "Suspicious Link!",
-    link: "www.malicious.link - Facebook",
-    time: "1 hour ago",
-    color: "#FF4F4F",
-  },
-];
-
 export default function Analytics() {
   return (
-    <SafeAreaView>
+    <SafeAreaView style={styles.container}>
       {/* Line Graph */}
       <View style={styles.graphContainer}>
         <LineGraph />
@@ -75,21 +55,20 @@ export default function Analytics() {
         <PieGraph />
       </View>
 
-      {/* Additional Statistics */}
+      {/* Statistics */}
       <View style={styles.statsContainer}>
-        {/* URLs Scanned and Threats Blocked */}
         <StatsText stats={statsData} />
       </View>
 
       {/* Threat Level Breakdown */}
       <View style={styles.card}>
-        {/* Threat Levels */}
         <ThreatLevelCard data={threatData} />
       </View>
 
       {/* Recent Activity */}
-      <View style={styles.recentActivity}>
+      <View style={styles.recentActivityContainer}>
         <Text style={styles.recentActivityTitle}>Recent Activity:</Text>
+        <RecentActivityLogs />
       </View>
     </SafeAreaView>
   );
@@ -98,25 +77,26 @@ export default function Analytics() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000", // Match background
     padding: 20,
   },
-  card: {
-    marginVertical: 0,
-    marginHorizontal: 40,
+  graphContainer: {
+    marginBottom: 5,
   },
   statsContainer: {
-    marginVertical: 2,
-    marginHorizontal: 20,
+    marginBottom: 5,
   },
-  recentActivity: {
-    marginTop: 5,
+  card: {
+    marginVertical: 5,
+    marginHorizontal: 20,
   },
   recentActivityTitle: {
     color: "#3AED97",
     fontSize: 12,
     fontWeight: "regular",
     marginBottom: 10,
-    marginLeft: 40,
+  },
+  recentActivityContainer: {
+    marginBottom: 60,
+    marginHorizontal: 20,
   },
 });

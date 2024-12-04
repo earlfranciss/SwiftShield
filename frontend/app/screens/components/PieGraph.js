@@ -4,19 +4,19 @@ import { PieChart } from "react-native-chart-kit";
 const PieGraph = () => {
   const data = [
     {
-      name: "Text Message",
+      name: "Text Message:",
       population: 8,
       color: "#ffde59",
       numberColor: "#ffde59", // Number color for Text Message
     },
     {
-      name: "Email",
+      name: "Email:",
       population: 20,
       color: "#ffbd59",
       numberColor: "#ffbd59", // Number color for Email
     },
     {
-      name: "Facebook",
+      name: "Facebook:",
       population: 14,
       color: "#ff914d",
       numberColor: "#ff914d", // Number color for Facebook
@@ -32,7 +32,7 @@ const PieGraph = () => {
             color: "#3AED97",
             fontSize: 12,
             marginBottom: 10,
-            marginLeft: 29,
+            marginLeft: 10,
           }}
         >
           Threats by Source
@@ -49,7 +49,7 @@ const PieGraph = () => {
           >
             {/* Legend Name */}
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Text style={{ color: "#3AED97", fontSize: 12, marginLeft: 30 }}>
+              <Text style={{ color: "#3AED97", fontSize: 12, marginLeft: 10 }}>
                 {item.name}
               </Text>
             </View>
@@ -69,7 +69,7 @@ const PieGraph = () => {
       </View>
 
       {/* Pie Chart */}
-      <View style={{ flex: 1, alignItems: "center", marginLeft: 60 }}>
+      <View style={{ flex: 1, alignItems: "center", marginLeft: 90 }}>
         <PieChart
           data={data.map((item) => ({
             name: item.name,
