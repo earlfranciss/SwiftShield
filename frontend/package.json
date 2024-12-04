@@ -6,7 +6,7 @@
     "@babel/core": "^7.26.0",
     "@babel/preset-env": "^7.26.0",
     "@babel/preset-react": "^7.25.9",
-    "@react-navigation/native": "^7.0.9",
+    "@react-navigation/native": "^7.0.0",
     "@react-navigation/stack": "^7.0.14",
     "abab": "^2.0.6",
     "abort-controller": "^3.0.0",
@@ -174,9 +174,7 @@
     "execa": "^1.0.0",
     "exit": "^0.1.2",
     "expect": "^29.7.0",
-
     "expo": "^52.0.14",
-
     "expo-asset": "^11.0.1",
     "expo-blur": "^14.0.1",
     "expo-constants": "^17.0.3",
@@ -188,10 +186,8 @@
     "expo-linking": "^7.0.3",
     "expo-modules-autolinking": "^2.0.2",
     "expo-modules-core": "^2.0.6",
-
-    "expo-notifications": "~0.29.8",
-    "expo-router": "^4.0.9",
-
+    "expo-notifications": "~0.29.10",
+    "expo-router": "~4.0.11",
     "expo-splash-screen": "^0.29.13",
     "expo-status-bar": "^2.0.0",
     "expo-symbols": "^0.2.0",
@@ -490,9 +486,7 @@
     "react-native-reanimated": "~3.16.1",
     "react-native-safe-area-context": "^4.12.0",
     "react-native-screens": "~4.1.0",
-
-    "react-native-svg": "^15.10.0",
-
+    "react-native-svg": "15.8.0",
     "react-native-web": "^0.19.13",
     "react-native-webview": "^13.12.2",
     "react-navigation": "^5.0.0",
