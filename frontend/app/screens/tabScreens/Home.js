@@ -1,6 +1,8 @@
+
 import React, { useState } from 'react';
 import { StyleSheet, SafeAreaView, Text, View, TextInput, TouchableOpacity, Image } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+
 
 export default function Home() {
   const [url, setUrl] = useState('');
@@ -43,6 +45,7 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -107,6 +110,7 @@ const styles = StyleSheet.create({
 
   scanButtonText: {
     color: '#000000',
+
     fontSize: 18,
     fontWeight: 'bold',
   },
