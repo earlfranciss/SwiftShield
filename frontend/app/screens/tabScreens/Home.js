@@ -10,6 +10,10 @@ import {
   Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import React, { useState } from 'react';
+import { StyleSheet, SafeAreaView, Text, View, TextInput, TouchableOpacity, Image } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import config from "../../config";
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -20,21 +24,23 @@ export default function Home() {
     "Poppins-ExtraBold": require("../../../assets/fonts/Poppins-ExtraBold.ttf"),
   });
 
+
   if (!fontsLoaded) {
     return null; // Wait until the font is loaded
   }
 
   const handleScan = async () => {
     try {
-      const response = await fetch("http://192.168.1.12:5000", {
-        method: "POST",
+
+      const response = await fetch(`${config.BASE_URL}`, {
+        method: 'POST',
+
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ url }),
       });
 
-      console.log("Response:", response);
 
       if (!response.ok) {
         throw new Error(

@@ -41,39 +41,40 @@ CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins
 @app.route("/", methods=["POST"])
 def index():
     try:
-        print("Received data:", request.get_json()) 
+        #print("Received data:", request.get_json()) 
         data = request.get_json()
         if not data:
             return jsonify({"error": "No data received"}), 400  # Handle empty data
         url = data.get("url", "")
-        print("URL: ", url)
+        #print("URL: ", url)
         if not url:
             return jsonify({"error": "No URL provided"}), 400
 
         # Extract features from the URL
         obj = FeatureExtraction(url)
         x = np.array(obj.getFeaturesList()).reshape(1, 30)
-        print("X", x)
+        #print("X", x)
         # Get predictions
         y_pred = stacked.predict(x)[0]
         y_pro_phishing = stacked.predict_proba(x)[0, 0]
         y_pro_non_phishing = stacked.predict_proba(x)[0, 1]
         prediction = np.int64(y_pred)
-        print("Y Pred:", y_pred)
+        phishing_percentage =  y_pro_phishing * 100
+        #print("Y Pred:", y_pred)
         # Format the response
         pred = {
             "url": url,
             "prediction": int(prediction),
             "safe_percentage": y_pro_non_phishing * 100,
-            "phishing_percentage": y_pro_phishing * 100,
+            "phishing_percentage": phishing_percentage,
         }
-        print("Pred:", pred)
+        #print("Pred:", pred)
         # Insert scan result into MongoDB
         detection = {
             "url": url,
-            "is_malicious": bool(y_pred),  # Convert to boolean
+            "is_malicious": bool(phishing_percentage > 50),  # Convert to boolean
             "scan_time": datetime.now(),
-            "details": "Phishing" if y_pred == 1 else "Safe",
+            "details": "Safe" if y_pred == 1 else "Phishing",
         }
         collection.insert_one(detection)  # MongoDB will create the collection if it doesn't exist
         
@@ -83,7 +84,26 @@ def index():
         print("Error:", str(e))
         return jsonify({"error": str(e)}), 500
     
-    
+@app.route("/logs", methods=["GET"])
+def get_logs():
+    try:
+        # Fetch logs sorted by scan_time in descending order (most recent first)
+        logs = collection.find().sort("scan_time", pymongo.DESCENDING)
+        formatted_logs = [
+            {
+                "id": str(log["_id"]),
+                "title": "Phishing Detected" if log["details"] == "Phishing" else "Safe Link Verified",
+                "link": f"{log['url']} - {log.get('source', 'Scan')}",
+                "time": log["scan_time"].strftime("%Y-%m-%d %H:%M:%S"),
+                "icon": "suspicious-icon" if log["details"] == "Phishing" else "safe-icon",
+            }
+            for log in logs
+        ]
+        return jsonify(formatted_logs)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+ 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000)
 
