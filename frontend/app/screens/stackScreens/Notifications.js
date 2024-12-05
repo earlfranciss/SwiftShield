@@ -5,7 +5,7 @@ import GradientScreen from '../components/GradientScreen';  // Correct import
 
 export default function Notification({ navigation, route }) {
   const { isDarkMode, onToggleDarkMode } = route.params;
-
+  
   return (
     <View style={{ flex: 1 }}>
       {/* Apply GradientScreen as a wrapper for content */}

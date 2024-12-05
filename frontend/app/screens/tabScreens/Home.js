@@ -2,14 +2,14 @@
 import React, { useState } from 'react';
 import { StyleSheet, SafeAreaView, Text, View, TextInput, TouchableOpacity, Image } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-
+import config from "../../config";
 
 export default function Home() {
   const [url, setUrl] = useState('');
 
   const handleScan = async () => {
     try {
-      const response = await fetch('http://192.168.1.12:5000', {
+      const response = await fetch(`${config.BASE_URL}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -17,7 +17,7 @@ export default function Home() {
         body: JSON.stringify({ url }),
       });
       
-      console.log('Response:', response); 
+      //console.log('Response:', response); 
 
       if (!response.ok) {
       throw new Error(`Backend error: ${response.status} ${response.statusText}`);
