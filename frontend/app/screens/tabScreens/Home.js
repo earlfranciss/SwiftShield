@@ -10,9 +10,6 @@ import {
   Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from 'react';
-import { StyleSheet, SafeAreaView, Text, View, TextInput, TouchableOpacity, Image } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import config from "../../config";
 
 export default function Home() {
