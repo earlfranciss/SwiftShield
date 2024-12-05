@@ -1,7 +1,18 @@
 import React from "react";
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
 
-export default function App() {
+export default function Settings({ navigation }) {
+  const handleSignOut = () => {
+    // Navigate to the Login screen when the user clicks "Sign-out"
+    navigation.replace("Login"); // navigation will be passed correctly now
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* Profile Section */}
@@ -21,7 +32,6 @@ export default function App() {
         <Text style={styles.optionText}>Connected Apps</Text>
       </TouchableOpacity>
 
-      
       {/* Options Footer Section */}
       <View style={styles.footer}>
         <TouchableOpacity style={styles.optionButton}>
@@ -32,7 +42,7 @@ export default function App() {
         </TouchableOpacity>
 
         {/* Sign-out Section */}
-        <TouchableOpacity style={styles.signOutButton}>
+        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
           <Text style={styles.signOutText}>Sign-out</Text>
         </TouchableOpacity>
       </View>
@@ -45,11 +55,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: "center",
     paddingVertical: 20,
-  },
-
-  scrollContent: {
-    paddingVertical: 20,
-    alignItems: "center",
   },
 
   profileSection: {
