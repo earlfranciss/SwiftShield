@@ -7,10 +7,37 @@ import LinearGradient from 'react-native-linear-gradient';
 export default function Home() {
   const [url, setUrl] = useState('');
 
-  const handleScan = () => {
-    console.log('Scanning URL:', url);
-    // Add your URL scanning logic here
+  const handleScan = async () => {
+    try {
+      const response = await fetch('http://192.168.1.12:5000', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+      });
+      
+      console.log('Response:', response); 
+
+      if (!response.ok) {
+      throw new Error(`Backend error: ${response.status} ${response.statusText}`);
+    }
+
+      
+        // Check if the response is in JSON format before attempting to parse
+      if (response.ok && response.headers.get('Content-Type').includes('application/json')) {
+        const result = await response.json();
+        console.log('Scan Result:', result);
+        // Pass the result to Analytics and Logs as needed
+      } else {
+        // Handle non-JSON responses (e.g., HTML error page)
+        console.error('Expected JSON, but got a non-JSON response');
+      }
+    } catch (error) {
+      console.error('Error scanning URL:', error);
+    }
   };
+  
 
   return (
     <SafeAreaView style={styles.container}>

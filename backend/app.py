@@ -1,39 +1,89 @@
-#importing required libraries
-
-from flask import Flask, request, render_template
+from flask import Flask, request, jsonify
 import numpy as np
-import pandas as pd
-from sklearn import metrics 
 import warnings
 import pickle
-warnings.filterwarnings('ignore')
 from feature import FeatureExtraction
+from dotenv import load_dotenv
+import os
+import pymongo
+from datetime import datetime
+from flask_cors import CORS
 
-file = open("pickle/model.pkl","rb")
-gbc = pickle.load(file)
-file.close()
 
+# Suppress warnings
+warnings.filterwarnings('ignore')
+
+# Load environment variables
+load_dotenv()
+
+# Get environment variables
+db_connection_string = os.getenv("DB_CONNECTION_STRING")
+secret_key = os.getenv("SECRET_KEY")
+
+# Verify environment variable loading
+if not db_connection_string or not secret_key:
+    raise ValueError("Environment variables DB_CONNECTION_STRING or SECRET_KEY are not set")
+
+# Load the model
+with open("../ai-models/pickle/model.pkl", "rb") as file:
+    stacked = pickle.load(file)
+
+# MongoDB connection setup
+client = pymongo.MongoClient(db_connection_string, serverSelectionTimeoutMS=5000)
+db = client.get_database()  # Your database name
+collection = db.get_collection("logs") # Your collection name
 
 app = Flask(__name__)
+app.config["DEBUG"] = True
+CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins
 
-@app.route("/", methods=["GET", "POST"])
+
+@app.route("/", methods=["POST"])
 def index():
-    if request.method == "POST":
+    try:
+        print("Received data:", request.get_json()) 
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data received"}), 400  # Handle empty data
+        url = data.get("url", "")
+        print("URL: ", url)
+        if not url:
+            return jsonify({"error": "No URL provided"}), 400
 
-        url = request.form["url"]
+        # Extract features from the URL
         obj = FeatureExtraction(url)
-        x = np.array(obj.getFeaturesList()).reshape(1,30) 
-
-        y_pred =gbc.predict(x)[0]
-        #1 is safe       
-        #-1 is unsafe
-        y_pro_phishing = gbc.predict_proba(x)[0,0]
-        y_pro_non_phishing = gbc.predict_proba(x)[0,1]
-        # if(y_pred ==1 ):
-        pred = "It is {0:.2f} % safe to go ".format(y_pro_phishing*100)
-        return render_template('index.html',xx =round(y_pro_non_phishing,2),url=url )
-    return render_template("index.html", xx =-1)
-
-
+        x = np.array(obj.getFeaturesList()).reshape(1, 30)
+        print("X", x)
+        # Get predictions
+        y_pred = stacked.predict(x)[0]
+        y_pro_phishing = stacked.predict_proba(x)[0, 0]
+        y_pro_non_phishing = stacked.predict_proba(x)[0, 1]
+        prediction = np.int64(y_pred)
+        print("Y Pred:", y_pred)
+        # Format the response
+        pred = {
+            "url": url,
+            "prediction": int(prediction),
+            "safe_percentage": y_pro_non_phishing * 100,
+            "phishing_percentage": y_pro_phishing * 100,
+        }
+        print("Pred:", pred)
+        # Insert scan result into MongoDB
+        detection = {
+            "url": url,
+            "is_malicious": bool(y_pred),  # Convert to boolean
+            "scan_time": datetime.now(),
+            "details": "Phishing" if y_pred == 1 else "Safe",
+        }
+        collection.insert_one(detection)  # MongoDB will create the collection if it doesn't exist
+        
+        return jsonify(pred)
+    
+    except Exception as e:
+        print("Error:", str(e))
+        return jsonify({"error": str(e)}), 500
+    
+    
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000)
+
