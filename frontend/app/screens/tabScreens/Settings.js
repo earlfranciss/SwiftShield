@@ -1,37 +1,35 @@
 import React from "react";
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
 
-export default function App() {
+
+function Settings({ onToggleDarkMode, isDarkMode, navigation }) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Profile Section */}
       <View style={styles.profileSection}>
         <View style={styles.avatar}></View>
-        <View>
-          <Text style={styles.name}>John Doe</Text>
-          <Text style={styles.email}>johndoe@email.com</Text>
-        </View>
+          <View>
+            <Text style={styles.name}>John Doe</Text>
+            <Text style={styles.email}>johndoe@email.com</Text>
+          </View>
       </View>
 
-      {/* Options Section */}
       <TouchableOpacity style={styles.optionButton}>
         <Text style={styles.optionText}>Push Notifications</Text>
       </TouchableOpacity>
+
       <TouchableOpacity style={styles.optionButton}>
         <Text style={styles.optionText}>Connected Apps</Text>
       </TouchableOpacity>
 
-      
-      {/* Options Footer Section */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.optionButton}>
-          <Text style={styles.optionText}>Privacy Policy</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.optionButton}>
+        {/* Open Reports */}
+        <TouchableOpacity 
+          style={styles.optionButton} 
+          onPress={() => navigation.navigate('Reports', { isDarkMode, onToggleDarkMode})} 
+        >
           <Text style={styles.optionText}>Help and Support</Text>
         </TouchableOpacity>
 
-        {/* Sign-out Section */}
         <TouchableOpacity style={styles.signOutButton}>
           <Text style={styles.signOutText}>Sign-out</Text>
         </TouchableOpacity>
@@ -39,6 +37,7 @@ export default function App() {
     </ScrollView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -128,3 +127,5 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 });
+
+export default Settings;

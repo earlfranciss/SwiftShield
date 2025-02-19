@@ -16,12 +16,12 @@ import { Entypo } from "@expo/vector-icons";
 import Octicons from "@expo/vector-icons/Octicons";
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import Ionicons from '@expo/vector-icons/Ionicons';
-
+//Pages
+import Reports from "./screens/reportsPage/Reports";
 
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
-
 
 
 //Bottom Tab Bar Component
@@ -167,17 +167,20 @@ function TabGroup({ navigation }) {
 
 
 // Main Stack Navigator
-function MainStack() {
+function MainStack() { 
     return (
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Tabs" component={TabGroup} />
-        <Stack.Screen name="Notifications" component={Notifications} options={{ animation: 'slide_from_right' }}/>
-      </Stack.Navigator>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Tabs" component={TabGroup} />
+          <Stack.Screen name="Notifications" component={Notifications} options={{ animation: 'slide_from_right' }}/>
+          <Stack.Screen name="Reports" component={Reports} options={{ animation: 'slide_from_right'}}/>
+        </Stack.Navigator>
     );
   }
   
-  export default function Navigation() {
-    return <MainStack />;
+  export default function Navigation() { 
+    return(
+      <MainStack />
+    )
   }
   
 
