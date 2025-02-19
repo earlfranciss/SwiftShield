@@ -1,52 +1,84 @@
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React, { useState, useCallback } from "react";
+import { FlatList, StyleSheet, View, Dimensions, ActivityIndicator } from "react-native";
+import { useSharedValue } from "react-native-reanimated";
+import ListItem from "./ListItem";
+import { useFocusEffect } from '@react-navigation/native';
+import config from "../../config";
 
-const RecentActivityLogs = ({ logs }) => {
+const { height } = Dimensions.get("window");
+
+const iconMap = {
+  "suspicious-icon": require("../../../assets/images/suspicious-icon.png"),
+  "safe-icon": require("../../../assets/images/safe-icon.png"),
+  // Add more mappings if necessary
+};
+
+const RecentActivityLogs = () => {
+  const [logs, setLogs] = useState([]);
+  const viewableItems = useSharedValue([]);
+  const [loading, setLoading] = useState(true);
+
+  // Function to fetch logs
+  const fetchLogs = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${config.BASE_URL}/logs`);
+      const data = await response.json();
+      setLogs(data);
+    } catch (error) {
+      console.error("Error fetching logs:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Re-fetch logs when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchLogs();
+    }, [])
+  );
+
+  const viewabilityConfig = {
+    itemVisiblePercentThreshold: 50, // Adjust as needed
+  };
+
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Recent Activity:</Text>
-      {logs.map((log, index) => (
-        <View
-          key={index}
-          style={[styles.logItem, { backgroundColor: log.color }]}
-        >
-          <Text style={styles.logTitle}>{log.title}</Text>
-          <Text style={styles.logLink}>{log.link}</Text>
-          <Text style={styles.logTime}>{log.time}</Text>
-        </View>
-      ))}
+      {loading ? (
+        <ActivityIndicator size="large" color="#0000ff" />
+      ) : (
+        <FlatList
+          data={logs}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <ListItem
+              item={{
+                ...item,
+                icon: iconMap[item.icon], // Use mapped static require
+              }}
+              viewableItems={viewableItems}
+            />
+          )}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+          onViewableItemsChanged={({ viewableItems: vItems }) => {
+            viewableItems.value = vItems.map((vItem) => vItem.item.id);
+          }}
+          viewabilityConfig={viewabilityConfig}
+        />
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 10,
-    marginTop: 15,
+    height: 200,
+    overflow: "hidden",
   },
-  header: {
-    color: "#3AED97",
-    fontSize: 14,
-    marginBottom: 10,
-  },
-  logItem: {
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  logTitle: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  logLink: {
-    color: "#fff",
-    fontSize: 12,
-  },
-  logTime: {
-    color: "#ccc",
-    fontSize: 10,
-    marginTop: 5,
+  listContent: {
+    paddingBottom: 20,
   },
 });
 

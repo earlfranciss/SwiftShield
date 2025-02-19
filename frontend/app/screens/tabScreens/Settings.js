@@ -1,36 +1,48 @@
 import React from "react";
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
 
+export default function Settings({ navigation }) {
+  const handleSignOut = () => {
+    // Navigate to the Login screen when the user clicks "Sign-out"
+    navigation.replace("Login"); // navigation will be passed correctly now
+  };
 
-function Settings({ onToggleDarkMode, isDarkMode, navigation }) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      {/* Profile Section */}
       <View style={styles.profileSection}>
         <View style={styles.avatar}></View>
-          <View>
-            <Text style={styles.name}>John Doe</Text>
-            <Text style={styles.email}>johndoe@email.com</Text>
-          </View>
+        <View>
+          <Text style={styles.name}>John Doe</Text>
+          <Text style={styles.email}>johndoe@email.com</Text>
+        </View>
       </View>
 
+      {/* Options Section */}
       <TouchableOpacity style={styles.optionButton}>
         <Text style={styles.optionText}>Push Notifications</Text>
       </TouchableOpacity>
-
       <TouchableOpacity style={styles.optionButton}>
         <Text style={styles.optionText}>Connected Apps</Text>
       </TouchableOpacity>
 
+      {/* Options Footer Section */}
       <View style={styles.footer}>
-        {/* Open Reports */}
-        <TouchableOpacity 
-          style={styles.optionButton} 
-          onPress={() => navigation.navigate('Reports', { isDarkMode, onToggleDarkMode})} 
-        >
+        <TouchableOpacity style={styles.optionButton}>
+          <Text style={styles.optionText}>Privacy Policy</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.optionButton}>
           <Text style={styles.optionText}>Help and Support</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.signOutButton}>
+        {/* Sign-out Section */}
+        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
           <Text style={styles.signOutText}>Sign-out</Text>
         </TouchableOpacity>
       </View>
@@ -38,17 +50,11 @@ function Settings({ onToggleDarkMode, isDarkMode, navigation }) {
   );
 }
 
-
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     alignItems: "center",
     paddingVertical: 20,
-  },
-
-  scrollContent: {
-    paddingVertical: 20,
-    alignItems: "center",
   },
 
   profileSection: {
@@ -127,5 +133,3 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 });
-
-export default Settings;

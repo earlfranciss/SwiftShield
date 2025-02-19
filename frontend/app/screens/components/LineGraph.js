@@ -43,7 +43,7 @@ const LineGraph = () => {
         style={{
           textAlign: "left",
           fontSize: 12,
-          marginLeft: 30,
+          marginLeft: 20,
           color: "#3AED97",
         }}
       >
@@ -58,6 +58,7 @@ const LineGraph = () => {
         style={{
           marginVertical: 8,
           borderRadius: 16,
+          marginLeft: -30,
         }}
         withInnerLines={false} // Removes inner gridlines
         withVerticalLines={false} // Removes vertical gridlines
