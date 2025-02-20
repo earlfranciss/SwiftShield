@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import GradientScreen from "../components/GradientScreen";
+import config from "../../config";
 
 export default function CreateReport({ navigation, route }) {
   const { isDarkMode = false, onToggleDarkMode = () => {} } = route.params || {};
@@ -16,12 +17,51 @@ export default function CreateReport({ navigation, route }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
 
-  const handleSubmit = () => {
-    if (title && description) {
-      Alert.alert("Report Submitted", `Title: ${title}\nDescription: ${description}`);
-      navigation.goBack(); // Navigate back to the Reports page
-    } else {
+  const handleSubmit = async () => {
+    const trimmedTitle = title.trim();
+    const trimmedDescription = description.trim();
+
+    if (!trimmedTitle || !trimmedDescription) {
       Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    try {
+      console.log("Submitting report to:", `${config.BASE_URL}/reports`);
+      console.log("Payload:", { title: trimmedTitle, description: trimmedDescription });
+
+      const response = await fetch(`${config.BASE_URL}/reports`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ title: trimmedTitle, description: trimmedDescription }),
+      });
+
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (jsonError) {
+        throw new Error("Invalid JSON response from server");
+      }
+
+      if (response.ok) {
+        Alert.alert("Submitted", "Report created successfully");
+        setTitle("");
+        setDescription("");
+
+        //Call refreshReports() to update the Reports list
+        if (route.params?.refreshReports) {
+          route.params.refreshReports(); 
+        }
+
+        navigation.goBack();
+      } else {
+        Alert.alert("Error", responseData.message || "Failed to create report");
+      }
+    } catch (error) {
+      console.error("Error creating report:", error);
+      Alert.alert("Error", `Failed to connect to server: ${error.message}`);
     }
   };
 
