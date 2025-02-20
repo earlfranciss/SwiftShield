@@ -30,14 +30,14 @@ with open("../ai-models/pickle/model.pkl", "rb") as file:
 
 # MongoDB connection setup
 client = pymongo.MongoClient(db_connection_string, serverSelectionTimeoutMS=5000)
-db = client.get_database()  # Your database name
-collection = db.get_collection("logs") # Your collection name
+db = client.get_database()  
+collection = db.get_collection("logs") 
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
 CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins
 
-
+# URL Prediction
 @app.route("/", methods=["POST"])
 def index():
     try:
@@ -46,21 +46,21 @@ def index():
         if not data:
             return jsonify({"error": "No data received"}), 400  # Handle empty data
         url = data.get("url", "")
-        #print("URL: ", url)
+        
         if not url:
             return jsonify({"error": "No URL provided"}), 400
 
         # Extract features from the URL
         obj = FeatureExtraction(url)
         x = np.array(obj.getFeaturesList()).reshape(1, 30)
-        #print("X", x)
+    
         # Get predictions
         y_pred = stacked.predict(x)[0]
         y_pro_phishing = stacked.predict_proba(x)[0, 0]
         y_pro_non_phishing = stacked.predict_proba(x)[0, 1]
         prediction = np.int64(y_pred)
         phishing_percentage =  y_pro_phishing * 100
-        #print("Y Pred:", y_pred)
+        
         # Format the response
         pred = {
             "url": url,
@@ -68,7 +68,7 @@ def index():
             "safe_percentage": y_pro_non_phishing * 100,
             "phishing_percentage": phishing_percentage,
         }
-        #print("Pred:", pred)
+        
         # Insert scan result into MongoDB
         detection = {
             "url": url,
@@ -105,5 +105,5 @@ def get_logs():
 
  
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
 
