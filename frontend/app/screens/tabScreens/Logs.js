@@ -28,6 +28,16 @@ export default function Logs() {
   const viewableItems = useSharedValue([]);
   const [activeFilter, setActiveFilter] = useState("recent");
 
+  const filters = [
+    { id: "recent", label: "Recent" },
+    { id: "whitelisted", label: "Whitelisted" },
+    { id: "blacklisted", label: "Blacklisted" },
+    { id: "low", label: "Low" },
+    { id: "medium", label: "Medium" },
+    { id: "high", label: "High" },
+    { id: "critical", label: "Critical" },
+  ];
+
   const handleScan = () => {
     console.log("Scanning URL:", url);
     // Add your URL scanning logic here
@@ -91,7 +101,7 @@ export default function Logs() {
       </View>
 
       {/* Filter Section */}
-      <CarouselFilter onFilterChange={handleFilterChange} />
+      <CarouselFilter filters={filters} onFilterChange={handleFilterChange} />
 
       {/* List Items Section */}
       <View style={styles.listContainer}>

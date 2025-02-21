@@ -9,6 +9,7 @@ import pymongo
 from datetime import datetime, timezone 
 from flask_cors import CORS
 import pytz
+from bson.objectid import ObjectId
 
 
 # Suppress warnings
@@ -42,9 +43,6 @@ reports_collection = db.get_collection("reports")
 app = Flask(__name__)
 app.config["DEBUG"] = True
 CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins
-
-# Set timezone to Philippines (Asia/Manila)
-PH_TZ = pytz.timezone("Asia/Manila")
 
 # Set timezone to Philippines (Asia/Manila)
 PH_TZ = pytz.timezone("Asia/Manila")
@@ -115,45 +113,114 @@ def get_logs():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Route to create a report 
+# Route to create a report
 @app.route("/reports", methods=["POST"])
 def create_report():
-    data = request.json
-    title = data.get("title")
-    description = data.get("description")
+    try:
+        data = request.json
+        title = data.get("title")
+        description = data.get("description")
 
-    if not title or not description:
-        return jsonify({"message": "Title and Description are required"}), 400
+        if not title or not description:
+            return jsonify({"message": "Title and Description are required"}), 400
 
-    report = {
-        "title": title,
-        "description": description,
-        "status": "Pending",
-        "created_at": datetime.now(PH_TZ),  # Proper UTC timestamp
-    }
-    result = reports_collection.insert_one(report)
-    return jsonify({"message": "Report created successfully", "id": str(result.inserted_id)}), 201
+        report = {
+            "title": title,
+            "description": description,
+            "status": "Pending",
+            "created_at": datetime.now(PH_TZ),  # Store with proper timezone
+        }
+        result = reports_collection.insert_one(report)
+
+        return jsonify({"message": "Report created successfully", "id": str(result.inserted_id)}), 201
+
+    except Exception as e:
+        return jsonify({"message": f"Error creating report: {str(e)}"}), 500
+
+# Route to edit/update a report (status & remarks only)
+@app.route("/reports/<report_id>", methods=["PUT"])
+def update_report(report_id):
+    try:
+        print(f"Received Report ID: {report_id}")  # Debugging log
+
+        # Validate if report_id is a valid ObjectId
+        if not ObjectId.is_valid(report_id):
+            return jsonify({"message": "Invalid report ID"}), 400
+
+        data = request.json
+        status = data.get("status")
+        remarks = data.get("remarks", "").strip()
+
+        # Validate status
+        valid_statuses = {"Pending", "In Progress", "Resolved"}
+        if status not in valid_statuses:
+            return jsonify({"message": "Invalid status"}), 400
+
+        if not remarks:
+            return jsonify({"message": "Remarks are required"}), 400
+
+        # Update report in database
+        update_result = reports_collection.update_one(
+            {"_id": ObjectId(report_id)},
+            {
+                "$set": {
+                    "status": status,
+                    "remarks": remarks,
+                    "updated_at": datetime.now(PH_TZ),  # Update timestamp
+                }
+            }
+        )
+
+        if update_result.modified_count == 0:
+            # Check if report exists
+            report_exists = reports_collection.find_one({"_id": ObjectId(report_id)})
+            if not report_exists:
+                return jsonify({"message": "Report not found"}), 404
+            else:
+                return jsonify({"message": "No changes made to report"}), 200
+
+        # Fetch updated report
+        updated_report = reports_collection.find_one({"_id": ObjectId(report_id)})
+
+        if not updated_report:
+            return jsonify({"message": "Error retrieving updated report"}), 500
+
+        # Convert `_id` and timestamps
+        updated_report["_id"] = str(updated_report["_id"])
+        if "created_at" in updated_report:
+            updated_report["created_at"] = updated_report["created_at"].strftime("%Y-%m-%d %H:%M:%S")
+        if "updated_at" in updated_report:
+            updated_report["updated_at"] = updated_report["updated_at"].strftime("%Y-%m-%d %H:%M:%S")
+
+        return jsonify({"message": "Report updated successfully", "report": updated_report}), 200
+
+    except Exception as e:
+        return jsonify({"message": f"Error updating report: {str(e)}"}), 500
 
 # Route to get all reports
 @app.route("/reports", methods=["GET"])
 def get_reports():
-    reports = [
-        {
-            "id": str(report["_id"]),
-            "title": report["title"],
-            "description": report["description"],
-            "status": report["status"],
-            "created_at":report["created_at"].strftime("%Y-%m-%d %H:%M:%S"),
-        }
-        for report in reports_collection.find()
-    ]
+    try:
+        reports_cursor = reports_collection.find()
 
-    reports = list(reports_collection.find({}, {"_id": 0}))  # Ensure timestamps exist
+        reports = []
+        for report in reports_cursor:
+            report_data = {
+                "id": str(report["_id"]),
+                "title": report["title"],
+                "description": report["description"],
+                "status": report["status"],
+                "created_at": report["created_at"].strftime("%Y-%m-%d %H:%M:%S") if "created_at" in report else None,
+            }
+            reports.append(report_data)
 
-    # Sort reports in descending order (newest first)
-    reports.sort(key=lambda x: x["created_at"], reverse=True)
+        # Sort reports in descending order (newest first)
+        reports.sort(key=lambda x: x["created_at"] or "", reverse=True)
 
-    return jsonify(reports), 200
+        return jsonify(reports), 200
+
+    except Exception as e:
+        return jsonify({"message": f"Error retrieving reports: {str(e)}"}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

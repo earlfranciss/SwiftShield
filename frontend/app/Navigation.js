@@ -23,6 +23,8 @@ import Registration from "./screens/Registration";
 import ForgotPassword from "./screens/ForgotPassword";
 import Reports from "./screens/reportsPage/Reports";
 import CreateReport from "./screens/reportsPage/CreateReport";
+import EditReport from "./screens/reportsPage/EditReport";
+
 //Icons
 import { Entypo } from "@expo/vector-icons";
 import Octicons from "@expo/vector-icons/Octicons";
@@ -182,6 +184,7 @@ function MainStack() {
       <Stack.Screen name="Tabs" component={TabGroup} />
       <Stack.Screen name="Reports" component={Reports} />
       <Stack.Screen name="CreateReport" component={CreateReport} />
+      <Stack.Screen name="EditReport" component={EditReport} />
       <Stack.Screen
         name="Notifications"
         component={Notifications}
