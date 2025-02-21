@@ -111,7 +111,7 @@ const ReportItem = ({ item, navigation, refreshReports, onSearch }) => {
 };
 
 // Main Reports Component
-export default function Reports({ navigation, route }) {
+export default function Reports({ navigation, route, onSearch }) {
   const { isDarkMode = false, onToggleDarkMode = () => {} } = route.params || {};
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -120,8 +120,11 @@ export default function Reports({ navigation, route }) {
 
   const handleScan = () => {
     console.log("Searching for:", searchText);
-    if (onSearch) {
+  
+    if (typeof onSearch === "function") {
       onSearch(searchText); // Call the function to filter reports
+    } else {
+      console.warn("onSearch function is not provided.");
     }
   };
 

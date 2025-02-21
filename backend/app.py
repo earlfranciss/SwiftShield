@@ -123,8 +123,11 @@ def create_report():
 
         if not title or not description:
             return jsonify({"message": "Title and Description are required"}), 400
+        
+        report_id = str(ObjectId())  # Generate a unique report ID
 
         report = {
+            "_id": report_id,  # Explicitly store the ID as a string
             "title": title,
             "description": description,
             "status": "Pending",
