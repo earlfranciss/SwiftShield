@@ -6,7 +6,7 @@ from feature import FeatureExtraction
 from dotenv import load_dotenv
 import os
 import pymongo
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask_cors import CORS
 import uuid
 
@@ -46,6 +46,29 @@ app = Flask(__name__)
 app.config["DEBUG"] = True
 CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins
 
+
+def time_ago(scan_time):
+    now = datetime.now()
+    diff = now - scan_time
+
+    seconds = diff.total_seconds()
+    
+    if seconds < 60:
+        return "Just now"
+    elif seconds < 3600:
+        return f"{int(seconds / 60)} mins ago"
+    elif seconds < 86400:
+        return f"{int(seconds / 3600)} hours ago"
+    elif seconds < 604800:
+        return f"{int(seconds / 86400)} days ago"
+    elif seconds < 2592000:  # Approximate 30 days
+        return f"{int(seconds / 604800)} weeks ago"
+    elif seconds < 31536000:  # Approximate 12 months
+        return f"{int(seconds / 2592000)} months ago"
+    else:
+        return f"{int(seconds / 31536000)} years ago"
+    
+    
 # URL Prediction
 @app.route("/", methods=["POST"])
 def index():
@@ -83,7 +106,7 @@ def index():
             "nb_score": float(y_pro_phishing * 0.8),  # Example transformation
             "nlp_score": float(y_pro_non_phishing * 0.7),
             "features": obj.getFeaturesList(),
-            "metadata": {"source": "API request"}
+            "metadata": {"source": "Scan"}
         }
         detection.insert_one(detection_data)  # MongoDB will create the collection if it doesn't exist
         
@@ -115,19 +138,28 @@ def index():
 @app.route("/logs", methods=["GET"])
 def get_logs():
     try:
-        # Fetch logs sorted by timestamp in descending order (most recent first)
-        log_entries = logs.find().sort("probability", pymongo.DESCENDING)  # Sort by probability for severity order
+        # Fetch logs with corresponding detection info, sorted by detection.timestamp (latest first)
+        log_entries = logs.aggregate([
+            {
+                "$lookup": {
+                    "from": "Detection",  # Join with Detection collection
+                    "localField": "detect_id",
+                    "foreignField": "detect_id",
+                    "as": "detection_info"
+                }
+            },
+            { "$unwind": "$detection_info"},{"$sort": {"detection_info.timestamp": pymongo.DESCENDING}}
+        ])
 
         formatted_logs = []
         for log in log_entries:
-            # Fetch the corresponding detection details using detect_id (FK reference)
-            detection_entry = detection.find_one({"detect_id": log["detect_id"]})
-            
+            detection_entry = log["detection_info"]  # Get detection fields
+
             formatted_logs.append({
                 "id": str(log["_id"]),
                 "title": "Phishing Detected" if log["verdict"] == "Phishing" else "Safe Link Verified",
-                "link": f"{detection_entry['url']} - {detection_entry.get('metadata', {}).get('source', 'Scan')}" if detection_entry else "N/A",
-                "time": detection_entry["timestamp"].strftime("%Y-%m-%d %H:%M:%S") if detection_entry and "timestamp" in detection_entry else "N/A",
+                "link": f"{detection_entry['url']} - {detection_entry.get('metadata', {}).get('source', 'Scan')}",
+                "time": time_ago(detection_entry["timestamp"]) if "timestamp" in detection_entry else "N/A",
                 "icon": "suspicious-icon" if log["verdict"] == "Phishing" else "safe-icon",
             })
 
@@ -135,9 +167,8 @@ def get_logs():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
 
-
- 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)
 
