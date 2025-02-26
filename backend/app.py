@@ -8,7 +8,12 @@ import os
 import pymongo
 from datetime import datetime
 from flask_cors import CORS
-
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask_bcrypt import Bcrypt
+from pymongo import MongoClient
+from flask_pymongo import PyMongo
+from dotenv import load_dotenv
+from bson.objectid import ObjectId
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -31,11 +36,13 @@ with open("../ai-models/pickle/model.pkl", "rb") as file:
 # MongoDB connection setup
 client = pymongo.MongoClient(db_connection_string, serverSelectionTimeoutMS=5000)
 db = client.get_database()  # Your database name
-collection = db.get_collection("logs") # Your collection name
+collection = db.get_collection("Logs") # Your collection name
+users_collection = db.get_collection("Users")
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
 CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins
+bcrypt = Bcrypt(app)
 
 
 @app.route("/", methods=["POST"])
@@ -83,27 +90,108 @@ def index():
     except Exception as e:
         print("Error:", str(e))
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/Registration", methods=['POST'])
+def Registration():
+    data = request.json
     
-@app.route("/logs", methods=["GET"])
-def get_logs():
+    email = data.get('email')
+    password = data.get('password')
+    first_name = data.get('firstName')
+    last_name = data.get('lastName')
+    contact_number = data.get('contactNumber')
+
+    # Validate required fields
+    if not email or not password or not first_name or not last_name or not contact_number:
+        return jsonify({"error": "All fields are required"}), 400
+
+    # Validate email format
+    import re
+    email_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+    if not email_pattern.match(email):
+        return jsonify({"error": "Invalid email format"}), 400
+
+    # Validate password strength
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters long"}), 400
+
+    # Check if user already exists
+    existing_user = users_collection.find_one({'email': email})
+    if existing_user:
+        return jsonify({"error": "User with this email already exists"}), 400
+
     try:
-        # Fetch logs sorted by scan_time in descending order (most recent first)
-        logs = collection.find().sort("scan_time", pymongo.DESCENDING)
-        formatted_logs = [
-            {
-                "id": str(log["_id"]),
-                "title": "Phishing Detected" if log["details"] == "Phishing" else "Safe Link Verified",
-                "link": f"{log['url']} - {log.get('source', 'Scan')}",
-                "time": log["scan_time"].strftime("%Y-%m-%d %H:%M:%S"),
-                "icon": "suspicious-icon" if log["details"] == "Phishing" else "safe-icon",
-            }
-            for log in logs
-        ]
-        return jsonify(formatted_logs)
+        # Hash the password
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+
+        # Generate a unique user ID
+        user_id = str(ObjectId())
+
+        # Create user document
+        new_user = {
+            '_id': user_id,
+            'email': email,
+            'password': hashed_password,
+            'firstName': first_name,
+            'lastName': last_name,
+            'contactNumber': contact_number,
+            'created_at': datetime.now(),
+            'last_login': None,
+            'role': 'user',
+            'scans': []
+        }
+
+        # Insert the new user
+        result = users_collection.insert_one(new_user)
+
+        if not result.acknowledged:
+            return jsonify({"error": "Failed to insert user into database"}), 500
+
+        print(f"User registered successfully: {email}")
+
+        return jsonify({
+            "message": "User registered successfully",
+            "userId": user_id,
+            "email": email,
+            "firstName": first_name,
+            "redirect": "/Login"  # 👈 Signal frontend to redirect
+        }), 201
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Registration error: {str(e)}")
+        return jsonify({"error": f"Registration failed: {str(e)}"}), 500
 
- 
+
+@app.route("/Login", methods=['POST'])
+def Login():
+    data = request.json
+
+    email = data.get('email')
+    password = data.get('password')
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    # Check if user exists
+    user = users_collection.find_one({'email': email})
+    if not user:
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    # Verify password
+    if not bcrypt.check_password_hash(user['password'], password):
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    # Update last login time
+    users_collection.update_one({'_id': user['_id']}, {"$set": {"last_login": datetime.now()}})
+
+    return jsonify({
+        "message": "Login successful",
+        "userId": str(user['_id']),
+        "email": user['email'],
+        "firstName": user['firstName']
+    }), 200
+
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
-
+    app.run(host='0.0.0.0', port=5000, debug=True)
+    
