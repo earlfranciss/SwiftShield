@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -7,20 +7,81 @@ import {
   Image, 
   StyleSheet,
   Animated,
-  Easing,
   Modal,
-  Pressable
+  ActivityIndicator
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import GradientScreen from '../components/GradientScreen';
+// import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import config from '../../config';
 
-// Separate component for each notification item
+// Icon mapping for notification types
+const iconMap = {
+  "suspicious-icon": require("../../../assets/images/suspicious-icon.png"),
+  "safe-icon": require("../../../assets/images/safe-icon.png"),
+};
+
+// Function to parse time string in format "YYYY-MM-DD HH:MM:SS"
+const parseTimeString = (timeString) => {
+  try {
+    if (!timeString) return null;
+    
+    // Parse the date string (format: "2025-02-22 16:32:24")
+    const [datePart, timePart] = timeString.split(' ');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hours, minutes, seconds] = timePart.split(':').map(Number);
+    
+    // JavaScript months are 0-indexed, so subtract 1 from month
+    const date = new Date(year, month - 1, day, hours, minutes, seconds);
+    
+    return date.getTime(); // Return timestamp in milliseconds
+  } catch (error) {
+    console.error("Error parsing time string:", error);
+    return null;
+  }
+};
+
+// Helper function to format time
+const formatTimeAgo = (timestamp) => {
+  try {
+    // Check if timestamp is valid
+    if (!timestamp) {
+      return "Unknown time";
+    }
+    
+    // Convert to Date object if it's not already
+    const scanTime = new Date(timestamp);
+    
+    // Check if date is valid
+    if (isNaN(scanTime.getTime())) {
+      return "Unknown time";
+    }
+    
+    const now = new Date();
+    const diffMs = now - scanTime;
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 60) {
+      return `${diffMins} mins. ago`;
+    } else if (diffMins < 1440) {
+      const hours = Math.floor(diffMins / 60);
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else {
+      const days = Math.floor(diffMins / 1440);
+      return `${days} day${days > 1 ? 's' : ''} ago`;
+    }
+  } catch (error) {
+    console.error("Error formatting time:", error);
+    return "Unknown time";
+  }
+};
+
+// Notification Item Component
 const NotificationItem = ({ item, index, onPress }) => {
-  // Create a fade animation for this specific item
   const itemFadeAnim = useRef(new Animated.Value(0)).current;
   
   useEffect(() => {
-    // Staggered animation delay based on index
     const delay = index * 150;
     Animated.timing(itemFadeAnim, {
       toValue: 1,
@@ -30,12 +91,15 @@ const NotificationItem = ({ item, index, onPress }) => {
     }).start();
   }, [index]);
   
+  // Use either url or link property, depending on what's available
+  const displayText = item.url || item.link;
+  
   return (
     <TouchableOpacity onPress={() => onPress(item)}>
       <Animated.View 
         style={[
           styles.notificationCard,
-          item.read && styles.notificationCardRead, // Apply dimmed style if read
+          item.read && styles.notificationCardRead,
           { 
             opacity: itemFadeAnim,
             transform: [{ translateY: itemFadeAnim.interpolate({
@@ -45,26 +109,25 @@ const NotificationItem = ({ item, index, onPress }) => {
           }
         ]}
       >
-        {/* Static icons with no animations */}
         <Image 
-          source={item.image} 
+          source={item.icon === "safe-icon" ? iconMap["safe-icon"] : iconMap["suspicious-icon"]} 
           style={[
             styles.icon,
-            item.tintColor && { tintColor: item.tintColor },
-            item.read && styles.iconRead // Dim the icon if read
+            item.icon === "safe-icon" && { tintColor: "black" },
+            item.read && styles.iconRead
           ]} 
         />
         <Text style={[
           styles.notificationText,
-          item.read && styles.notificationTextRead // Dim the text if read
+          item.read && styles.notificationTextRead
         ]}>
-          {item.message}
+          {displayText}
         </Text>
         <Text style={[
           styles.timeText,
-          item.read && styles.timeTextRead // Dim the time if read
+          item.read && styles.timeTextRead
         ]}>
-          {item.time}
+          {formatTimeAgo(item.timestamp)}
         </Text>
       </Animated.View>
     </TouchableOpacity>
@@ -74,120 +137,135 @@ const NotificationItem = ({ item, index, onPress }) => {
 export default function Notifications({ route, navigation }) {
   const { isDarkMode, onToggleDarkMode } = route.params;
   
-  // Animation values - only keeping fadeAnim
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  
-  // State for modal
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
   
-  // Extended list of notifications with more items to test scrolling
-  // Added read:false to each notification
-  const [notifications, setNotifications] = useState([
-    {
-      id: "1",
-      message: "www.safe.link - SMS",
-      type: "safe",
-      time: "15 mins. ago",
-      image: require("../../../assets/images/safe-icon.png"),
-      tintColor: "black",
-      details: "This link was scanned and determined to be safe. No malicious content was detected.",
-      read: false
-    },
-    {
-      id: "2",
-      message: "www.safe.link - Email",
-      type: "safe",
-      time: "15 mins. ago",
-      image: require("../../../assets/images/safe-icon.png"),
-      tintColor: "black",
-      details: "Email from john.doe@example.com contained safe links. Message passed all security checks.",
-      read: false
-    },
-    {
-      id: "3",
-      message: "www.safe.link - Facebook",
-      type: "safe",
-      time: "15 mins. ago",
-      image: require("../../../assets/images/safe-icon.png"),
-      tintColor: "black",
-      details: "Facebook message containing this link was analyzed and confirmed safe.",
-      read: false
-    },
-    {
-      id: "4",
-      message: "www.malicious.link - SMS",
-      type: "alert",
-      time: "15 mins. ago",
-      image: require("../../../assets/images/suspicious-icon.png"),
-      details: "WARNING: This link was detected as potentially malicious. It may attempt to steal your personal information. The link has been blocked.",
-      read: false
-    },
-    {
-      id: "5",
-      message: "www.malicious.link - Email",
-      type: "alert",
-      time: "15 mins. ago",
-      image: require("../../../assets/images/suspicious-icon.png"),
-      details: "Suspicious email from unknown@suspicious-domain.com contained malicious links. The email has been quarantined.",
-      read: false
-    },
-    // Additional notifications to test scrolling
-    {
-      id: "6",
-      message: "www.safe.link - Twitter",
-      type: "safe",
-      time: "30 mins. ago",
-      image: require("../../../assets/images/safe-icon.png"),
-      tintColor: "black",
-      details: "Twitter direct message link scanned and verified as safe.",
-      read: false
-    },
-    {
-      id: "7",
-      message: "www.malicious.link - Facebook",
-      type: "alert",
-      time: "45 mins. ago",
-      image: require("../../../assets/images/suspicious-icon.png"),
-      details: "Detected potential phishing attempt via Facebook message. This link has been blocked for your safety.",
-      read: false
-    },
-    // More notifications...
-    {
-      id: "8",
-      message: "www.safe.link - Instagram",
-      type: "safe",
-      time: "1 hour ago",
-      image: require("../../../assets/images/safe-icon.png"),
-      tintColor: "black",
-      details: "Instagram message link verified and confirmed safe.",
-      read: false
-    },
-    {
-      id: "9",
-      message: "www.malicious.link - WhatsApp",
-      type: "alert",
-      time: "1 hour ago",
-      image: require("../../../assets/images/suspicious-icon.png"),
-      details: "WhatsApp message contained suspicious link trying to impersonate a banking website. Access has been blocked.",
-      read: false
-    },
-    {
-      id: "10",
-      message: "www.safe.link - LinkedIn",
-      type: "safe",
-      time: "2 hours ago",
-      image: require("../../../assets/images/safe-icon.png"),
-      tintColor: "black",
-      details: "LinkedIn message link scanned and verified as legitimate.",
-      read: false
-    },
-    // ... more notifications as in your original list
-  ]);
+  // In-memory read status storage
+  const readStatusMap = {};
 
-  // Function to handle notification press
-  const handleNotificationPress = (notification) => {
-    // Mark the notification as read
+  const loadReadStatus = async () => {
+    return readStatusMap;
+  };
+
+  const saveReadStatus = async (readStatusObj) => {
+    Object.assign(readStatusMap, readStatusObj);
+  };
+
+  // Add a mock data function with realistic data
+  const getMockNotifications = () => {
+    const now = new Date();
+    return [
+      {
+        id: "1",
+        url: "www.malicious.link - SMS",
+        link: "www.malicious.link - SMS",
+        icon: "suspicious-icon",
+        timestamp: now.getTime() - 15 * 60 * 1000, // 15 minutes ago
+        read: false,
+        details: "WARNING: This link was detected as potentially malicious. It may attempt to steal your personal information."
+      },
+      {
+        id: "2",
+        url: "www.safe.link - Email",
+        link: "www.safe.link - Email",
+        icon: "safe-icon",
+        timestamp: now.getTime() - 3 * 60 * 60 * 1000, // 3 hours ago
+        read: false,
+        details: "This link was scanned and determined to be safe. No malicious content detected."
+      },
+      {
+        id: "3",
+        url: "www.safe.link - Facebook",
+        link: "www.safe.link - Facebook",
+        icon: "safe-icon",
+        timestamp: now.getTime() - 2 * 24 * 60 * 60 * 1000, // 2 days ago
+        read: false,
+        details: "This link was scanned and determined to be safe. No malicious content detected."
+      }
+    ];
+  };
+
+  // Generate appropriate details for notification based on scan result
+  const generateDetails = (log, timestamp) => {
+    const dateString = timestamp ? new Date(timestamp).toLocaleString() : "an unknown time";
+    
+    if (log.icon === "safe-icon") {
+      return `This link was scanned at ${dateString} and determined to be safe. No malicious content detected.`;
+    } else {
+      return `WARNING: This link was detected as potentially malicious at ${dateString}. It may attempt to steal your personal information. Access has been blocked.`;
+    }
+  };
+
+  // Function to fetch logs and convert them to notifications
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      
+      // Check if BASE_URL is defined
+      if (!config || !config.BASE_URL) {
+        console.log("BASE_URL is not defined in config, using mock data");
+        setNotifications(getMockNotifications());
+        return;
+      }
+      
+      console.log("Fetching from URL:", `${config.BASE_URL}/logs`);
+      const response = await fetch(`${config.BASE_URL}/logs`);
+      const data = await response.json();
+      console.log("API Response data:", data);
+      
+      const readStatus = await loadReadStatus();
+      
+      // Check if data is empty or invalid
+      if (!data || !Array.isArray(data) || data.length === 0) {
+        console.log("No data from API, using mock data");
+        setNotifications(getMockNotifications());
+        return;
+      }
+      
+      // Convert logs to notifications format with read status - fixed field mapping
+      const notificationsData = data.map(log => ({
+        ...log,
+        read: readStatus[log.id] || false,
+        url: log.link, // Map 'link' to 'url'
+        timestamp: parseTimeString(log.time), // Parse 'time' string to timestamp
+        details: generateDetails(log, parseTimeString(log.time))
+      }));
+      
+      console.log("Processed notification data:", notificationsData);
+      setNotifications(notificationsData);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      // Use mock data if API fails
+      console.log("API error, using mock data");
+      setNotifications(getMockNotifications());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Re-fetch notifications when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications();
+    }, [])
+  );
+
+  // Debug notifications state updates
+  useEffect(() => {
+    console.log("Notifications state updated:", notifications.length, "items");
+  }, [notifications]);
+
+  // Handle notification press
+  const handleNotificationPress = async (notification) => {
+    // Create updated read status
+    const readStatus = await loadReadStatus();
+    readStatus[notification.id] = true;
+    await saveReadStatus(readStatus);
+    
+    // Update notifications state
     setNotifications(
       notifications.map(item => 
         item.id === notification.id 
@@ -196,23 +274,28 @@ export default function Notifications({ route, navigation }) {
       )
     );
     
-    // Set the selected notification (with read status updated)
-    setSelectedNotification({...notification, read: true});
+    setSelectedNotification({ ...notification, read: true });
     setModalVisible(true);
   };
 
-  // Function to handle notification deletion
-  const handleDeleteNotification = () => {
+  // Handle notification deletion
+  const handleDeleteNotification = async () => {
     if (selectedNotification) {
+      // Update notifications state
       setNotifications(notifications.filter(item => item.id !== selectedNotification.id));
+      
+      // Remove from read status
+      const readStatus = await loadReadStatus();
+      delete readStatus[selectedNotification.id];
+      await saveReadStatus(readStatus);
+      
       setModalVisible(false);
       setSelectedNotification(null);
     }
   };
 
-  // Start animations when component mounts
+  // Start fade-in animation when component mounts
   useEffect(() => {
-    // Fade in animation for the list
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 800,
@@ -225,11 +308,10 @@ export default function Notifications({ route, navigation }) {
       <GradientScreen onToggleDarkMode={onToggleDarkMode} isDarkMode={isDarkMode}>
         <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
 
-          {/* Back Button with subtle animation */}
+          {/* Back Button */}
           <TouchableOpacity 
             style={styles.backButton} 
             onPress={() => {
-              // Animate fade out before navigation
               Animated.timing(fadeAnim, {
                 toValue: 0,
                 duration: 300,
@@ -240,7 +322,7 @@ export default function Notifications({ route, navigation }) {
             <MaterialIcons name="keyboard-arrow-left" size={28} color={isDarkMode ? 'black' : '#3AED97'} />
           </TouchableOpacity>
 
-          {/* Title with slide-in animation */}
+          {/* Title */}
           <Animated.Text 
             style={[
               styles.title, 
@@ -259,21 +341,35 @@ export default function Notifications({ route, navigation }) {
             Notifications
           </Animated.Text>
 
-          {/* Notification List with animated items */}
-          <FlatList
-            data={notifications}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item, index }) => (
-              <NotificationItem 
-                item={item} 
-                index={index}
-                onPress={handleNotificationPress}
-              />
-            )}
-            contentContainerStyle={{ paddingBottom: 20 }}
-            showsVerticalScrollIndicator={true}
-            initialNumToRender={8}
-          />
+          {/* Notification List */}
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#3AED97" />
+              <Text style={styles.loadingText}>Loading notifications...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={notifications}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item, index }) => (
+                <NotificationItem 
+                  item={item} 
+                  index={index}
+                  onPress={handleNotificationPress}
+                />
+              )}
+              contentContainerStyle={{ paddingBottom: 20 }}
+              showsVerticalScrollIndicator={true}
+              initialNumToRender={8}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <MaterialIcons name="notifications-none" size={50} color="#3AED97" />
+                  <Text style={styles.emptyText}>No notifications yet</Text>
+                  <Text style={styles.emptySubText}>Scan some URLs to see notifications here</Text>
+                </View>
+              }
+            />
+          )}
           
           {/* Notification Detail Modal */}
           <Modal
@@ -290,22 +386,28 @@ export default function Notifications({ route, navigation }) {
                   <>
                     <View style={styles.modalHeader}>
                       <Image 
-                        source={selectedNotification.image} 
+                        source={selectedNotification.icon === "safe-icon" ? iconMap["safe-icon"] : iconMap["suspicious-icon"]} 
                         style={[
                           styles.modalIcon,
-                          selectedNotification.tintColor && { tintColor: selectedNotification.tintColor }
+                          selectedNotification.icon === "safe-icon" && { tintColor: "black" }
                         ]} 
                       />
-                      <Text style={styles.modalTitle}>{selectedNotification.message}</Text>
+                      <Text style={styles.modalTitle}>{selectedNotification.url || selectedNotification.link}</Text>
                     </View>
                     
-                    <Text style={styles.modalTime}>{selectedNotification.time}</Text>
+                    <Text style={styles.modalTime}>{formatTimeAgo(selectedNotification.timestamp)}</Text>
                     
                     <View style={styles.modalDivider} />
                     
                     <Text style={styles.modalDetails}>
                       {selectedNotification.details}
                     </Text>
+
+                    {selectedNotification.title && (
+                      <Text style={styles.modalSource}>
+                        Type: {selectedNotification.title}
+                      </Text>
+                    )}
                     
                     <View style={styles.modalButtons}>
                       <TouchableOpacity
@@ -361,16 +463,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     marginVertical: 5,
   },
-  // Dimmed style for read notifications
   notificationCardRead: {
-    backgroundColor: "rgba(58, 237, 151, 0.6)", // Dimmed green background
+    backgroundColor: "rgba(58, 237, 151, 0.6)",
   },
   icon: {
     width: 24,
     height: 24,
     marginRight: 10,
   },
-  // Dimmed icon for read notifications
   iconRead: {
     opacity: 0.6,
   },
@@ -380,7 +480,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#000",
   },
-  // Dimmed text for read notifications
   notificationTextRead: {
     fontWeight: "normal",
     opacity: 0.7,
@@ -389,8 +488,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#000",
   },
-  // Dimmed time text for read notifications
   timeTextRead: {
+    opacity: 0.7,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#3AED97',
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 100,
+  },
+  emptyText: {
+    color: '#3AED97',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 10,
+  },
+  emptySubText: {
+    color: '#3AED97',
+    fontSize: 14,
+    marginTop: 5,
     opacity: 0.7,
   },
   // Modal styles
@@ -454,6 +580,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     lineHeight: 22,
   },
+  modalSource: {
+    color: "#999",
+    fontSize: 12,
+    textAlign: "left",
+    alignSelf: "stretch",
+    marginBottom: 20,
+  },
   modalButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -477,4 +610,4 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
   },
-}); 
+});
