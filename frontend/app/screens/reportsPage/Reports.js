@@ -40,16 +40,18 @@ const ReportItem = ({ item, navigation, refreshReports, onSearch }) => {
       ? "#FFFF00" // Yellow for Pending
       : item.status?.toLowerCase() === "in progress"
       ? "#FFA500" // Orange for In Progress
-      : "#3AED97"; // Green for other statuses
+      : item.status?.toLowerCase() === "resolved"
+      ? "#3AED97" // Orange for In Progress
+      : "#D3D3D3"; // Green for other statuses
 
   const archiveReport = async (reportId) => {
     try {
-      const response = await fetch(`${config.BASE_URL}/reports/${reportId}`, {
+      const response = await fetch(`${config.BASE_URL}/reports/${reportId}/archive`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ status: "Archived", remarks: "Report archived" }),
+        body: JSON.stringify({ remarks: "Report archived" }),
       });
 
       const result = await response.json();
@@ -63,7 +65,7 @@ const ReportItem = ({ item, navigation, refreshReports, onSearch }) => {
       console.error("Error archiving report:", error);
       alert("Error archiving report. Please try again.");
     }
-  };
+};
 
   return (
     <View style={styles.itemContainer}>
@@ -138,9 +140,11 @@ export default function Reports({ navigation, route, onSearch }) {
 
   const fetchReports = async () => {
     try {
-      console.log("Fetching reports from:", `${config.BASE_URL}/reports`);
+      console.log("Fetching reports with filter:", activeFilter);
       setLoading(true);
-      const response = await fetch(`${config.BASE_URL}/reports`);
+
+      // Send filter parameter when fetching reports
+      const response = await fetch(`${config.BASE_URL}/reports?filter=${activeFilter}`);
 
       if (!response.ok) {
         throw new Error(`HTTP status ${response.status}`);
@@ -155,7 +159,7 @@ export default function Reports({ navigation, route, onSearch }) {
     } finally {
       setLoading(false);
     }
-  };
+};
 
   useFocusEffect(
     useCallback(() => {
@@ -166,7 +170,8 @@ export default function Reports({ navigation, route, onSearch }) {
   const handleFilterChange = (filter) => {
     setActiveFilter(filter);
     console.log("Active Filter:", filter);
-  };
+    fetchReports();  // Re-fetch reports whenever filter changes
+};
 
   const filteredReports = reports.filter((report) => {
     if (activeFilter === "recent") return true; // Show all for "Recent"

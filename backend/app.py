@@ -200,11 +200,64 @@ def update_report(report_id):
     except Exception as e:
         return jsonify({"message": f"Error updating report: {str(e)}"}), 500
 
+@app.route("/reports/<report_id>/archive", methods=["PUT"])
+def archive_report(report_id):
+    try:
+        print(f"Received Report ID for Archiving: {report_id}")  # Debugging log
+
+        # Validate ObjectId
+        if not ObjectId.is_valid(report_id):
+            return jsonify({"message": "Invalid report ID"}), 400
+
+        # Fetch the report
+        report = reports_collection.find_one({"_id": ObjectId(report_id)})
+        if not report:
+            return jsonify({"message": "Report not found"}), 404
+
+        # Ensure the report is "Resolved" before archiving
+        if report.get("status") != "Resolved":
+            return jsonify({"message": "Only resolved reports can be archived"}), 400
+
+        # Get remarks from request
+        data = request.json
+        remarks = data.get("remarks", "Report archived").strip()
+        if not remarks:
+            return jsonify({"message": "Remarks are required"}), 400
+
+        # Update only remarks & archive timestamp, keep status as "Resolved"
+        update_result = reports_collection.update_one(
+            {"_id": ObjectId(report_id)},
+            {
+                "$set": {
+                    "remarks": f"{remarks} (Archived)",  # Append "Archived" to remarks
+                    "archived_at": datetime.now(PH_TZ),
+                    "updated_at": datetime.now(PH_TZ),
+                }
+            }
+        )
+
+        if update_result.modified_count == 0:
+            return jsonify({"message": "No changes made to the report"}), 200
+
+        return jsonify({"message": "Report archived successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"message": f"Error archiving report: {str(e)}"}), 500
+
 # Route to get all reports
 @app.route("/reports", methods=["GET"])
 def get_reports():
     try:
-        reports_cursor = reports_collection.find()
+        # Get filter parameter from request (e.g., /reports?filter=archived)
+        report_filter = request.args.get("filter", "").lower()
+
+        # Define query condition
+        if report_filter == "archived":
+            query = {"archived_at": {"$exists": True}}  # Get only archived reports
+        else:
+            query = {"archived_at": {"$exists": False}}  # Get only active reports
+
+        reports_cursor = reports_collection.find(query)
 
         reports = []
         for report in reports_cursor:
@@ -213,6 +266,7 @@ def get_reports():
                 "title": report["title"],
                 "description": report["description"],
                 "status": report["status"],
+                "archived_at": report.get("archived_at"),  # Include archive timestamp if available
                 "created_at": report["created_at"].strftime("%Y-%m-%d %H:%M:%S") if "created_at" in report else None,
             }
             reports.append(report_data)
