@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useFonts } from "expo-font"; // Import the font hook
+import { useFonts } from "expo-font"; 
 import {
   StyleSheet,
   SafeAreaView,
@@ -54,7 +54,7 @@ export default function Home() {
         console.log("Scan Result:", result);
         // Pass the result to Analytics and Logs as needed
       } else {
-        // Handle non-JSON responses (e.g., HTML error page)
+        // Handle  n-JSON responses (e.g., HTML error page)
         console.error("Expected JSON, but got a non-JSON response");
       }
     } catch (error) {
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
   },
 
   powerIcon: {
-    width: 130, // Adjust the size to match the UI
+    width: 130, 
     height: 140,
     resizeMode: "contain",
   },
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 40,
     borderRadius: 8,
-    overflow: "hidden", // Ensures gradient stays rounded
+    overflow: "hidden", 
     marginTop: 10,
     marginBottom: 20,
   },
