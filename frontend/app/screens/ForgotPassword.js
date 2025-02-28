@@ -6,9 +6,11 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import GradientScreen from "../screens/components/GradientScreen"; // Custom component for gradient background
+import GradientScreen from "../screens/components/GradientScreen";
 import { LinearGradient } from "expo-linear-gradient";
 
 export default function ForgotPassword({ navigation }) {
@@ -21,65 +23,86 @@ export default function ForgotPassword({ navigation }) {
   });
 
   if (!fontsLoaded) {
-    return null; // Wait until the font is loaded
+    return null;
   }
 
-  const handleResetLink = () => {
-    console.log(`Reset password email sent to: ${email}`);
-    // Add logic for handling the reset password link
+  const handleResetLink = async () => {
+    if (!email) {
+      alert("Please enter your email address");
+      return;
+    }
+    
+    try {
+      // Here you would add the API call to your backend
+      // For now, we'll simulate it
+      console.log(`Reset password email sent to: ${email}`);
+      alert("Password reset link has been sent to your email");
+      // Navigate back to login after successful submission
+      navigation.navigate("Login");
+    } catch (error) {
+      console.error("Reset password error:", error);
+      alert("Failed to send reset link. Please try again.");
+    }
   };
 
   return (
     <GradientScreen>
-      <View style={styles.container}>
-        {/* Title */}
-        <Text style={styles.title}>SWIFTSHIELD</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.container}>
+          {/* Title */}
+          <Text style={styles.title}>SWIFTSHIELD</Text>
 
-        {/* Instructional Text */}
-        <Text style={styles.subtitle}>Send Reset Password</Text>
-        <Text style={styles.instruction}>
-          Enter your registered email below to receive password reset
-          instructions.
-        </Text>
+          {/* Instructional Text */}
+          <Text style={styles.subtitle}>Send Reset Password Link</Text>
+          <Text style={styles.instruction}>
+            Enter your registered email below to receive password reset
+            instructions.
+          </Text>
 
-        {/* Email Input */}
-        <Text style={styles.textLabel}>Email</Text>
-        <View style={styles.inputContainer}>
-          <Ionicons
-            name="mail-outline"
-            size={20}
-            color="#3AED97"
-            style={styles.genIcon}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="name@email.com"
-            placeholderTextColor="rgba(49, 238, 154, 0.66)"
-            value={email}
-            onChangeText={(text) => setEmail(text)}
-            keyboardType="email-address"
-          />
-        </View>
+          {/* Email Input */}
+          <Text style={styles.textLabel}></Text>
+          <View style={styles.inputContainer}>
+            <Ionicons
+              name="person-outline"
+              size={20}
+              color="#3AED97"
+              style={styles.genIcon}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="rgba(49, 238, 154, 0.66)"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
 
-        {/* Reset Link Button */}
-        <TouchableOpacity style={styles.resetButton} onPress={handleResetLink}>
-          <LinearGradient
-            colors={["#3AED97", "#BCE26E", "#FCDE58"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.gradientButton}
+          {/* Reset Link Button */}
+          <TouchableOpacity style={styles.resetButton} onPress={handleResetLink}>
+            <LinearGradient
+              colors={["#3AED97", "#BCE26E", "#FCDE58"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.gradientButton}
+            >
+              <Text style={styles.resetButtonText}>Send Reset Link</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          {/* Login Link */}
+          <TouchableOpacity 
+            style={styles.loginLink} 
+            onPress={() => navigation.navigate("Login")}
           >
-            <Text style={styles.resetButtonText}>Send Reset Link</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
-        {/* Login Link */}
-        <View style={styles.loginLink}>
-          <TouchableOpacity onPress={() => navigation.navigate("Login")}>
             <Text style={styles.loginLinkText}>Login</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </GradientScreen>
   );
 }
@@ -88,42 +111,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "center",
-    alignItems: "left",
-    paddingHorizontal: 40,
+    alignItems: "center",
+    paddingHorizontal: 30,
   },
   title: {
-    fontSize: 32,
-    fontFamily: "Poppins-ExtraBold", // Apply the Poppins ExtraBold font
+    fontSize: 40,
+    fontFamily: "Poppins-ExtraBold",
     color: "#3AED97",
-    marginBottom: 50,
-    marginLeft: 60,
-    alignItems: "top",
+    marginBottom: 40,
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 18,
-    color: "#31EE9A",
+    color: "#3AED97",
     fontWeight: "bold",
     marginBottom: 10,
-    marginLeft: 75,
+    textAlign: "center",
   },
   instruction: {
     fontSize: 14,
-    color: "#31EE9A",
+    color: "#3AED97",
     marginBottom: 30,
+    textAlign: "center",
   },
   textLabel: {
-    color: "#31EE9A",
+    color: "#3AED97",
     fontSize: 15,
     marginBottom: 5,
+    alignSelf: "flex-start",
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderColor: "#3AED97",
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    borderRadius: 25,
+    paddingHorizontal: 15,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     width: "100%",
     height: 50,
     marginBottom: 20,
@@ -135,14 +159,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   genIcon: {
-    marginLeft: 10,
+    marginLeft: 5,
   },
   resetButton: {
     width: "100%",
     height: 50,
-    borderRadius: 8,
-    overflow: "hidden", // Ensures gradient stays rounded
-    marginTop: 20,
+    borderRadius: 25,
+    overflow: "hidden",
+    marginTop: 15,
     marginBottom: 20,
   },
   gradientButton: {
@@ -152,18 +176,16 @@ const styles = StyleSheet.create({
   },
   resetButtonText: {
     fontSize: 16,
-    fontFamily: "Inter",
-    fontWeight: "800",
-    letterSpacing: 5,
-    color: "#000", // Text color for the button
+    fontWeight: "bold",
+    letterSpacing: 2,
+    color: "#000",
   },
   loginLink: {
     marginTop: 20,
-    alignItems: "center",
   },
   loginLinkText: {
     color: "#3AED97",
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "bold",
   },
 });
