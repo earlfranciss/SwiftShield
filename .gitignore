@@ -48,3 +48,6 @@ Thumbs.db
 *.tsbuildinfo
 
 app-example
+
+
+__pycache__/
