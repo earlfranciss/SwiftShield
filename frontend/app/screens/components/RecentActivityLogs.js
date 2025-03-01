@@ -5,10 +5,6 @@ import { LinearGradient } from "expo-linear-gradient";
 const iconMap = {
   "suspicious-icon": require("../../../assets/images/suspicious-icon.png"),
   "safe-icon": require("../../../assets/images/safe-icon.png"),
-<<<<<<< HEAD
-=======
-  
->>>>>>> master
 };
 
 const RecentActivityLogs = ({ logItem }) => {
@@ -30,7 +26,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 12,
     padding: 10,
+    paddingHorizontal: 20,
     marginBottom: 5,
+    height: 55,
+    
   },
   icon: {
     width: 24,
@@ -39,6 +38,7 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     flex: 1,
+    marginVertical: 10,
   },
   title: {
     fontSize: 14,

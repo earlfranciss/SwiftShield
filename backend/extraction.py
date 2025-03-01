@@ -55,82 +55,49 @@ class FeatureExtraction:
             pass
         
 
-        self.features.append(self.URLLength())
-        self.features.append(self.DomainLength())
-        self.features.append(self.IsDomainIP())
-        self.features.append(self.TLD())
-        self.features.append(self.URLSimilarityIndex())
-        self.features.append(self.CharContinuationRate())
-        self.features.append(self.TLDLegitimateProb())
-        self.features.append(self.URLCharProb())
-        self.features.append(self.TLDLength())
-        
-        self.features.append(self.NoOfSubDomain())
-        self.features.append(self.HasObfuscation())
-        self.features.append(self.NoOfObfuscatedChar())
-        self.features.append(self.ObfuscationRatio())
-        
-        self.features.append(self.NoOfLetterInURL())
-        self.features.append(self.LetterRatioInURL())
-        self.features.append(self.NoOfDigitsInURL())
-        self.features.append(self.DigitRatioInURL())
-        
-        self.features.append(self.NoOfEqualsInURL())
-        self.features.append(self.NoOfQMarkInURL())
-        self.features.append(self.NoOfAmpersandInURL())
-        self.features.append(self.NoOfOtherSpecialCharsInURL())
-        self.features.append(self.SpecialCharRatioInURL())
-        
-        self.features.append(self.IsHTTPS())
-        self.features.append(self.LineOfCode())
-        self.features.append(self.LargestLineLength())
-        self.features.append(self.HasTitle())
-        self.features.append(self.Title())
-        
-        self.features.append(self.DomainTitleMatchScore())
-        self.features.append(self.URLTitleMatchScore())
-        self.features.append(self.HasFavicon())
-        # Insert Robots
-        self.features.append(self.IsResponsive())
-        self.features.append(self.NoOfURLRedirect())
-        self.features.append(self.NoOfSelfRedirect())
-        self.features.append(self.HasDescription())
-        
-        # Insert NoOfPopup
-        self.features.append(self.NoOfiFrame())
-        self.features.append(self.HasExternalFormSubmit())
-        self.features.append(self.HasSocialNet())
-        self.features.append(self.HasSubmitButton())
-        self.features.append(self.HasHiddenFields())
-        self.features.append(self.HasPasswordField())
-        
-        self.features.append(self.Bank())
-        self.features.append(self.Pay())
-        self.features.append(self.Crypto())
-        self.features.append(self.HasCopyrightInfo())
-        self.features.append(self.NoOfImage())
-        self.features.append(self.NoOfCSS())
-        self.features.append(self.NoOfJS())
-        
-        self.features.append(self.NoOfSelfRef())
-        self.features.append(self.NoOfEmptyRef())
-        self.features.append(self.NoOfExternalRef())
-        
-        
-        
-        
-        self.features.append(self.CheckRedirects())
-        self.features.append(self.NoOfExternalRedirects())
-        self.features.append(self.shortURL())
-        self.features.append(self.symbolAt())
-        self.features.append(self.DomainRegLen())
-        self.features.append(self.AgeofDomain())
-        self.features.append(self.RequestURL())
-        self.features.append(self.HasExternalFormSubmit())
-        self.features.append(self.DNSRecording())
-        self.features.append(self.WebsiteTraffic())
-        self.features.append(self.GoogleIndex())
-        self.features.append(self.PageRank())
+        # ✅ Add Features with Exception Handling
+        feature_functions = [
+            self.URLLength, self.DomainLength, self.IsDomainIP, self.TLD,
+            self.URLSimilarityIndex, self.CharContinuationRate, self.TLDLegitimateProb, self.URLCharProb,
+            self.TLDLength, self.NoOfSubDomain, self.HasObfuscation, self.NoOfObfuscatedChar,
+            self.ObfuscationRatio, self.NoOfLetterInURL, self.LetterRatioInURL, self.NoOfDigitsInURL,
+            self.DigitRatioInURL, self.NoOfEqualsInURL, self.NoOfQMarkInURL, self.NoOfAmpersandInURL,
+            self.NoOfOtherSpecialCharsInURL, self.SpecialCharRatioInURL, self.IsHTTPS, self.LineOfCode,
+            self.LargestLineLength, self.HasTitle, self.DomainTitleMatchScore, self.URLTitleMatchScore,
+            self.HasFavicon, self.IsResponsive, self.NoOfURLRedirect, self.NoOfSelfRedirect,
+            self.HasDescription, self.NoOfiFrame, self.HasExternalFormSubmit, self.HasSocialNet,
+            self.HasSubmitButton, self.HasHiddenFields, self.HasPasswordField, self.Bank,
+            self.Pay, self.Crypto, self.HasCopyrightInfo, self.NoOfImage, self.NoOfCSS,
+            self.NoOfJS, self.NoOfSelfRef, self.NoOfEmptyRef, self.NoOfExternalRef,
+            self.CheckRedirects, self.NoOfExternalRedirects, self.shortURL, self.symbolAt,
+            self.DomainRegLen, self.AgeofDomain, self.RequestURL, self.DNSRecording,
+            self.WebsiteTraffic, self.GoogleIndex, self.PageRank, self.LinksPointingToPage,
+            self.StatsReport
+        ]
+
+# ✅ Debugging: Print Features One by One Before Appending
+        for idx, func in enumerate(feature_functions, start=1):
+            try:
+                value = func()
+                self.features.append(value)
+                print(f"✅ Feature {idx}: {func.__name__} -> {value}")  # Print feature name & value
+            except Exception as e:
+                print(f"🚨 Feature {idx} ({func.__name__}) failed: {e}")
+                self.features.append(0)  # Append placeholder if function fails
+
+
+        # ✅ Ensure Exactly 30 Features
+        if len(self.features) < 30:
+            print(f"🚨 Warning: Only {len(self.features)} features extracted, forcing 30.")
+            while len(self.features) < 30:
+                self.features.append(0)  # Add placeholder for missing feature
+
+        try:
+            self.severity = self.classify_severity()
+        except Exception as e:
+            print(f"🚨 Error calculating severity: {e}")
+            self.severity = 0  # Default value
+
 
     # 1. URL Length
     def URLLength(self):
@@ -527,6 +494,36 @@ class FeatureExtraction:
         except:
             return -1  
 
+    def classify_severity(self):
+        """ Classifies the severity level of a URL based on extracted features. """
+        try:
+            severity_score = 0
+            feature_weights = {
+                "shortURL": -2, "symbolAt": -1, "redirecting": -2, "prefixSuffix": -1,
+                "SubDomains": -2, "IsHTTPS": -1, "HasPasswordField": -3,
+                "NoOfExternalRedirects": -3, "PageRank": -2, "GoogleIndex": -3
+            }
+
+            for feature, weight in feature_weights.items():
+                feature_value = getattr(self, feature, lambda: 0)()
+                severity_score += feature_value * weight
+
+            # ✅ Return Numerical Value Instead of String
+            if severity_score > 5:
+                return 1  # LOW risk
+            elif severity_score > 0:
+                return 2  # MEDIUM risk
+            elif severity_score > -5:
+                return 3  # HIGH risk
+            else:
+                return 4  # CRITICAL risk
+        except Exception as e:
+            print(f"🚨 Error in classify_severity(): {e}")
+            return 0  # Ensure a number is always returned
+
+
+
+
     # 61. Google Index (Checks if the website is indexed on Google)
     def GoogleIndex(self):
         try:
@@ -780,36 +777,14 @@ class FeatureExtraction:
             return -1
 
     # 15. LinksInScriptTags
-    def LinksInScriptTags(self):
-        if self.soup is None:
-            return -1  # Default value when the page couldn't be loaded
-        
+    def LinksPointingToPage(self):
         try:
-            i,success = 0,0
-        
-            for link in self.soup.find_all('link', href=True):
-                dots = [x.start(0) for x in re.finditer(r'\.', link['href'])]
-                if self.url in link['href'] or self.domain in link['href'] or len(dots) == 1:
-                    success = success + 1
-                i = i+1
-
-            for script in self.soup.find_all('script', src=True):
-                dots = [x.start(0) for x in re.finditer(r'\.', script['src'])]
-                if self.url in script['src'] or self.domain in script['src'] or len(dots) == 1:
-                    success = success + 1
-                i = i+1
-
-            try:
-                percentage = success / float(i) * 100
-                if percentage < 17.0:
-                    return 1
-                elif((percentage >= 17.0) and (percentage < 81.0)):
-                    return 0
-                else:
-                    return -1
-            except:
-                return 0
-        except:
+            number_of_links = len(re.findall(r"<a href=", self.response.text))
+            result = 1 if number_of_links == 0 else (0 if number_of_links <= 2 else -1)
+            print(f"✅ Debug: LinksPointingToPage() returns {result}")
+            return result
+        except Exception as e:
+            print(f"🚨 Error in LinksPointingToPage(): {e}")
             return -1
 
     # 16. ServerFormHandler
@@ -977,14 +952,13 @@ class FeatureExtraction:
     def LinksPointingToPage(self):
         try:
             number_of_links = len(re.findall(r"<a href=", self.response.text))
-            if number_of_links == 0:
-                return 1
-            elif number_of_links <= 2:
-                return 0
-            else:
-                return -1
-        except:
-            return -1
+            result = 1 if number_of_links == 0 else (0 if number_of_links <= 2 else -1)
+            print(f"✅ Debug: LinksPointingToPage() returns {result}")
+            return result
+        except Exception as e:
+            print(f"🚨 Error in LinksPointingToPage(): {e}")
+        return -1  # Ensure it returns a number
+
 
     # 30. StatsReport
     def StatsReport(self):
@@ -1001,6 +975,31 @@ class FeatureExtraction:
         except:
             return 1
 
-    
     def getFeaturesList(self):
+        print(f"✅ getFeaturesList() Extracted Features: {len(self.features)}")
+        
+        # Add severity as a feature if it's missing
+        if len(self.features) == 29:
+            try:
+                severity_value = self.classify_severity()
+                self.features.append(severity_value)
+                print(f"✅ Added missing Feature (Severity): {severity_value}")
+            except Exception as e:
+                print(f"🚨 Error adding Severity feature: {e}")
+                self.features.append(0)  # Add default value
+        
+        # Ensure exactly 30 features
+        while len(self.features) < 30:
+            print(f"🚨 Warning: Adding placeholder for missing feature {len(self.features) + 1}")
+            self.features.append(0)  # Placeholder to ensure 30 features
+        
+        # If we somehow have more than 30, trim the excess
+        if len(self.features) > 30:
+            print(f"🚨 Warning: Trimming excess features from {len(self.features)} to 30")
+            self.features = self.features[:30]
+        
+        print(f"✅ Final feature count: {len(self.features)}")
         return self.features
+
+    
+

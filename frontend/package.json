@@ -174,7 +174,6 @@
     "execa": "^1.0.0",
     "exit": "^0.1.2",
     "expect": "^29.7.0",
-<<<<<<< HEAD
     "expo": "^52.0.37",
     "expo-asset": "~11.0.4",
     "expo-blur": "~14.0.3",
@@ -185,18 +184,6 @@
     "expo-keep-awake": "~14.0.3",
     "expo-linear-gradient": "~14.0.2",
     "expo-linking": "~7.0.5",
-=======
-    "expo": "^52.0.32",
-    "expo-asset": "^11.0.1",
-    "expo-blur": "^14.0.1",
-    "expo-constants": "^17.0.3",
-    "expo-file-system": "^18.0.4",
-    "expo-font": "^13.0.1",
-    "expo-haptics": "^14.0.0",
-    "expo-keep-awake": "^14.0.1",
-    "expo-linear-gradient": "^14.0.1",
-    "expo-linking": "^7.0.3",
->>>>>>> master
     "expo-modules-autolinking": "^2.0.2",
     "expo-modules-core": "~2.2.2",
     "expo-notifications": "~0.29.13",

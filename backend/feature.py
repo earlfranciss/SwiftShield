@@ -71,7 +71,7 @@ class FeatureExtraction:
         self.features.append(self.WebsiteTraffic())
         self.features.append(self.PageRank())
         self.features.append(self.GoogleIndex())
-        self.features.append(self.LinksPointingToPage())
+        # self.features.append(self.LinksPointingToPage())
         self.features.append(self.StatsReport())
 
     # 1. Using IP
