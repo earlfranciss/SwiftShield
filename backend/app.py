@@ -4,6 +4,8 @@ import pickle
 import uuid
 import os
 import pymongo
+from pytz import timezone
+from pymongo import MongoClient
 from feature import FeatureExtraction
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
@@ -282,6 +284,70 @@ def Login():
         "email": user['email'],
         "firstName": user['firstName']
     }), 200
+
+@app.route("/weekly-threats", methods=["GET"])
+def get_weekly_threats():
+    try:
+        # Get today's date and the start of the last 7 days range
+        today = datetime.now().date()
+        start_date = today - timedelta(days=6)  # **Start from 6 days ago to today**
+        start_date_iso = start_date.strftime("%Y-%m-%dT00:00:00")  # Format for MongoDB query
+
+        # Aggregation pipeline to fetch timestamps, extract day, and filter last 7 days
+        pipeline = [
+            {
+                "$project": {
+                    "localDate": {
+                        "$dateToString": { "format": "%Y-%m-%d", "date": "$timestamp" }
+                    },
+                    "dayOfWeek": {
+                        "$dayOfWeek": "$timestamp"  # Extract correct weekday (1=Sunday, ..., 7=Saturday)
+                    }
+                }
+            },
+            {
+                "$match": {  # Filter only the last 7 days (no older scans)
+                    "localDate": {"$gte": start_date_iso}
+                }
+            },
+            {
+                "$group": {  # Group by day of the week
+                    "_id": "$dayOfWeek",
+                    "threat_count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"_id": 1}}  # Ensure correct order
+        ]
+
+        results = list(detection.aggregate(pipeline))
+
+        # Correct mapping for MongoDB's `$dayOfWeek` (1=Sunday, ..., 7=Saturday)
+        days_map = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"}
+        weekly_data = {days_map[i]: 0 for i in range(1, 8)}  # Initialize all days to 0
+
+        # Populate the dictionary with actual threat counts
+        for entry in results:
+            day_name = days_map.get(entry["_id"], "Unknown")
+            weekly_data[day_name] = entry["threat_count"]
+
+        # Ensure output is sorted by actual **dates**, not just Sunday-Saturday
+        ordered_days = []
+        ordered_values = []
+        for i in range(7):
+            day = (start_date + timedelta(days=i)).strftime("%a")  # Convert to "Mon", "Tue", etc.
+            ordered_days.append(day)
+            ordered_values.append(weekly_data.get(day, 0))  # Default to 0 if no data
+
+        response = {
+            "labels": ordered_days,  # Ordered from last 7 days
+            "data": ordered_values   # Correct threat counts
+        }
+
+        return jsonify(response)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)
