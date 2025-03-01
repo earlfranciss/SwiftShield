@@ -1,20 +1,16 @@
-from flask import Flask, request, jsonify
 import numpy as np
 import warnings
 import pickle
-from feature import FeatureExtraction
-from dotenv import load_dotenv
+import uuid
 import os
 import pymongo
+from feature import FeatureExtraction
+from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from flask_cors import CORS
-
-import uuid
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_bcrypt import Bcrypt
-from pymongo import MongoClient
 from flask_pymongo import PyMongo
-from dotenv import load_dotenv
 from bson.objectid import ObjectId
 
 
@@ -33,7 +29,7 @@ if not db_connection_string or not secret_key:
     raise ValueError("Environment variables DB_CONNECTION_STRING or SECRET_KEY are not set")
 
 # Load the model
-model_path = os.path.join(os.path.dirname(__file__), "../ai-models/pickle/model.pkl")
+model_path = os.path.join(os.path.dirname(__file__), "../ai-models/pickle/stackmodel.pkl")
 with open(model_path, "rb") as file:
     stacked = pickle.load(file)
 
@@ -130,6 +126,7 @@ def index():
             "verdict": "Safe" if y_pred == 1 else "Phishing",
         }
         logs.insert_one(log_data) 
+        log_data["_id"] = str(logs.inserted_id)
         
         # Response
         response = {
@@ -137,8 +134,12 @@ def index():
             "prediction": int(y_pred),
             "safe_percentage": y_pro_non_phishing * 100,
             "phishing_percentage": phishing_percentage,
-            "detect_id": detect_id  # Include for reference
+            "detect_id": detect_id,  # Include for reference
+            "log_details": log_data  # Send log details for the modal
         }
+        
+        
+        
         return jsonify(response)
     
     except Exception as e:
