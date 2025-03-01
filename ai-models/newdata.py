@@ -1,135 +1,203 @@
 import pandas as pd
-import requests
+import aiohttp
+import asyncio
+import socket
 import whois
 import re
+import time
+import sys
+from tqdm import tqdm
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 
-class URLScanner:
-    def __init__(self, url):
-        self.url = url
+# WHOIS cache to avoid duplicate lookups
+whois_cache = {}
+
+# Limit concurrent requests to prevent rate-limiting
+MAX_CONCURRENT_REQUESTS = 10  # Reduced from 20
+semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+
+# Fix for Windows event loop issues
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+async def fetch_url(session, url):
+    """Fetch URL content asynchronously with session pooling"""
+    async with semaphore:
         try:
-            response = requests.get(url, timeout=5)
-            self.soup = BeautifulSoup(response.text, 'html.parser')
-        except:
-            self.soup = None
+            async with session.get(url, timeout=5, allow_redirects=True) as response:
+                html = await response.text()
+                return str(response.url), html  
+        except Exception as e:
+            print(f"❌ Error fetching {url}: {e}")
+            return None, None  
 
-    def CheckRedirects(self):
-        redirect_count = 0
+async def async_whois(domain):
+    """Async WHOIS lookup with timeout handling"""
+    if domain in whois_cache:
+        return whois_cache[domain]
+
+    loop = asyncio.get_running_loop()
+    try:
+        await asyncio.sleep(1)  # Increase delay to reduce stress
+        whois_info = await loop.run_in_executor(None, lambda: whois.whois(domain))
+
+        if whois_info is None:  
+            return None  
+
+        whois_cache[domain] = whois_info
+        return whois_info
+    except Exception as e:
+        print(f"⚠️ WHOIS lookup failed for {domain}: {e}")
+        return None  
+
+async def async_dns_lookup(domain):
+    """Perform DNS lookup asynchronously"""
+    loop = asyncio.get_event_loop()
+    try:
+        await asyncio.sleep(0.3)  
+        await loop.run_in_executor(None, socket.getaddrinfo, domain, None)
+        return 1  
+    except Exception as e:
+        print(f"❌ DNS lookup failed for {domain}: {e}")
+        return -1  
+
+async def analyze_url(url, session):
+    """Process a single URL asynchronously"""
+    final_url, html = await fetch_url(session, url)
+    if not final_url:
+        return {
+            "Redirects": 0,
+            "External Redirects": 0,
+            "Short URL": -1,
+            "Symbol @": -1,
+            "Domain Reg Length": -1,
+            "DNS Recording": -1
+        }
+
+    parsed_url = urlparse(str(final_url))
+    domain = parsed_url.netloc
+    soup = BeautifulSoup(html, "html.parser")
+
+    # WHOIS lookup
+    whois_info = await async_whois(domain)
+
+    # Short URL detection
+    short_url_services = re.compile(r'\b(?:bit\.ly|goo\.gl|tinyurl\.com|t\.co|is\.gd|shrtco\.de|rebrandly\.com|buff\.ly|soo\.gd)\b', re.IGNORECASE)
+    is_short_url = -1 if short_url_services.search(url) else 1
+
+    # Check for "@" in URL
+    has_symbol_at = -1 if "@" in url else 1
+
+    # Domain Registration Length
+    domain_reg_length = -1
+    try:
+        if whois_info:
+            creation_date = whois_info.get("creation_date")
+            expiration_date = whois_info.get("expiration_date")
+
+            if isinstance(creation_date, list):
+                creation_date = creation_date[0]
+            if isinstance(expiration_date, list):
+                expiration_date = expiration_date[0]
+
+            if creation_date and expiration_date:
+                reg_length = (expiration_date - creation_date).days
+                domain_reg_length = 1 if reg_length >= 365 else -1
+    except Exception as e:
+        print(f"Error calculating domain age for {domain}: {e}")
+
+    # Run DNS lookup asynchronously
+    dns_recording = await async_dns_lookup(domain)
+
+    return {
+        "Redirects": 1 if final_url != url else 0,
+        "External Redirects": 1 if urlparse(final_url).netloc != urlparse(url).netloc else 0,
+        "Short URL": is_short_url,
+        "Symbol @": has_symbol_at,
+        "Domain Reg Length": domain_reg_length,
+        "DNS Recording": dns_recording
+    }
+
+async def process_urls_async(url_list):
+    """Process multiple URLs asynchronously using aiohttp"""
+    results = []
+    async with aiohttp.ClientSession() as session:
+        tasks = [asyncio.create_task(analyze_url(url, session)) for url in url_list]
+
         try:
-            response = requests.get(self.url, timeout=5, allow_redirects=True)
-            redirect_count = len(response.history)
-        except:
-            pass
-        return redirect_count
+            for result in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Processing URLs"):
+                results.append(await asyncio.shield(result))  
 
-    def NoOfExternalRedirects(self):
-        external_redirects = 0
-        try:
-            response = requests.get(self.url, timeout=5, allow_redirects=True)
-            final_url = response.url
-            if urlparse(final_url).netloc != urlparse(self.url).netloc:
-                external_redirects = 1
-        except:
-            pass
-        return external_redirects
+        except asyncio.CancelledError:
+            print("Process was cancelled, cleaning up tasks.")
 
-    def shortURL(self):
-        match = re.search(
-            r'\b(?:bit\.ly|goo\.gl|tinyurl\.com|t\.co|is\.gd|shrtco\.de|rebrandly\.com|buff\.ly|soo\.gd)\b', 
-            self.url, re.IGNORECASE)
-        return -1 if match else 1
+        finally:
+            pending = [task for task in tasks if not task.done()]
+            if pending:
+                print(f"Waiting for {len(pending)} pending tasks before exit...")
+                for task in pending:
+                    try:
+                        task.cancel()
+                        await task  # Ensure cancellation is processed
+                    except asyncio.CancelledError:
+                        pass
 
-    def symbolAt(self):
-        return -1 if "@" in self.url else 1
+    return results
 
-    def DomainRegLen(self):
-        try:
-            domain_info = whois.whois(urlparse(self.url).netloc)
-            if domain_info.expiration_date and domain_info.creation_date:
-                reg_length = (domain_info.expiration_date - domain_info.creation_date).days
-                return 1 if reg_length >= 365 else -1
-        except:
-            return -1
-        return -1
-
-    def AgeofDomain(self):
-        try:
-            domain_info = whois.whois(urlparse(self.url).netloc)
-            if domain_info.creation_date and domain_info.updated_date:
-                age = (domain_info.creation_date - domain_info.updated_date).days
-                return 1 if age > 180 else -1
-        except:
-            return -1
-        return -1
-
-    def RequestURL(self):
-        try:
-            external_requests = [
-                img['src'] for img in self.soup.find_all('img', src=True) 
-                if urlparse(img['src']).netloc not in ["", urlparse(self.url).netloc]
-            ]
-            return -1 if len(external_requests) > 0 else 1
-        except:
-            return -1
-
-    def HasExternalFormSubmit(self):
-        try:
-            forms = self.soup.find_all("form", action=True)
-            return -1 if any(urlparse(form["action"]).netloc not in ["", urlparse(self.url).netloc] for form in forms) else 1
-        except:
-            return -1
-
-    def DNSRecording(self):
-        try:
-            domain_info = whois.whois(urlparse(self.url).netloc)
-            return 1 if domain_info.domain_name else -1
-        except:
-            return -1
-
-    def WebsiteTraffic(self):
-        return -1  # Alexa Rank API is deprecated; this can be modified with an alternative
-
-    def GoogleIndex(self):
-        try:
-            search_response = requests.get(f"https://www.google.com/search?q=site:{self.url}", timeout=5)
-            return 1 if "did not match any documents" not in search_response.text else -1
-        except:
-            return -1
-
-    def PageRank(self):
-        return -1  # No reliable public API for PageRank, you may replace with an alternative
-
-def process_urls(input_file, output_file):
+def process_urls(input_file):
+    """Load URLs from CSV, process them asynchronously, and add results as new columns"""
     df = pd.read_csv(input_file)
-    
+
     if 'URL' not in df.columns:
-        print("Error: The Excel file must contain a column named 'URL'.")
+        print("Error: The CSV file must contain a column named 'URL'.")
         return
 
-    results = []
-    for url in df['URL']:
-        scanner = URLScanner(url)
-        results.append({
-            "URL": url,
-            "Redirects": scanner.CheckRedirects(),
-            "External Redirects": scanner.NoOfExternalRedirects(),
-            "Short URL": scanner.shortURL(),
-            "Symbol @": scanner.symbolAt(),
-            "Domain Reg Length": scanner.DomainRegLen(),
-            "Age of Domain": scanner.AgeofDomain(),
-            "Request URL": scanner.RequestURL(),
-            "Has External Form Submit": scanner.HasExternalFormSubmit(),
-            "DNS Recording": scanner.DNSRecording(),
-            "Google Index": scanner.GoogleIndex(),
-            "Page Rank": scanner.PageRank()
-        })
+    url_list = df['URL'].tolist()
 
-    output_df = pd.DataFrame(results)
-    output_df.to_csv(output_file, index=False)
-    print(f"Processing complete. Results saved to {output_file}")
+    # Fix for Windows asyncio issue
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    start_time = time.time()
+
+    try:
+        loop = asyncio.new_event_loop()  
+        asyncio.set_event_loop(loop)
+        results = loop.run_until_complete(process_urls_async(url_list))
+
+    except RuntimeError as e:
+        print(f"AsyncIO RuntimeError: {e}. Retrying with a new loop.")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        results = loop.run_until_complete(process_urls_async(url_list))
+
+    except KeyboardInterrupt:
+        print("Process interrupted. Saving results before exit.")
+        return
+
+    finally:
+        print("Cleanup complete. Ensuring all tasks finished.")
+
+    end_time = time.time()
+    print(f"Processed {len(url_list)} URLs in {end_time - start_time:.2f} seconds.")
+
+    # Convert results to DataFrame
+    results_df = pd.DataFrame(results)
+
+    # Merge results with the original dataframe
+    print("Merging original CSV with new data...")
+    updated_df = pd.concat([df, results_df], axis=1)
+
+    # Ensure data is written to CSV
+    try:
+        updated_df.to_csv(input_file, index=False, mode='w')  
+        print(f"✅ Results saved to {input_file}")
+    except Exception as e:
+        print(f"❌ Error saving file: {e}")
+
+    print(f"Results appended as new columns in {input_file}")
 
 # Run the script
-input_excel = "PhiUSIIL_Phishing_URL_Dataset.csv"  # Replace with your actual file path
-output_excel = "PhiUSIIL_Phishing_URL_Dataset-Updated.csv"
-process_urls(input_excel, output_excel)
+input_csv = "PhiUSIIL_Phishing_URL_Dataset.csv"
+process_urls(input_csv)

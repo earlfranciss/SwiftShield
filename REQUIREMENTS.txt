@@ -1,0 +1,25 @@
+pip install flask_cors
+pip install pymongo
+pip install python-dotenv
+pip install python-dateutil
+pip install whois
+pip install googlesearch-python
+pip install requests
+pip install bs4
+pip install numpy
+pip install flask
+pip install scikit-learn
+pip install flask_socketio
+pip install googlesearch-python 
+pip install tldextract
+pip install flask 
+pip install flask_cors 
+pip install flask_pymongo 
+pip install flask_bcrypt 
+pip install pymongo 
+pip install python-dotenv
+pip install Flask
+pip install Flask-JWT-Extended
+pip install Flask-Bcrypt
+pip install Flask-PyMongo
+pip install pandas aiohttp aiodns python-whois bs4 tqdm
