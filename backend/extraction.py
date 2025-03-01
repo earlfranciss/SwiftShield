@@ -51,39 +51,82 @@ class FeatureExtraction:
             pass
         
 
-        self.features.append(self.UsingIp())
-        self.features.append(self.longUrl())
-        self.features.append(self.shortUrl())
-        self.features.append(self.symbol())
-        self.features.append(self.redirecting())
-        self.features.append(self.prefixSuffix())
-        self.features.append(self.SubDomains())
-        self.features.append(self.Hppts())
-        self.features.append(self.DomainRegLen())
-        self.features.append(self.Favicon())
+        self.features.append(self.URLLength())
+        self.features.append(self.DomainLength())
+        self.features.append(self.IsDomainIP())
+        self.features.append(self.TLD())
+        self.features.append(self.URLSimilarityIndex())
+        self.features.append(self.CharContinuationRate())
+        self.features.append(self.TLDLegitimateProb())
+        self.features.append(self.URLCharProb())
+        self.features.append(self.TLDLength())
         
-
-        self.features.append(self.NonStdPort())
-        self.features.append(self.HTTPSDomainURL())
-        self.features.append(self.RequestURL())
-        self.features.append(self.AnchorURL())
-        self.features.append(self.LinksInScriptTags())
-        self.features.append(self.ServerFormHandler())
-        self.features.append(self.InfoEmail())
-        self.features.append(self.AbnormalURL())
-        self.features.append(self.WebsiteForwarding())
-        self.features.append(self.StatusBarCust())
-
-        self.features.append(self.DisableRightClick())
-        self.features.append(self.UsingPopupWindow())
-        self.features.append(self.IframeRedirection())
+        self.features.append(self.NoOfSubDomain())
+        self.features.append(self.HasObfuscation())
+        self.features.append(self.NoOfObfuscatedChar())
+        self.features.append(self.ObfuscationRatio())
+        
+        self.features.append(self.NoOfLetterInURL())
+        self.features.append(self.LetterRatioInURL())
+        self.features.append(self.NoOfDigitsInURL())
+        self.features.append(self.DigitRatioInURL())
+        
+        self.features.append(self.NoOfEqualsInURL())
+        self.features.append(self.NoOfQMarkInURL())
+        self.features.append(self.NoOfAmpersandInURL())
+        self.features.append(self.NoOfOtherSpecialCharsInURL())
+        self.features.append(self.SpecialCharRatioInURL())
+        
+        self.features.append(self.IsHTTPS())
+        self.features.append(self.LineOfCode())
+        self.features.append(self.LargestLineLength())
+        self.features.append(self.HasTitle())
+        self.features.append(self.Title())
+        
+        self.features.append(self.DomainTitleMatchScore())
+        self.features.append(self.URLTitleMatchScore())
+        self.features.append(self.HasFavicon())
+        # Insert Robots
+        self.features.append(self.IsResponsive())
+        self.features.append(self.NoOfURLRedirect())
+        self.features.append(self.NoOfSelfRedirect())
+        self.features.append(self.HasDescription())
+        
+        # Insert NoOfPopup
+        self.features.append(self.NoOfiFrame())
+        self.features.append(self.HasExternalFormSubmit())
+        self.features.append(self.HasSocialNet())
+        self.features.append(self.HasSubmitButton())
+        self.features.append(self.HasHiddenFields())
+        self.features.append(self.HasPasswordField())
+        
+        self.features.append(self.Bank())
+        self.features.append(self.Pay())
+        self.features.append(self.Crypto())
+        self.features.append(self.HasCopyrightInfo())
+        self.features.append(self.NoOfImage())
+        self.features.append(self.NoOfCSS())
+        self.features.append(self.NoOfJS())
+        
+        self.features.append(self.NoOfSelfRef())
+        self.features.append(self.NoOfEmptyRef())
+        self.features.append(self.NoOfExternalRef())
+        
+        
+        
+        
+        self.features.append(self.CheckRedirects())
+        self.features.append(self.NoOfExternalRedirects())
+        self.features.append(self.shortURL())
+        self.features.append(self.symbolAt())
+        self.features.append(self.DomainRegLen())
         self.features.append(self.AgeofDomain())
+        self.features.append(self.RequestURL())
+        self.features.append(self.HasExternalFormSubmit())
         self.features.append(self.DNSRecording())
         self.features.append(self.WebsiteTraffic())
-        self.features.append(self.PageRank())
         self.features.append(self.GoogleIndex())
-        self.features.append(self.LinksPointingToPage())
-        self.features.append(self.StatsReport())
+        self.features.append(self.PageRank())
 
     # 1. URL Length
     def URLLength(self):

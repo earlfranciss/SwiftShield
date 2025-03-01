@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useFonts } from "expo-font"; // Import the font hook
+import { useFonts } from "expo-font"; 
 import {
   StyleSheet,
   SafeAreaView,
@@ -11,9 +11,13 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import config from "../../config";
+import DetailsModal from '../components/DetailsModal';
+
 
 export default function Home() {
   const [url, setUrl] = useState("");
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedLog, setSelectedLog] = useState(null);
 
   // Load the font
   const [fontsLoaded] = useFonts({
@@ -21,45 +25,54 @@ export default function Home() {
     "Poppins-ExtraBold": require("../../../assets/fonts/Poppins-ExtraBold.ttf"),
   });
 
-
   if (!fontsLoaded) {
     return null; // Wait until the font is loaded
   }
 
+  
   const handleScan = async () => {
     try {
-
       const response = await fetch(`${config.BASE_URL}`, {
         method: 'POST',
-
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ url }),
       });
-
-
+  
       if (!response.ok) {
         throw new Error(
           `Backend error: ${response.status} ${response.statusText}`
         );
       }
-
-      // Check if the response is in JSON format before attempting to parse
-      if (
-        response.ok &&
-        response.headers.get("Content-Type").includes("application/json")
-      ) {
-        const result = await response.json();
-        console.log("Scan Result:", result);
-        // Pass the result to Analytics and Logs as needed
-      } else {
-        // Handle non-JSON responses (e.g., HTML error page)
-        console.error("Expected JSON, but got a non-JSON response");
+  
+      const data = await response.json(); // Read JSON response ONCE
+  
+      if (data.error) {
+        console.error("Error:", data.error);
+        return;
       }
+  
+      console.log("Scan Result:", data);
+  
+      // Show DetailsModal automatically for the new log
+      showModal(data.log_details);
+  
     } catch (error) {
       console.error("Error scanning URL:", error);
     }
+  };
+  
+
+
+  const showModal = (log) => {
+    setSelectedLog(log);
+    setModalVisible(true);
+  };
+  
+  const closeModal = () => {
+    setModalVisible(false);
+    setSelectedLog(null);
   };
 
   return (
@@ -95,6 +108,12 @@ export default function Home() {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      <DetailsModal 
+        visible={modalVisible}
+        onClose={closeModal}
+        logDetails={selectedLog} // Pass the selected log details to the modal
+      />
     </SafeAreaView>
   );
 }
@@ -113,7 +132,7 @@ const styles = StyleSheet.create({
   },
 
   powerIcon: {
-    width: 130, // Adjust the size to match the UI
+    width: 130, 
     height: 140,
     resizeMode: "contain",
   },
@@ -162,7 +181,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 40,
     borderRadius: 8,
-    overflow: "hidden", // Ensures gradient stays rounded
+    overflow: "hidden", 
     marginTop: 10,
     marginBottom: 20,
   },

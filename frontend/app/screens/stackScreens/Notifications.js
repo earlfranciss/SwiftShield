@@ -82,10 +82,10 @@ const NotificationItem = ({ item, index, onPress }) => {
   const itemFadeAnim = useRef(new Animated.Value(0)).current;
   
   useEffect(() => {
-    const delay = index * 150;
+    const delay = index * 50;
     Animated.timing(itemFadeAnim, {
       toValue: 1,
-      duration: 500,
+      duration: 700,
       delay,
       useNativeDriver: true,
     }).start();
