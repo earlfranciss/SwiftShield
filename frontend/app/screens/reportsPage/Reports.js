@@ -1,30 +1,23 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   TextInput,
-  StyleSheet,
   TouchableOpacity,
   FlatList,
-  Alert,
   ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Image,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import GradientScreen from "../components/GradientScreen";
 import CarouselFilter from "../components/CarouselFilter";
-import { useFocusEffect } from "@react-navigation/native";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import ReportDetails from "./ReportDetails"; // Import modal component
 import config from "../../config";
 
-
 // Report Item Component
-const ReportItem = ({ item, navigation, refreshReports, onSearch }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  const toggleDropdown = () => {
-    setIsExpanded(!isExpanded);
-  };
-
+const ReportItem = ({ item, openReportModal }) => {
   const formattedDate = new Date(item.created_at).toLocaleString("en-US", {
     timeZone: "Asia/Manila",
     year: "numeric",
@@ -35,101 +28,49 @@ const ReportItem = ({ item, navigation, refreshReports, onSearch }) => {
     hour12: true,
   });
 
+  const iconMap = {
+    "pending": require("../../../assets/images/pending.png"),
+    "in progress": require("../../../assets/images/in progress.png"),
+    "resolved": require("../../../assets/images/resolved.png"),
+    "archived": require("../../../assets/images/resolved.png"),
+  };
+
   const cardBackgroundColor =
     item.status?.toLowerCase() === "pending"
-      ? "#FFFF00" // Yellow for Pending
+      ? "#F2F5A1" // Yellow for Pending
       : item.status?.toLowerCase() === "in progress"
-      ? "#FFA500" // Orange for In Progress
+      ? "#FAB47E" // Orange for In Progress
       : item.status?.toLowerCase() === "resolved"
-      ? "#3AED97" // Orange for In Progress
-      : "#D3D3D3"; // Green for other statuses
-
-  const archiveReport = async (reportId) => {
-    try {
-      const response = await fetch(`${config.BASE_URL}/reports/${reportId}/archive`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ remarks: "Report archived" }),
-      });
-
-      const result = await response.json();
-      if (response.ok) {
-        alert("Report archived successfully!");
-        refreshReports();
-      } else {
-        alert(result.message || "Failed to archive report.");
-      }
-    } catch (error) {
-      console.error("Error archiving report:", error);
-      alert("Error archiving report. Please try again.");
-    }
-};
+      ? "#3AED97" // Green for Resolved
+      : "#D3D3D3"; // Gray for Other Statuses
 
   return (
-    <View style={styles.itemContainer}>
-      {/* Report Card */}
-      <TouchableOpacity onPress={toggleDropdown}>
-        <View style={[styles.reportCard, { backgroundColor: cardBackgroundColor }]}>
-          <View>
-            <Text style={styles.reportTitle}>{item.title}</Text>
-            <Text style={styles.reportStatus}>{item.status}</Text>
-          </View>
-          <Text style={styles.reportDate}>{formattedDate}</Text>
+    <TouchableOpacity onPress={() => openReportModal(item)}>
+      <View style={[styles.reportCard, { backgroundColor: cardBackgroundColor }]}>
+        <Image source={iconMap[item.status?.toLowerCase()]} style={styles.statusIcon} />
+        <View>
+          <Text style={styles.reportTitle}>{item.title}</Text>
+          <Text style={styles.reportStatus}>{item.status}</Text>
         </View>
-      </TouchableOpacity>
-
-      {/* Dropdown - Only shown when isExpanded is true */}
-      {isExpanded && (
-        <View style={styles.dropdown}>
-          <TouchableOpacity
-            style={styles.dropdownItem}
-            onPress={() => {
-              setIsExpanded(false);
-              navigation.navigate("EditReport", { report: item, refreshReports });
-            }}
-          >
-            <View style={styles.dropdownContainer}>
-              <Text style={styles.dropdownText}>Edit</Text>
-            </View>
-          </TouchableOpacity>
-        
-          <TouchableOpacity
-            style={styles.dropdownItem}
-            onPress={() => {
-              setIsExpanded(false);
-              archiveReport(item.id);
-            }}
-          >
-            <View style={styles.dropdownContainer}>
-              <Text style={styles.dropdownText}>Archive</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
+        <Text style={styles.reportDate}>{formattedDate}</Text>
+      </View>
+    </TouchableOpacity>
   );
 };
 
 // Main Reports Component
-export default function Reports({ navigation, route, onSearch }) {
+export default function Reports({ navigation, route }) {
   const { isDarkMode = false, onToggleDarkMode = () => {} } = route.params || {};
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("recent");
-  const [searchText, setSearchText] = useState(""); // Define state correctly
+  const [searchText, setSearchText] = useState("");
 
-  const handleScan = () => {
-    console.log("Searching for:", searchText);
-  
-    if (typeof onSearch === "function") {
-      onSearch(searchText); // Call the function to filter reports
-    } else {
-      console.warn("onSearch function is not provided.");
-    }
-  };
+  // Modal state
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
 
+  // filter 
   const filters = [
     { id: "recent", label: "Recent" },
     { id: "pending", label: "Pending" },
@@ -138,40 +79,45 @@ export default function Reports({ navigation, route, onSearch }) {
     { id: "archived", label: "Archived" },
   ];
 
-  const fetchReports = async () => {
+  const handleFilterChange = (filter) => {
+    if (activeFilter !== filter) {
+      setActiveFilter(filter); // Update active filter
+      fetchReports(filter); // Fetch reports immediately
+    }
+  };
+
+  useEffect(() => {
+    fetchReports(activeFilter);
+  }, [activeFilter]);
+
+  const fetchReports = async (filter) => {
     try {
-      console.log("Fetching reports with filter:", activeFilter);
+      console.log("Fetching reports with filter:", filter); // Debugging log
       setLoading(true);
-
-      // Send filter parameter when fetching reports
-      const response = await fetch(`${config.BASE_URL}/reports?filter=${activeFilter}`);
-
+  
+      const response = await fetch(`${config.BASE_URL}/reports?filter=${filter}`);
+  
       if (!response.ok) {
         throw new Error(`HTTP status ${response.status}`);
       }
-
+  
       let data = await response.json();
       data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      setReports(data);
+  
+      setReports(data); // Update reports list based on filter
     } catch (error) {
       console.error("Error fetching reports:", error);
       Alert.alert("Error", `Failed to fetch reports: ${error.message}`);
     } finally {
       setLoading(false);
     }
-};
+  };
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchReports();
-    }, [])
-  );
-
-  const handleFilterChange = (filter) => {
-    setActiveFilter(filter);
-    console.log("Active Filter:", filter);
-    fetchReports();  // Re-fetch reports whenever filter changes
-};
+  // Open modal with selected report
+  const openReportModal = (report) => {
+    setSelectedReport(report);
+    setModalVisible(true);
+  };
 
   const filteredReports = reports.filter((report) => {
     if (activeFilter === "recent") return true; // Show all for "Recent"
@@ -186,7 +132,7 @@ export default function Reports({ navigation, route, onSearch }) {
             <TouchableOpacity onPress={() => navigation.goBack()}>
               <MaterialIcons name="keyboard-arrow-left" size={28} color="#3AED97" />
             </TouchableOpacity>
-              <Text style={styles.headerTitle}>Reports</Text>
+            <Text style={styles.headerTitle}>Reports</Text>
             <TouchableOpacity
               onPress={() =>
                 navigation.navigate("CreateReport", {
@@ -200,22 +146,22 @@ export default function Reports({ navigation, route, onSearch }) {
             </TouchableOpacity>
           </View>
 
-           {/* Search Section */}
-           <View>
-              <Text style={styles.label}>Search:</Text>
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Search report"
-                  placeholderTextColor="#6c757d"
-                  onChangeText={(text) => setSearchText(text)}
-                  value={searchText}
-                />
-                <TouchableOpacity onPress={handleScan} style={styles.iconWrapper}>
-                  <Icon name="search" size={24} color="#585757" />
-                </TouchableOpacity>
-              </View>
+          {/* Search Section */}
+          <View>
+            <Text style={styles.label}>Search:</Text>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Search report"
+                placeholderTextColor="#6c757d"
+                onChangeText={(text) => setSearchText(text)}
+                value={searchText}
+              />
+              <TouchableOpacity onPress={() => console.log("Searching:", searchText)} style={styles.iconWrapper}>
+                <MaterialIcons name="search" size={24} color="#585757" />
+              </TouchableOpacity>
             </View>
+          </View>
 
           {/* Filter Section */}
           <CarouselFilter filters={filters} onFilterChange={handleFilterChange} />
@@ -224,13 +170,9 @@ export default function Reports({ navigation, route, onSearch }) {
             <ActivityIndicator size="large" color="#0000ff" />
           ) : (
             <FlatList
-              data={filteredReports}
+              data={filteredReports} // Use updated reports list
               renderItem={({ item }) => (
-                <ReportItem
-                  item={item}
-                  navigation={navigation}
-                  refreshReports={fetchReports}
-                />
+                <ReportItem item={item} openReportModal={() => openReportModal(item)} />
               )}
               keyExtractor={(item, index) => (item._id ? item._id.toString() : `report-${index}`)}
               contentContainerStyle={styles.reportList}
@@ -242,6 +184,15 @@ export default function Reports({ navigation, route, onSearch }) {
             />
           )}
         </View>
+
+        {/* 🔹 Report Details Modal */}
+        <ReportDetails
+          visible={modalVisible}
+          report={selectedReport}
+          onClose={() => setModalVisible(false)}
+          navigation={navigation}
+          refreshReports={() => fetchReports(activeFilter)}
+        />
       </GradientScreen>
     </View>
   );
@@ -272,52 +223,34 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   reportCard: { 
-    padding: 15, 
-    borderRadius: 10, 
-    flexDirection: "row", 
-    justifyContent: "space-between" 
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 10,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    marginVertical: 5,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   reportTitle: { 
     fontSize: 16, 
     fontWeight: "bold" 
   },
   reportStatus: { 
-    fontSize: 14, color: "gray" 
-  },
-  reportDate: { 
     fontSize: 14, 
     color: "gray" 
   },
-  dropdown: {
-    backgroundColor: "#ffffff",
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-    marginHorizontal: 15,
-    marginBottom: 10,
-    marginTop: 5,
+  reportDate: { 
+    fontSize: 12,
+    color: "#444",
+    marginLeft: "auto", 
   },
-  dropdownItem: {
-    paddingVertical: 2,
-  },
-  dropdownContainer: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: 5,
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  dropdownText: {
-    fontSize: 14,
-    color: "#000",
-    fontWeight: "bold",
+  statusIcon: {
+    width: 40, // Updated width
+    height: 40, // Updated height
+    marginRight: 10,
   },
   emptyText: { 
     fontSize: 16, 

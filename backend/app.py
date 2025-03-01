@@ -38,7 +38,7 @@ with open("../ai-models/pickle/model.pkl", "rb") as file:
 client = pymongo.MongoClient(db_connection_string, serverSelectionTimeoutMS=5000)
 db = client.get_database()  
 collection = db.get_collection("logs") 
-reports_collection = db.get_collection("reports")
+reports_collection = db.get_collection("Reports")
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
@@ -124,7 +124,7 @@ def create_report():
         if not title or not description:
             return jsonify({"message": "Title and Description are required"}), 400
         
-        report_id = str(ObjectId())  # Generate a unique report ID
+        report_id = ObjectId()  
 
         report = {
             "_id": report_id,  # Explicitly store the ID as a string
@@ -200,6 +200,7 @@ def update_report(report_id):
     except Exception as e:
         return jsonify({"message": f"Error updating report: {str(e)}"}), 500
 
+# Archive report
 @app.route("/reports/<report_id>/archive", methods=["PUT"])
 def archive_report(report_id):
     try:
@@ -214,22 +215,32 @@ def archive_report(report_id):
         if not report:
             return jsonify({"message": "Report not found"}), 404
 
+        # Check if the report is already archived
+        if report.get("status") == "Archived":
+            return jsonify({"message": "Report is already archived"}), 400
+
         # Ensure the report is "Resolved" before archiving
         if report.get("status") != "Resolved":
             return jsonify({"message": "Only resolved reports can be archived"}), 400
 
         # Get remarks from request
         data = request.json
-        remarks = data.get("remarks", "Report archived").strip()
-        if not remarks:
+        new_remarks = data.get("remarks", "Report archived").strip()
+
+        if not new_remarks:
             return jsonify({"message": "Remarks are required"}), 400
 
-        # Update only remarks & archive timestamp, keep status as "Resolved"
+        # Preserve existing remarks and append new remarks
+        existing_remarks = report.get("remarks", "").strip()
+        updated_remarks = f"{existing_remarks} | {new_remarks} (Archived)".strip()
+
+        # Update the report: Change status to "Archived" and add archive timestamp
         update_result = reports_collection.update_one(
             {"_id": ObjectId(report_id)},
             {
                 "$set": {
-                    "remarks": f"{remarks} (Archived)",  # Append "Archived" to remarks
+                    "status": "Archived",  # Change status
+                    "remarks": updated_remarks,
                     "archived_at": datetime.now(PH_TZ),
                     "updated_at": datetime.now(PH_TZ),
                 }
@@ -239,7 +250,7 @@ def archive_report(report_id):
         if update_result.modified_count == 0:
             return jsonify({"message": "No changes made to the report"}), 200
 
-        return jsonify({"message": "Report archived successfully"}), 200
+        return jsonify({"message": "Report archived successfully", "status": "Archived"}), 200
 
     except Exception as e:
         return jsonify({"message": f"Error archiving report: {str(e)}"}), 500
@@ -248,14 +259,19 @@ def archive_report(report_id):
 @app.route("/reports", methods=["GET"])
 def get_reports():
     try:
-        # Get filter parameter from request (e.g., /reports?filter=archived)
+        # Get filter and search parameters from request
         report_filter = request.args.get("filter", "").lower()
+        search_query = request.args.get("search", "").strip().lower()
 
-        # Define query condition
+        # Define query condition for filtering archived and active reports
         if report_filter == "archived":
             query = {"archived_at": {"$exists": True}}  # Get only archived reports
         else:
             query = {"archived_at": {"$exists": False}}  # Get only active reports
+
+        # Apply search query if provided
+        if search_query:
+            query["title"] = {"$regex": search_query, "$options": "i"}  # Case-insensitive search
 
         reports_cursor = reports_collection.find(query)
 

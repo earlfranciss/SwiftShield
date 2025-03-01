@@ -29,53 +29,69 @@ export default function EditReport({ navigation, route }) {
       return;
     }
 
-    setIsSubmitting(true);
-    
-    // Determine which ID field to use (some APIs return _id, others return id)
-    const reportId = report._id || report.id;
-    
-    if (!reportId) {
-      Alert.alert("Error", "Report ID not found");
-      setIsSubmitting(false);
-      return;
-    }
-    
-    console.log("Report object:", report);
-    console.log("Updating report:", { reportId, status, remarks });
-
-    try {
-      const response = await fetch(`${config.BASE_URL}/reports/${reportId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
+    // Show confirmation prompt before updating
+    Alert.alert(
+      "Confirm Update",
+      "Are you sure you want to update this report?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
         },
-        body: JSON.stringify({ status, remarks }),
-      });
+        {
+          text: "Update",
+          onPress: async () => {
+            setIsSubmitting(true);
+            
+            // Determine which ID field to use (some APIs return _id, others return id)
+            const reportId = report._id || report.id;
+            
+            if (!reportId) {
+              Alert.alert("Error", "Report ID not found");
+              setIsSubmitting(false);
+              return;
+            }
+            
+            console.log("Report object:", report);
+            console.log("Updating report:", { reportId, status, remarks });
 
-      const responseData = await response.json();
-      
-      if (response.ok) {
-        Alert.alert("Success", "Report updated successfully", [
-          { 
-            text: "OK", 
-            onPress: () => {
-              // Call refreshReports() to update the Reports list if available
-              if (route.params?.refreshReports) {
-                route.params.refreshReports(); 
+            try {
+              const response = await fetch(`${config.BASE_URL}/reports/${reportId}`, {
+                method: "PUT",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ status, remarks }),
+              });
+
+              const responseData = await response.json();
+              
+              if (response.ok) {
+                Alert.alert("Success", "Report updated successfully", [
+                  { 
+                    text: "OK", 
+                    onPress: () => {
+                      // Call refreshReports() to update the Reports list if available
+                      if (route.params?.refreshReports) {
+                        route.params.refreshReports(); 
+                      }
+                      navigation.goBack();
+                    }
+                  },
+                ]);
+              } else {
+                Alert.alert("Error", responseData.message || "Failed to update report");
               }
-              navigation.goBack();
+            } catch (error) {
+              console.error("Error updating report:", error);
+              Alert.alert("Error", `Failed to connect to server: ${error.message}`);
+            } finally {
+              setIsSubmitting(false);
             }
           },
-        ]);
-      } else {
-        Alert.alert("Error", responseData.message || "Failed to update report");
-      }
-    } catch (error) {
-      console.error("Error updating report:", error);
-      Alert.alert("Error", `Failed to connect to server: ${error.message}`);
-    } finally {
-      setIsSubmitting(false);
-    }
+        },
+      ]
+    );
   };
 
   return (

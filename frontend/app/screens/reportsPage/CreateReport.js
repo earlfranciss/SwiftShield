@@ -26,43 +26,59 @@ export default function CreateReport({ navigation, route }) {
       return;
     }
 
-    try {
-      console.log("Submitting report to:", `${config.BASE_URL}/reports`);
-      console.log("Payload:", { title: trimmedTitle, description: trimmedDescription });
-
-      const response = await fetch(`${config.BASE_URL}/reports`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+    // Show confirmation prompt before submission
+    Alert.alert(
+      "Confirm Submission",
+      "This report will now be submitted.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
         },
-        body: JSON.stringify({ title: trimmedTitle, description: trimmedDescription }),
-      });
+        {
+          text: "Submit",
+          onPress: async () => {
+            try {
+              console.log("Submitting report to:", `${config.BASE_URL}/reports`);
+              console.log("Payload:", { title: trimmedTitle, description: trimmedDescription });
 
-      let responseData;
-      try {
-        responseData = await response.json();
-      } catch (jsonError) {
-        throw new Error("Invalid JSON response from server");
-      }
+              const response = await fetch(`${config.BASE_URL}/reports`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ title: trimmedTitle, description: trimmedDescription }),
+              });
 
-      if (response.ok) {
-        Alert.alert("Submitted", "Report created successfully");
-        setTitle("");
-        setDescription("");
+              let responseData;
+              try {
+                responseData = await response.json();
+              } catch (jsonError) {
+                throw new Error("Invalid JSON response from server");
+              }
 
-        //Call refreshReports() to update the Reports list
-        if (route.params?.refreshReports) {
-          route.params.refreshReports(); 
-        }
+              if (response.ok) {
+                Alert.alert("Submitted", "Report created successfully");
+                setTitle("");
+                setDescription("");
 
-        navigation.goBack();
-      } else {
-        Alert.alert("Error", responseData.message || "Failed to create report");
-      }
-    } catch (error) {
-      console.error("Error creating report:", error);
-      Alert.alert("Error", `Failed to connect to server: ${error.message}`);
-    }
+                // Call refreshReports() to update the Reports list
+                if (route.params?.refreshReports) {
+                  route.params.refreshReports(); 
+                }
+
+                navigation.goBack();
+              } else {
+                Alert.alert("Error", responseData.message || "Failed to create report");
+              }
+            } catch (error) {
+              console.error("Error creating report:", error);
+              Alert.alert("Error", `Failed to connect to server: ${error.message}`);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
