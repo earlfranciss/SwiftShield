@@ -5,6 +5,10 @@ import { LinearGradient } from "expo-linear-gradient";
 const iconMap = {
   "suspicious-icon": require("../../../assets/images/suspicious-icon.png"),
   "safe-icon": require("../../../assets/images/safe-icon.png"),
+<<<<<<< HEAD
+=======
+  
+>>>>>>> master
 };
 
 const RecentActivityLogs = ({ logItem }) => {

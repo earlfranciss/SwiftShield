@@ -1,15 +1,20 @@
 import React, { useState } from "react";
-import { useFonts } from "expo-font"; // Import the font hook
+import { useFonts } from "expo-font";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from "react-native";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
-import GradientScreen from "../screens/components/GradientScreen"; // Custom component for gradient background
+import GradientScreen from "../screens/components/GradientScreen";
 import { LinearGradient } from "expo-linear-gradient";
+import config from "../config";
+
 
 export default function Registration({ navigation }) {
   const [firstName, setFirstName] = useState("");
@@ -19,180 +24,196 @@ export default function Registration({ navigation }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] =
-    useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
 
-  // Load the font
+  // Load the fonts
   const [fontsLoaded] = useFonts({
     Inter: require("../../assets/fonts/Inter-Italic-VariableFont_opsz,wght.ttf"),
     "Poppins-ExtraBold": require("../../assets/fonts/Poppins-ExtraBold.ttf"),
   });
 
   if (!fontsLoaded) {
-    return null; // Wait until the font is loaded
+    return null;
   }
 
-  const handleRegister = () => {
-    console.log(
-      `First Name: ${firstName}, Last Name: ${lastName}, Email: ${email}, Contact: ${contactNumber}, Password: ${password}, Confirm Password: ${confirmPassword}`
-    );
-    navigation.replace("Tabs");
+  const handleRegister = async () => {
+    if (!firstName || !lastName || !email || !contactNumber || !password || !confirmPassword) {
+      alert("Please fill in all fields");
+      return;
+    }
+    
+    if (password !== confirmPassword) {
+      alert("Passwords do not match");
+      return;
+    }
+  
+    console.log("API Base URL:", config.BASE_URL);
+    console.log("Sending registration data:", { firstName, lastName, email, contactNumber, password });
+  
+    try {
+      const response = await fetch(`${config.BASE_URL}/Registration`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          email,
+          contactNumber,
+          password,
+        }),
+      });
+  
+      let data;
+      try {
+        data = await response.json();
+      } catch (error) {
+        console.error("Failed to parse response:", error);
+        alert("Invalid server response.");
+        return;
+      }
+  
+      if (response.ok) {
+        console.log("Registration successful:", data);
+        alert("Registration successful! Please log in.");
+        navigation.navigate("Login");
+      } else {
+        alert(data.error || "Registration failed");
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      alert("Network error.Please try again. ");
+    }
   };
+  
 
   return (
     <GradientScreen>
-      <View style={styles.container}>
-        {/* Title */}
-        <Text style={styles.title}>SWIFTSHIELD</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+          <View style={styles.container}>
+            {/* Title */}
+            <Text style={styles.title}>SWIFTSHIELD</Text>
 
-        <Text style={styles.textLabel}>First Name</Text>
-        {/* Input Fields */}
-        <View style={styles.inputContainer}>
-          <FontAwesome5
-            name="user"
-            size={20}
-            color="#3AED97"
-            style={styles.genIcon}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Stephen Hans"
-            placeholderTextColor="rgba(49, 238, 154, 0.66)"
-            value={firstName}
-            onChangeText={(text) => setFirstName(text)}
-          />
-        </View>
-        <Text style={styles.textLabel}>Last Name</Text>
-        <View style={styles.inputContainer}>
-          <FontAwesome5
-            name="user"
-            size={20}
-            color="#3AED97"
-            style={styles.genIcon}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Amistoso"
-            placeholderTextColor="rgba(49, 238, 154, 0.66)"
-            value={lastName}
-            onChangeText={(text) => setLastName(text)}
-          />
-        </View>
-        <Text style={styles.textLabel}>Email</Text>
-        <View style={styles.inputContainer}>
-          <Ionicons
-            name="mail-outline"
-            size={20}
-            color="#3AED97"
-            style={styles.genIcon}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="name@email.com"
-            placeholderTextColor="rgba(49, 238, 154, 0.66)"
-            value={email}
-            onChangeText={(text) => setEmail(text)}
-            keyboardType="email-address"
-          />
-        </View>
-        <Text style={styles.textLabel}>Phone Number</Text>
-        <View style={styles.inputContainer}>
-          <FontAwesome5
-            name="phone-alt"
-            size={20}
-            color="#3AED97"
-            style={styles.genIcon}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="+63 900 0000 000"
-            placeholderTextColor="rgba(49, 238, 154, 0.66)"
-            value={contactNumber}
-            onChangeText={(text) => setContactNumber(text)}
-            keyboardType="phone-pad"
-          />
-        </View>
-        <Text style={styles.textLabel}>Password</Text>
-        <View style={styles.inputContainer}>
-          <Ionicons
-            name="lock-closed-outline"
-            size={20}
-            color="#3AED97"
-            style={styles.genIcon}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="*****"
-            placeholderTextColor="rgba(49, 238, 154, 0.66)"
-            value={password}
-            onChangeText={(text) => setPassword(text)}
-            secureTextEntry={!isPasswordVisible}
-          />
-          <TouchableOpacity
-            onPress={() => setIsPasswordVisible(!isPasswordVisible)}
-            style={styles.eyeIcon}
-          >
-            <Ionicons
-              name={isPasswordVisible ? "eye-off" : "eye"}
-              size={20}
-              color="#3AED97"
-              style={styles.genIcon}
-            />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.textLabel}>Confrim Password</Text>
-        <View style={styles.inputContainer}>
-          <Ionicons
-            name="lock-closed-outline"
-            size={20}
-            color="#3AED97"
-            style={styles.genIcon}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="*****"
-            placeholderTextColor="rgba(49, 238, 154, 0.66)"
-            value={confirmPassword}
-            onChangeText={(text) => setConfirmPassword(text)}
-            secureTextEntry={!isConfirmPasswordVisible}
-          />
-          <TouchableOpacity
-            onPress={() =>
-              setIsConfirmPasswordVisible(!isConfirmPasswordVisible)
-            }
-            style={styles.eyeIcon}
-          >
-            <Ionicons
-              name={isConfirmPasswordVisible ? "eye-off" : "eye"}
-              size={20}
-              color="#3AED97"
-            />
-          </TouchableOpacity>
-        </View>
+            {/* Input Fields */}
+            <View style={styles.inputContainer}>
+              <FontAwesome5 name="user" size={20} color="#3AED97" />
+              <TextInput
+                style={styles.input}
+                placeholder="First Name"
+                placeholderTextColor="#3AED97"
+                value={firstName}
+                onChangeText={setFirstName}
+              />
+            </View>
 
-        {/* Register Button */}
-        <TouchableOpacity
-          style={styles.registerButton}
-          onPress={handleRegister}
-        >
-          <LinearGradient
-            colors={["#3AED97", "#BCE26E", "#FCDE58"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.gradientButton}
-          >
-            <Text style={styles.registerButtonText}>REGISTER</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <View style={styles.inputContainer}>
+              <FontAwesome5 name="user" size={20} color="#3AED97" />
+              <TextInput
+                style={styles.input}
+                placeholder="Last Name"
+                placeholderTextColor="#3AED97"
+                value={lastName}
+                onChangeText={setLastName}
+              />
+            </View>
 
-        {/* Login Link */}
-        <View style={styles.loginLink}>
-          <Text style={styles.optionText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate("Login")}>
-            <Text style={styles.loginLinkText}>Login</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+            <View style={styles.inputContainer}>
+              <Ionicons name="mail-outline" size={20} color="#3AED97" />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                placeholderTextColor="#3AED97"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <FontAwesome5 name="phone-alt" size={20} color="#3AED97" />
+              <TextInput
+                style={styles.input}
+                placeholder="Contact Number"
+                placeholderTextColor="#3AED97"
+                value={contactNumber}
+                onChangeText={setContactNumber}
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Ionicons name="lock-closed-outline" size={20} color="#3AED97" />
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                placeholderTextColor="#3AED97"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!isPasswordVisible}
+              />
+              <TouchableOpacity
+                onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                style={styles.eyeIcon}
+              >
+                <Ionicons
+                  name={isPasswordVisible ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color="#3AED97"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Ionicons name="lock-closed-outline" size={20} color="#3AED97" />
+              <TextInput
+                style={styles.input}
+                placeholder="Confirm Password"
+                placeholderTextColor="#3AED97"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!isConfirmPasswordVisible}
+              />
+              <TouchableOpacity
+                onPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)}
+                style={styles.eyeIcon}
+              >
+                <Ionicons
+                  name={isConfirmPasswordVisible ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color="#3AED97"
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Register Button */}
+            <TouchableOpacity style={styles.registerButton} onPress={handleRegister}>
+              <LinearGradient
+                colors={["#3AED97", "#BCE26E", "#FCDE58"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.gradientButton}
+              >
+                <Text style={styles.registerButtonText}>REGISTER</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Login Link */}
+            <View style={styles.loginLink}>
+              <Text style={styles.optionText}>Already have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+                <Text style={styles.loginLinkText}>Login</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </GradientScreen>
   );
 }
@@ -201,32 +222,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "center",
-    alignItems: "left",
-    paddingHorizontal: 40,
+    alignItems: "center",
+    paddingHorizontal: 30,
+    paddingVertical: 50,
   },
   title: {
     fontSize: 32,
-    fontFamily: "Poppins-ExtraBold", // Apply the Poppins ExtraBold font
+    fontFamily: "Poppins-ExtraBold",
     color: "#3AED97",
-    marginBottom: 50,
-    marginLeft: 75,
-    alignItems: "top",
-  },
-  textLabel: {
-    color: "#31EE9A",
-    fontSize: 15,
+    marginBottom: 30,
+    textAlign: "center",
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderColor: "#3AED97",
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    borderRadius: 25,
+    paddingHorizontal: 15,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     width: "100%",
     height: 50,
-    marginBottom: 20,
+    marginBottom: 15,
   },
   input: {
     flex: 1,
@@ -234,20 +251,15 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
   },
-  genIcon: {
-    marginLeft: 10,
-  },
   eyeIcon: {
-    position: "absolute",
-    right: 20,
-    top: 12,
+    padding: 5,
   },
   registerButton: {
     width: "100%",
     height: 50,
-    borderRadius: 8,
-    overflow: "hidden", // Ensures gradient stays rounded
-    marginTop: 20,
+    borderRadius: 25,
+    overflow: "hidden",
+    marginTop: 15,
     marginBottom: 20,
   },
   gradientButton: {
@@ -257,19 +269,18 @@ const styles = StyleSheet.create({
   },
   registerButtonText: {
     fontSize: 16,
-    fontFamily: "Inter",
-    fontWeight: "800",
-    letterSpacing: 5,
-    color: "#000", // Text color for the button
+    fontWeight: "bold",
+    letterSpacing: 3,
+    color: "#000",
   },
   loginLink: {
     flexDirection: "row",
-    marginTop: 20,
+    marginTop: 15,
+    justifyContent: "center",
   },
   optionText: {
-    color: "#000000",
+    color: "#fff",
     fontSize: 14,
-    marginLeft: 75,
   },
   loginLinkText: {
     color: "#3AED97",
