@@ -1,70 +1,94 @@
-import { View, Text, Dimensions } from "react-native";
+import React, { useState, useCallback } from "react";
+import { View, Text, Dimensions, ActivityIndicator } from "react-native";
 import { LineChart } from "react-native-chart-kit";
+import { useFocusEffect } from "@react-navigation/native"; 
+import config from "../../config"; 
 
 const screenWidth = Dimensions.get("window").width;
 
-// Data for the LineChart
-const data = {
-  labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], // Horizontal labels
-  datasets: [
-    {
-      data: [
-        Math.random() * 100, // Mon data
-        Math.random() * 100, // Tue data
-        Math.random() * 100, // Wed data
-        Math.random() * 100, // Thu data
-        Math.random() * 100, // Fri data
-        Math.random() * 100, // Sat data
-        Math.random() * 100, // Sun data
-      ],
-      color: (opacity = 1) => `rgba(36, 176, 115, ${opacity})`, // Line color (#24B073)
-      strokeWidth: 2, // Optional stroke width
-    },
-  ],
-};
-
-// Chart configuration
 const chartConfig = {
-  backgroundColor: "#000", // Background color
-  backgroundGradientFrom: "#000", // Start gradient (black)
-  backgroundGradientTo: "#000", // End gradient (black)
-  decimalPlaces: 0, // No decimal places
-  color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`, // Data point color
-  labelColor: (opacity = 1) => `rgba(58, 237, 151, ${opacity})`, // Horizontal labels color
-  propsForBackgroundLines: {
-    stroke: "none", // Removes gridlines
-  },
+  backgroundColor: "#000",
+  backgroundGradientFrom: "#000",
+  backgroundGradientTo: "#000",
+  decimalPlaces: 0,
+  color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+  labelColor: (opacity = 1) => `rgba(58, 237, 151, ${opacity})`,
+  propsForBackgroundLines: { stroke: "none" },
 };
 
 const LineGraph = () => {
+  const [chartData, setChartData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  
+  useFocusEffect(
+    useCallback(() => {
+      const fetchThreatData = async () => {
+        setLoading(true);
+        try {
+          console.log("Fetching updated data...");
+          const response = await fetch(`${config.BASE_URL}/weekly-threats`);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP Error: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          if (!data.labels || !data.data) {
+            throw new Error("Invalid API response format");
+          }
+
+          console.log("Updated API Response:", data);
+
+          setChartData({
+            labels: data.labels, // ["Sun", "Mon", ..., "Sat"]
+            datasets: [{ 
+              data: data.data, 
+              color: (opacity = 1) => `rgba(36, 176, 115, ${opacity})`, 
+              strokeWidth: 2 
+            }],
+          });
+
+          setError(null); // Clear errors if successful
+        } catch (error) {
+          console.error("Error fetching chart data:", error);
+          setError(error.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchThreatData();
+    }, []) 
+  );
+
   return (
     <View>
-      <Text
-        style={{
-          textAlign: "left",
-          fontSize: 12,
-          marginLeft: 20,
-          color: "#3AED97",
-        }}
-      >
+      <Text style={{ textAlign: "left", fontSize: 12, marginLeft: 20, color: "#3AED97" }}>
         Weekly Threat Analysis:
       </Text>
-      <LineChart
-        data={data}
-        width={screenWidth} // Chart width
-        height={220} // Chart height
-        chartConfig={chartConfig} // Chart configuration
-        bezier // Smooth line
-        style={{
-          marginVertical: 8,
-          borderRadius: 16,
-          marginLeft: -30,
-        }}
-        withInnerLines={false} // Removes inner gridlines
-        withVerticalLines={false} // Removes vertical gridlines
-        withHorizontalLabels={false} // Hide y-axis labels
-        withVerticalLabels={true} // Show Mon to Sun
-      />
+
+      {loading ? (
+        <ActivityIndicator size="large" color="#3AED97" />
+      ) : error ? (
+        <Text style={{ textAlign: "center", color: "red" }}>Error: {error}</Text>
+      ) : chartData ? (
+        <LineChart
+          data={chartData}
+          width={screenWidth}
+          height={220}
+          chartConfig={chartConfig}
+          bezier
+          style={{ marginVertical: 8, borderRadius: 16, marginLeft: -30 }}
+          withInnerLines={false}
+          withVerticalLines={false}
+          withHorizontalLabels={false}
+          withVerticalLabels={true}
+        />
+      ) : (
+        <Text style={{ textAlign: "center", color: "#3AED97" }}>No data available</Text>
+      )}
     </View>
   );
 };

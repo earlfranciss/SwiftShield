@@ -45,13 +45,11 @@ export default function Logs() {
   ];
 
   const showModal = (log) => {
-    console.log('Show modal called with log:', log);
     setSelectedLog(log);
     setModalVisible(true);
   };
   
   const closeModal = () => {
-    console.log('Close modal called');
     setModalVisible(false);
     setSelectedLog(null);
   };
@@ -148,6 +146,8 @@ export default function Logs() {
     });
   };
   
+  
+
 
   return (
     <SafeAreaView style={styles.container}>
