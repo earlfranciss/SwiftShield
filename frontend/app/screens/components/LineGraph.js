@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from "react";
 import { View, Text, Dimensions, ActivityIndicator } from "react-native";
 import { LineChart } from "react-native-chart-kit";
-import { useFocusEffect } from "@react-navigation/native"; // ✅ Import hook
-import config from "../../config"; // ✅ Ensure config is imported
+import { useFocusEffect } from "@react-navigation/native"; 
+import config from "../../config"; 
 
 const screenWidth = Dimensions.get("window").width;
 
