@@ -65,6 +65,7 @@ export default function Reports({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("recent");
   const [searchText, setSearchText] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState("active"); // Default to active reports
 
   // Modal state
   const [modalVisible, setModalVisible] = useState(false);
@@ -90,28 +91,34 @@ export default function Reports({ navigation, route }) {
     fetchReports(activeFilter);
   }, [activeFilter]);
 
-  const fetchReports = async (filter) => {
+  const fetchReports = async (filter, searchText = "") => {
     try {
-      console.log("Fetching reports with filter:", filter); // Debugging log
-      setLoading(true);
-  
-      const response = await fetch(`${config.BASE_URL}/reports?filter=${filter}`);
-  
-      if (!response.ok) {
-        throw new Error(`HTTP status ${response.status}`);
-      }
-  
-      let data = await response.json();
-      data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  
-      setReports(data); // Update reports list based on filter
+        console.log("Fetching reports with filter:", filter, "and search:", searchText); // Debugging log
+        setLoading(true);
+
+        // Construct query parameters
+        let queryParams = `filter=${encodeURIComponent(filter)}`;
+        if (searchText.trim() !== "") {
+            queryParams += `&search=${encodeURIComponent(searchText)}`;
+        }
+
+        const response = await fetch(`${config.BASE_URL}/reports?${queryParams}`);
+
+        if (!response.ok) {
+            throw new Error(`HTTP status ${response.status}`);
+        }
+
+        let data = await response.json();
+        data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        setReports(data); // Update reports list based on filter and search
     } catch (error) {
-      console.error("Error fetching reports:", error);
-      Alert.alert("Error", `Failed to fetch reports: ${error.message}`);
+        console.error("Error fetching reports:", error);
+        Alert.alert("Error", `Failed to fetch reports: ${error.message}`);
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+};
 
   // Open modal with selected report
   const openReportModal = (report) => {
@@ -157,8 +164,8 @@ export default function Reports({ navigation, route }) {
                 onChangeText={(text) => setSearchText(text)}
                 value={searchText}
               />
-              <TouchableOpacity onPress={() => console.log("Searching:", searchText)} style={styles.iconWrapper}>
-                <MaterialIcons name="search" size={24} color="#585757" />
+              <TouchableOpacity onPress={() => fetchReports(selectedFilter, searchText)} style={styles.iconWrapper}>
+                  <MaterialIcons name="search" size={24} color="#585757" />
               </TouchableOpacity>
             </View>
           </View>
