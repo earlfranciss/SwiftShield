@@ -26,12 +26,16 @@ class FeatureExtraction:
         self.urlparse = ""
         self.response = ""
         self.soup = ""
-
+        
         try:
-            self.response = requests.get(url)
-            self.soup = BeautifulSoup(self.response.text, 'html.parser')
-        except:
-            pass
+            self.response = requests.get(url, timeout=5)
+            if self.response.status_code == 200:
+                self.soup = BeautifulSoup(self.response.text, "html.parser")  # Use "html.parser"
+            else:
+                self.soup = None  # Set to None if the response is not 200
+        except Exception as e:
+            print(f"Error fetching {url}: {e}")
+            self.soup = None
 
         try:
             self.urlparse = urlparse(url)
@@ -51,39 +55,82 @@ class FeatureExtraction:
             pass
         
 
-        self.features.append(self.UsingIp())
-        self.features.append(self.longUrl())
-        self.features.append(self.shortUrl())
-        self.features.append(self.symbol())
-        self.features.append(self.redirecting())
-        self.features.append(self.prefixSuffix())
-        self.features.append(self.SubDomains())
-        self.features.append(self.Hppts())
-        self.features.append(self.DomainRegLen())
-        self.features.append(self.Favicon())
+        self.features.append(self.URLLength())
+        self.features.append(self.DomainLength())
+        self.features.append(self.IsDomainIP())
+        self.features.append(self.TLD())
+        self.features.append(self.URLSimilarityIndex())
+        self.features.append(self.CharContinuationRate())
+        self.features.append(self.TLDLegitimateProb())
+        self.features.append(self.URLCharProb())
+        self.features.append(self.TLDLength())
         
-
-        self.features.append(self.NonStdPort())
-        self.features.append(self.HTTPSDomainURL())
-        self.features.append(self.RequestURL())
-        self.features.append(self.AnchorURL())
-        self.features.append(self.LinksInScriptTags())
-        self.features.append(self.ServerFormHandler())
-        self.features.append(self.InfoEmail())
-        self.features.append(self.AbnormalURL())
-        self.features.append(self.WebsiteForwarding())
-        self.features.append(self.StatusBarCust())
-
-        self.features.append(self.DisableRightClick())
-        self.features.append(self.UsingPopupWindow())
-        self.features.append(self.IframeRedirection())
+        self.features.append(self.NoOfSubDomain())
+        self.features.append(self.HasObfuscation())
+        self.features.append(self.NoOfObfuscatedChar())
+        self.features.append(self.ObfuscationRatio())
+        
+        self.features.append(self.NoOfLetterInURL())
+        self.features.append(self.LetterRatioInURL())
+        self.features.append(self.NoOfDigitsInURL())
+        self.features.append(self.DigitRatioInURL())
+        
+        self.features.append(self.NoOfEqualsInURL())
+        self.features.append(self.NoOfQMarkInURL())
+        self.features.append(self.NoOfAmpersandInURL())
+        self.features.append(self.NoOfOtherSpecialCharsInURL())
+        self.features.append(self.SpecialCharRatioInURL())
+        
+        self.features.append(self.IsHTTPS())
+        self.features.append(self.LineOfCode())
+        self.features.append(self.LargestLineLength())
+        self.features.append(self.HasTitle())
+        self.features.append(self.Title())
+        
+        self.features.append(self.DomainTitleMatchScore())
+        self.features.append(self.URLTitleMatchScore())
+        self.features.append(self.HasFavicon())
+        # Insert Robots
+        self.features.append(self.IsResponsive())
+        self.features.append(self.NoOfURLRedirect())
+        self.features.append(self.NoOfSelfRedirect())
+        self.features.append(self.HasDescription())
+        
+        # Insert NoOfPopup
+        self.features.append(self.NoOfiFrame())
+        self.features.append(self.HasExternalFormSubmit())
+        self.features.append(self.HasSocialNet())
+        self.features.append(self.HasSubmitButton())
+        self.features.append(self.HasHiddenFields())
+        self.features.append(self.HasPasswordField())
+        
+        self.features.append(self.Bank())
+        self.features.append(self.Pay())
+        self.features.append(self.Crypto())
+        self.features.append(self.HasCopyrightInfo())
+        self.features.append(self.NoOfImage())
+        self.features.append(self.NoOfCSS())
+        self.features.append(self.NoOfJS())
+        
+        self.features.append(self.NoOfSelfRef())
+        self.features.append(self.NoOfEmptyRef())
+        self.features.append(self.NoOfExternalRef())
+        
+        
+        
+        
+        self.features.append(self.CheckRedirects())
+        self.features.append(self.NoOfExternalRedirects())
+        self.features.append(self.shortURL())
+        self.features.append(self.symbolAt())
+        self.features.append(self.DomainRegLen())
         self.features.append(self.AgeofDomain())
+        self.features.append(self.RequestURL())
+        self.features.append(self.HasExternalFormSubmit())
         self.features.append(self.DNSRecording())
         self.features.append(self.WebsiteTraffic())
-        self.features.append(self.PageRank())
         self.features.append(self.GoogleIndex())
-        self.features.append(self.LinksPointingToPage())
-        self.features.append(self.StatsReport())
+        self.features.append(self.PageRank())
 
     # 1. URL Length
     def URLLength(self):
@@ -161,27 +208,46 @@ class FeatureExtraction:
         
     # 18. Has External Form Submit
     def HasExternalFormSubmit(self):
+        if self.soup is None:
+            print(f"Skipping {self.url} - Unable to fetch page content.")
+            return -1  # Default value when the page couldn't be loaded
+        
         return 1 if any(form.get('action', '').startswith('http') for form in self.soup.find_all('form')) else 0
         
     # 19. Has Password Field
     def HasPasswordField(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return 1 if any(input_.get('type') == 'password' for input_ in self.soup.find_all('input')) else 0
         
      # 20. No. of iFrame
     def NoOfiFrame(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return len(self.soup.find_all('iframe'))
 
     
     # 21. No. of Image
     def NoOfImage(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return len(self.soup.find_all('img'))
         
     # 22. No. of CSS
     def NoOfCSS(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return len(self.soup.find_all('link', {'rel': 'stylesheet'}))
         
     # 23. No. of JS
     def NoOfJS(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return len(self.soup.find_all('script'))
 
         
@@ -277,14 +343,23 @@ class FeatureExtraction:
         
     # 41. Has Social Net
     def HasSocialNet(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return 1 if self.soup.find_all('a', href=re.compile(r'facebook|twitter|linkedin|instagram')) else 0
 
     # 42. Has Submit Button
     def HasSubmitButton(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return 1 if self.soup.find_all('input', {'type': 'submit'}) else 0
         
     # 43. Has Hidden Fields
     def HasHiddenFields(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return  1 if self.soup.find_all('input', {'type': 'hidden'}) else 0
 
     # 44. Has Copyright Info
@@ -305,36 +380,51 @@ class FeatureExtraction:
         
     # 48. No Of Self Ref
     def NoOfSelfRef(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         links = [a['href'] for a in self.soup.find_all('a', href=True)]
         return sum(1 for link in links if urlparse(link).netloc == "")
 
     # 49. No Of Empty Ref
     def NoOfEmptyRef(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         links = [a['href'] for a in self.soup.find_all('a', href=True)]
         return sum(1 for link in links if link == "#")
 
     # 50. No Of External Ref
     def NoOfExternalRef(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         links = [a['href'] for a in self.soup.find_all('a', href=True)]
         return sum(1 for link in links if urlparse(link).netloc not in ["", urlparse(self.url).netloc])
 
     # 51. Checks Redirects
     def CheckRedirects(self):
+        if self.soup is None:
+            return 0  # Default value when the page couldn't be loaded
+        
         redirect_count = 0
         links = [a['href'] for a in self.soup.find_all('a', href=True)]
         
         for link in links:
             try:
                 response = requests.get(link, timeout=5, allow_redirects=True)
-                if len(response.history) > 0:  # Checks if there were redirects
+                if len(response.history) > 0:
                     redirect_count += 1
             except:
-                continue 
+                continue
         
         return redirect_count
 
     # 52. Check External Redirect
     def NoOfExternalRedirects(self):
+        if self.soup is None:
+            return 0  # Return -1 if the page couldn't be fetched
+        
         external_redirects = 0
         links = [a['href'] for a in self.soup.find_all('a', href=True)]
         
@@ -348,6 +438,7 @@ class FeatureExtraction:
                 continue  
         
         return external_redirects
+
 
     # 53. Short URL (Checks if the URL is too short, often suspicious)
     def shortURL(self):
@@ -373,24 +464,29 @@ class FeatureExtraction:
     def DomainRegLen(self):
         try:
             domain_info = whois.whois(urlparse(self.url).netloc)
-            if domain_info.expiration_date:
+            if domain_info.expiration_date and domain_info.creation_date:
                 reg_length = (domain_info.expiration_date - domain_info.creation_date).days
-                return 1 if reg_length >= 365 else -1  # Legitimate if registered for at least a year
+                return 1 if reg_length >= 365 else -1
         except:
-            return -1 
+            return -1
+        return -1
     
     # 56. Age of Domain (Checks how old the domain is)
     def AgeofDomain(self):
         try:
             domain_info = whois.whois(urlparse(self.url).netloc)
-            if domain_info.creation_date:
+            if domain_info.creation_date and domain_info.updated_date:
                 age = (domain_info.creation_date - domain_info.updated_date).days
-                return 1 if age > 180 else -1  # Legitimate if older than 6 months
+                return 1 if age > 180 else -1
         except:
-            return -1 
+            return -1
+        return -1 
 
     # 57. Request URL (Checks if images/scripts are loaded from an external domain)
     def RequestURL(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         try:
             external_requests = [
                 img['src'] for img in self.soup.find_all('img', src=True) 
@@ -402,6 +498,9 @@ class FeatureExtraction:
 
     # 58. Has External Form Submit (Checks if forms submit to an external site)
     def HasExternalFormSubmit(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         try:
             forms = self.soup.find_all("form", action=True)
             return -1 if any(urlparse(form["action"]).netloc not in ["", urlparse(self.url).netloc] for form in forms) else 1
@@ -579,6 +678,9 @@ class FeatureExtraction:
 
     # 10. Favicon
     def Favicon(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         try:
             for head in self.soup.find_all('head'):
                 for head.link in self.soup.find_all('link', href=True):
@@ -610,6 +712,9 @@ class FeatureExtraction:
     
     # 13. RequestURL
     def RequestURL(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         try:
             for img in self.soup.find_all('img', src=True):
                 dots = [x.start(0) for x in re.finditer(r'\.', img['src'])]
@@ -650,6 +755,9 @@ class FeatureExtraction:
     
     # 14. AnchorURL
     def AnchorURL(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         try:
             i,unsafe = 0,0
             for a in self.soup.find_all('a', href=True):
@@ -673,6 +781,9 @@ class FeatureExtraction:
 
     # 15. LinksInScriptTags
     def LinksInScriptTags(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         try:
             i,success = 0,0
         
@@ -703,6 +814,9 @@ class FeatureExtraction:
 
     # 16. ServerFormHandler
     def ServerFormHandler(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         try:
             if len(self.soup.find_all('form', action=True))==0:
                 return 1

@@ -13,6 +13,7 @@ import GradientScreen from "./screens/components/GradientScreen";
 import TopBar from "./screens/components/TopBar";
 import { NavigationContainer } from "@react-navigation/native";
 //Screens
+
 import Home from "./screens/tabScreens/Home";
 import Analytics from "./screens/tabScreens/Analytics";
 import Logs from "./screens/tabScreens/Logs";
@@ -24,6 +25,7 @@ import ForgotPassword from "./screens/ForgotPassword";
 import Reports from "./screens/reportsPage/Reports";
 import CreateReport from "./screens/reportsPage/CreateReport";
 import EditReport from "./screens/reportsPage/EditReport";
+
 
 //Icons
 import { Entypo } from "@expo/vector-icons";
