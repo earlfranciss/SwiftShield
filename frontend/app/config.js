@@ -12,7 +12,7 @@ const getBaseURL = () => {
 
   console.log("Extracted Host IP:", host);
 
-  return host ? `http://${host}:5000` : "http://127.0.0.1:5000"; // Fallback for Web
+  return host ? `http://${host}:5000` : "http://localhost:5000"; // Fallback for Web
 };
 
 const config = {
