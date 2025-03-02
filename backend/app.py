@@ -27,10 +27,6 @@ load_dotenv()
 db_connection_string = os.getenv("DB_CONNECTION_STRING")
 secret_key = os.getenv("SECRET_KEY")
 
-# Print to check if they are loaded
-print("DB_CONNECTION_STRING:", db_connection_string)
-print("SECRET_KEY:", secret_key)
-
 # Verify environment variable loading
 if not db_connection_string or not secret_key:
     raise ValueError("Environment variables DB_CONNECTION_STRING or SECRET_KEY are not set")
@@ -210,7 +206,7 @@ def create_report():
             "status": "Pending",
             "created_at": datetime.now(PH_TZ),  # Store with proper timezone
         }
-        result = reports_collection.insert_one(report)
+        result = reports.insert_one(report)
 
         return jsonify({"message": "Report created successfully", "id": str(result.inserted_id)}), 201
 
@@ -240,7 +236,7 @@ def update_report(report_id):
             return jsonify({"message": "Remarks are required"}), 400
 
         # Update report in database
-        update_result = reports_collection.update_one(
+        update_result = reports.update_one(
             {"_id": ObjectId(report_id)},
             {
                 "$set": {
@@ -253,14 +249,14 @@ def update_report(report_id):
 
         if update_result.modified_count == 0:
             # Check if report exists
-            report_exists = reports_collection.find_one({"_id": ObjectId(report_id)})
+            report_exists = reports.find_one({"_id": ObjectId(report_id)})
             if not report_exists:
                 return jsonify({"message": "Report not found"}), 404
             else:
                 return jsonify({"message": "No changes made to report"}), 200
 
         # Fetch updated report
-        updated_report = reports_collection.find_one({"_id": ObjectId(report_id)})
+        updated_report = reports.find_one({"_id": ObjectId(report_id)})
 
         if not updated_report:
             return jsonify({"message": "Error retrieving updated report"}), 500
@@ -288,7 +284,7 @@ def archive_report(report_id):
             return jsonify({"message": "Invalid report ID"}), 400
 
         # Fetch the report
-        report = reports_collection.find_one({"_id": ObjectId(report_id)})
+        report = reports.find_one({"_id": ObjectId(report_id)})
         if not report:
             return jsonify({"message": "Report not found"}), 404
 
@@ -312,7 +308,7 @@ def archive_report(report_id):
         updated_remarks = f"{existing_remarks} | {new_remarks} (Archived)".strip()
 
         # Update the report: Change status to "Archived" and add archive timestamp
-        update_result = reports_collection.update_one(
+        update_result = reports.update_one(
             {"_id": ObjectId(report_id)},
             {
                 "$set": {
@@ -350,9 +346,9 @@ def get_reports():
         if search_query:
             query["title"] = {"$regex": search_query, "$options": "i"}  # Case-insensitive search
 
-        reports_cursor = reports_collection.find(query)
+        reports_cursor = reports.find(query)
 
-        reports = []
+        reportslist = []
         for report in reports_cursor:
             report_data = {
                 "id": str(report["_id"]),
@@ -362,12 +358,12 @@ def get_reports():
                 "archived_at": report.get("archived_at"),  # Include archive timestamp if available
                 "created_at": report["created_at"].strftime("%Y-%m-%d %H:%M:%S") if "created_at" in report else None,
             }
-            reports.append(report_data)
+            reportslist.append(report_data)
 
         # Sort reports in descending order (newest first)
-        reports.sort(key=lambda x: x["created_at"] or "", reverse=True)
+        reportslist.sort(key=lambda x: x["created_at"] or "", reverse=True)
 
-        return jsonify(reports), 200
+        return jsonify(reportslist), 200
 
     except Exception as e:
         return jsonify({"message": f"Error retrieving reports: {str(e)}"}), 500
