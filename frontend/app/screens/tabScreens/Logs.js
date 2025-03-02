@@ -15,16 +15,14 @@ import CarouselFilter from "../components/CarouselFilter";
 import { useFocusEffect } from "@react-navigation/native";
 import ListItem from "../components/ListItem";
 import config from "../../config";
-//import { useNavigation } from "@react-navigation/native";
 import DetailsModal from '../components/DetailsModal';
-
 
 const iconMap = {
   "suspicious-icon": require("../../../assets/images/suspicious-icon.png"),
   "safe-icon": require("../../../assets/images/safe-icon.png"),
 };
 
-export default function Logs() {
+export default function Logs({ route }) {
   const [url, setUrl] = useState("");
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +30,7 @@ export default function Logs() {
   const [activeFilter, setActiveFilter] = useState("recent");
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
+  const [logLoading, setLogLoading] = useState(false); // Track individual log loading
 
   // Define filter options
   const filterOptions = [
@@ -44,12 +43,26 @@ export default function Logs() {
     { id: 'critical', label: 'Critical' }
   ];
 
-  const showModal = (log) => {
-    console.log('Show modal called with log:', log);
-    setSelectedLog(log);
-    setModalVisible(true);
+  const showModal = async (logId) => {
+    console.log('Fetching log details for ID:', logId);
+    setLogLoading(true);
+    try {
+      const response = await fetch(`${config.BASE_URL}/logs/${logId}`);
+      const data = await response.json();
+      
+      if (data.error) {
+        console.error("Error fetching log details:", data.error);
+      } else {
+        setSelectedLog(data);
+        setModalVisible(true);
+      }
+    } catch (error) {
+      console.error("Error fetching log details:", error);
+    } finally {
+      setLogLoading(false);
+    }
   };
-  
+
   const closeModal = () => {
     console.log('Close modal called');
     setModalVisible(false);
@@ -58,31 +71,23 @@ export default function Logs() {
 
   const handleScan = () => {
     console.log("Scanning URL:", url);
-    // Add your URL scanning logic here
   };
 
   const handleFilterChange = (filter) => {
     setActiveFilter(filter);
     console.log("Active Filter:", filter);
-    // Fetch logs with the selected filter
     fetchLogs(filter);
   };
 
-  // Function to fetch logs with server-side filtering
+  // Fetch logs with server-side filtering
   const fetchLogs = async (filterType = activeFilter) => {
     try {
       setLoading(true);
-      // Pass the filter as a query parameter
       const response = await fetch(`${config.BASE_URL}/logs?filter=${filterType}`);
       const data = await response.json();
       setLogs(data);
     } catch (error) {
       console.error("Error fetching logs:", error);
-      // In case of error, we can still use client-side filtering as a fallback
-      if (logs.length > 0) {
-        // Only apply client-side filtering if we already have data
-        setActiveFilter(filterType);
-      }
     } finally {
       setLoading(false);
     }
@@ -95,19 +100,28 @@ export default function Logs() {
     }, [])
   );
 
+  // Handle notification click (if logId is passed from route)
+  useFocusEffect(
+    useCallback(() => {
+      if (route?.params?.logId) {
+        showModal(route.params.logId);
+      }
+    }, [route?.params?.logId])
+  );
+
   const viewabilityConfig = {
     itemVisiblePercentThreshold: 100,
   };
 
-  // Filter logs based on category and search
+  // Filter logs based on active category and search
   const getFilteredLogs = () => {
     return logs.filter(log => {
-      // Apply category filtering first
+      // Category-based filtering
       let passesCategoryFilter = false;
-  
+
       switch (activeFilter) {
         case "recent":
-          passesCategoryFilter = true;
+          passesCategoryFilter = true; // Show all logs for "recent"
           break;
         case "whitelisted":
           passesCategoryFilter = log.status?.toLowerCase().includes("safe") || 
@@ -132,22 +146,19 @@ export default function Logs() {
         default:
           passesCategoryFilter = true;
       }
-  
+
       if (!passesCategoryFilter) return false;
-  
-      // If no search term, return all logs that pass the category filter
-      if (!url || url.trim() === "") return true;
-  
-      // Convert search term to lowercase
+
+      // Search-based filtering
+      if (!url || url.trim() === "") return true; 
+
       const searchTerm = url.toLowerCase().trim();
-  
-      // Check for keyword matches across multiple fields
+
       return Object.values(log).some(value =>
         typeof value === "string" && value.toLowerCase().includes(searchTerm)
       );
     });
   };
-  
 
   return (
     <SafeAreaView style={styles.container}>
@@ -182,14 +193,11 @@ export default function Logs() {
         ) : (
           <FlatList
             data={getFilteredLogs()}
-            extraData={url} // Important: This ensures the list re-renders when url changes
-            keyExtractor={(item) => item.id.toString()} // Ensure keys are strings
+            extraData={url}
+            keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
               <TouchableOpacity
-                onPress={() => {
-                  console.log('Item pressed, showing modal for:', item);
-                  showModal(item);
-                }}
+                onPress={() => showModal(item.id)}
               >
                 <ListItem
                   item={{
@@ -209,11 +217,12 @@ export default function Logs() {
           />
         )}
       </View>
-      
+
       <DetailsModal 
         visible={modalVisible}
         onClose={closeModal}
-        logDetails={selectedLog} // Pass the selected log details to the modal
+        logDetails={selectedLog} 
+        loading={logLoading}
       />
     </SafeAreaView>
   );
