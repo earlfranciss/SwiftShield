@@ -8,7 +8,9 @@ import {
   StyleSheet,
   Animated,
   Modal,
-  ActivityIndicator
+  ActivityIndicator,
+  PanResponder,
+  Alert
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import GradientScreen from '../components/GradientScreen';
@@ -72,15 +74,99 @@ const formatTimeAgo = (timestamp) => {
       return `${days} day${days > 1 ? 's' : ''} ago`;
     }
   } catch (error) {
-    console.error("Error formatting time:", error);
+    console.error("Error formatting time:", error); 
     return "Unknown time";
   }
 };
 
-// Notification Item Component
-const NotificationItem = ({ item, index, onPress }) => {
+// Notification Item Component with swipe functionality
+const NotificationItem = ({ 
+  item, 
+  index, 
+  onPress, 
+  onDelete, 
+  isSelected,
+  onSelect,
+  isMultiSelectMode,
+  openSwipeId,
+  setOpenSwipeId
+}) => {
   const itemFadeAnim = useRef(new Animated.Value(0)).current;
+  const swipeAnim = useRef(new Animated.Value(0)).current;
+  const selectionScale = useRef(new Animated.Value(1)).current;
   
+  // Add a fade animation for the delete button
+  const deleteButtonOpacity = useRef(new Animated.Value(0)).current;
+  
+  // Reset swipe position when another notification is swiped
+  useEffect(() => {
+    if (openSwipeId !== item.id && swipeAnim._value !== 0) {
+      Animated.spring(swipeAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+      }).start();
+      
+      // Hide delete button
+      Animated.timing(deleteButtonOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [openSwipeId]);
+
+  // Configure pan responder for swipe
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !isMultiSelectMode,
+      onMoveShouldSetPanResponder: (_, gestureState) => 
+        !isMultiSelectMode && Math.abs(gestureState.dx) > 5,
+      onPanResponderMove: (_, gestureState) => {
+        // Only allow left swipe (negative dx)
+        const newX = Math.min(0, gestureState.dx);
+        // Limit maximum swipe distance
+        const limitedX = Math.max(-80, newX);
+        swipeAnim.setValue(limitedX);
+        
+        // Gradually show delete button based on swipe distance
+        const normalizedSwipe = Math.min(Math.abs(limitedX) / 80, 1);
+        deleteButtonOpacity.setValue(normalizedSwipe);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx < -50) { // If swiped far enough left
+          setOpenSwipeId(item.id); // Track this as the open swipe
+          Animated.spring(swipeAnim, {
+            toValue: -80,
+            friction: 6,
+            useNativeDriver: true,
+          }).start();
+          
+          // Show delete button
+          Animated.timing(deleteButtonOpacity, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          }).start();
+        } else {
+          setOpenSwipeId(null);
+          Animated.spring(swipeAnim, {
+            toValue: 0,
+            friction: 6,
+            useNativeDriver: true,
+          }).start();
+          
+          // Hide delete button
+          Animated.timing(deleteButtonOpacity, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  // Main animation for item appearance
   useEffect(() => {
     const delay = index * 150;
     Animated.timing(itemFadeAnim, {
@@ -91,46 +177,137 @@ const NotificationItem = ({ item, index, onPress }) => {
     }).start();
   }, [index]);
   
+  // Animation for selection
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(selectionScale, {
+        toValue: isSelected ? 0.95 : 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.spring(selectionScale, {
+        toValue: 1,
+        friction: 4,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, [isSelected]);
+  
   // Use either url or link property, depending on what's available
   const displayText = item.url || item.link;
   
+  const handleLongPress = () => {
+    if (!isMultiSelectMode) {
+      onSelect(item.id); // This will also trigger setMultiSelectMode(true)
+    }
+  };
+
+  const handlePress = () => {
+    if (isMultiSelectMode) {
+      onSelect(item.id);
+    } else {
+      onPress(item);
+    }
+  };
+
   return (
-    <TouchableOpacity onPress={() => onPress(item)}>
+    <Animated.View 
+      style={[
+        styles.notificationItemContainer,
+        { 
+          opacity: itemFadeAnim,
+          transform: [
+            { translateY: itemFadeAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [50, 0]
+              })
+            }
+          ]
+        }
+      ]}
+    >
+      {/* Delete button (circular) */}
       <Animated.View 
         style={[
-          styles.notificationCard,
-          item.read && styles.notificationCardRead,
-          { 
-            opacity: itemFadeAnim,
-            transform: [{ translateY: itemFadeAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [50, 0]
-            })}] 
-          }
+          styles.deleteButtonContainer,
+          { opacity: deleteButtonOpacity }
         ]}
       >
-        <Image 
-          source={item.icon === "safe-icon" ? iconMap["safe-icon"] : iconMap["suspicious-icon"]} 
-          style={[
-            styles.icon,
-            item.icon === "safe-icon" && { tintColor: "black" },
-            item.read && styles.iconRead
-          ]} 
-        />
-        <Text style={[
-          styles.notificationText,
-          item.read && styles.notificationTextRead
-        ]}>
-          {displayText}
-        </Text>
-        <Text style={[
-          styles.timeText,
-          item.read && styles.timeTextRead
-        ]}>
-          {formatTimeAgo(item.timestamp)}
-        </Text>
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={() => onDelete(item.id)}
+        >
+          <MaterialIcons name="delete" size={18} color="#fff" />
+        </TouchableOpacity>
       </Animated.View>
-    </TouchableOpacity>
+      
+      {/* Main notification card with swipe animation */}
+      <Animated.View 
+        style={[
+          styles.notificationCardWrapper,
+          { transform: [{ translateX: swipeAnim }] }
+        ]}
+        {...(isMultiSelectMode ? {} : panResponder.panHandlers)}
+      >
+        <TouchableOpacity 
+          onPress={handlePress}
+          onLongPress={handleLongPress}
+          delayLongPress={300}
+          activeOpacity={0.8}
+        >
+         {/* Style order: base, read status, type-specific, combined for read+type, selection */}
+         <Animated.View 
+            style={[
+              styles.notificationCard,
+              // First apply base type-specific styling
+              item.icon === "suspicious-icon" ? styles.notificationCardMalicious : null,
+              // Then apply read status
+              item.read && (item.icon === "suspicious-icon" 
+                ? styles.notificationCardMaliciousRead 
+                : styles.notificationCardRead),
+              // Then apply selection styling that preserves the type distinction
+              isSelected && (item.icon === "suspicious-icon" 
+                ? styles.notificationCardMaliciousSelected 
+                : styles.notificationCardSelected)
+            ]}
+          >
+            {isMultiSelectMode && (
+              <View style={styles.checkboxContainer}>
+                <View style={[
+                  styles.checkbox,
+                  isSelected && styles.checkboxSelected
+                ]}>
+                  {isSelected && (
+                    <MaterialIcons name="check" size={16} color="#fff" />
+                  )}
+                </View>
+              </View>
+            )}
+            
+            <Image 
+              source={item.icon === "safe-icon" ? iconMap["safe-icon"] : iconMap["suspicious-icon"]} 
+              style={[
+                styles.icon,
+                item.icon === "safe-icon" && { tintColor: "black" },
+                item.read && styles.iconRead
+              ]} 
+            />
+            <Text style={[
+              styles.notificationText,
+              item.read && styles.notificationTextRead
+            ]}>
+              {displayText}
+            </Text>
+            <Text style={[
+              styles.timeText,
+              item.read && styles.timeTextRead
+            ]}>
+              {formatTimeAgo(item.timestamp)}
+            </Text>
+          </Animated.View>
+        </TouchableOpacity>
+      </Animated.View>
+    </Animated.View>
   );
 };
 
@@ -142,6 +319,16 @@ export default function Notifications({ route, navigation }) {
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Multi-select mode state
+  const [isMultiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  
+  // State to track which notification has an open swipe action
+  const [openSwipeId, setOpenSwipeId] = useState(null);
+  
+  // Animation for multi-select mode transition
+  const multiSelectAnim = useRef(new Animated.Value(0)).current;
   
   // In-memory read status storage
   const readStatusMap = {};
@@ -250,6 +437,8 @@ export default function Notifications({ route, navigation }) {
   useFocusEffect(
     useCallback(() => {
       fetchNotifications();
+      // Exit multi-select mode when screen comes into focus
+      exitMultiSelectMode();
     }, [])
   );
 
@@ -257,6 +446,15 @@ export default function Notifications({ route, navigation }) {
   useEffect(() => {
     console.log("Notifications state updated:", notifications.length, "items");
   }, [notifications]);
+
+  // Animation for multi-select mode
+  useEffect(() => {
+    Animated.timing(multiSelectAnim, {
+      toValue: isMultiSelectMode ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [isMultiSelectMode]);
 
   // Handle notification press
   const handleNotificationPress = async (notification) => {
@@ -278,20 +476,134 @@ export default function Notifications({ route, navigation }) {
     setModalVisible(true);
   };
 
-  // Handle notification deletion
-  const handleDeleteNotification = async () => {
-    if (selectedNotification) {
-      // Update notifications state
-      setNotifications(notifications.filter(item => item.id !== selectedNotification.id));
+  // Handle notification deletion (single item)
+  const handleDeleteNotification = async (id) => {
+    // If coming from modal, use selectedNotification.id
+    const notificationId = id || (selectedNotification && selectedNotification.id);
+    
+    if (notificationId) {
+      // Animate the item out before removing it
+      const itemIndex = notifications.findIndex(item => item.id === notificationId);
+      if (itemIndex !== -1) {
+        // Create a copy of the notifications
+        const updatedNotifications = [...notifications];
+        
+        // Remove the item
+        updatedNotifications.splice(itemIndex, 1);
+        
+        // Update state
+        setNotifications(updatedNotifications);
+        
+        // Remove from read status
+        const readStatus = await loadReadStatus();
+        delete readStatus[notificationId];
+        await saveReadStatus(readStatus);
+      }
       
-      // Remove from read status
-      const readStatus = await loadReadStatus();
-      delete readStatus[selectedNotification.id];
-      await saveReadStatus(readStatus);
+      // If a modal is open, close it
+      if (modalVisible) {
+        setModalVisible(false);
+        setSelectedNotification(null);
+      }
       
-      setModalVisible(false);
-      setSelectedNotification(null);
+      // Reset the open swipe id
+      setOpenSwipeId(null);
     }
+  };
+
+  // Handle selection toggle for an item
+  const handleSelectItem = (id) => {
+    if (!isMultiSelectMode) {
+      setMultiSelectMode(true);
+      setSelectedIds([id]);
+    } else {
+      setSelectedIds(prev => 
+        prev.includes(id) 
+          ? prev.filter(itemId => itemId !== id)
+          : [...prev, id]
+      );
+    }
+  };
+
+  // Handle "Select All" action
+  const handleSelectAll = () => {
+    if (selectedIds.length === notifications.length) {
+      // If all are selected, deselect all
+      setSelectedIds([]);
+    } else {
+      // Otherwise, select all
+      setSelectedIds(notifications.map(item => item.id));
+    }
+  };
+
+  // Handle "Mark as Read" for selected items
+  const handleMarkSelectedAsRead = async () => {
+    if (selectedIds.length === 0) return;
+    
+    // Update read status
+    const readStatus = await loadReadStatus();
+    selectedIds.forEach(id => {
+      readStatus[id] = true;
+    });
+    await saveReadStatus(readStatus);
+    
+    // Update notifications state
+    setNotifications(
+      notifications.map(item => 
+        selectedIds.includes(item.id) 
+          ? { ...item, read: true } 
+          : item
+      )
+    );
+    
+    // Exit multi-select mode
+    exitMultiSelectMode();
+  };
+
+  // Handle "Delete Selected" action
+  const handleDeleteSelected = () => {
+    if (selectedIds.length === 0) return;
+    
+    // Confirm deletion
+    Alert.alert(
+      "Delete Notifications",
+      `Are you sure you want to delete ${selectedIds.length} notifications?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            // Filter out the selected items
+            const updatedNotifications = notifications.filter(
+              item => !selectedIds.includes(item.id)
+            );
+            
+            // Update notifications state
+            setNotifications(updatedNotifications);
+            
+            // Update read status storage
+            const readStatus = await loadReadStatus();
+            selectedIds.forEach(id => {
+              delete readStatus[id];
+            });
+            await saveReadStatus(readStatus);
+            
+            // Exit multi-select mode
+            exitMultiSelectMode();
+          }
+        }
+      ]
+    );
+  };
+
+  // Exit multi-select mode
+  const exitMultiSelectMode = () => {
+    setMultiSelectMode(false);
+    setSelectedIds([]);
   };
 
   // Start fade-in animation when component mounts
@@ -308,38 +620,113 @@ export default function Notifications({ route, navigation }) {
       <GradientScreen onToggleDarkMode={onToggleDarkMode} isDarkMode={isDarkMode}>
         <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
 
-          {/* Back Button */}
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={() => {
-              Animated.timing(fadeAnim, {
-                toValue: 0,
-                duration: 300,
-                useNativeDriver: true,
-              }).start(() => navigation.goBack());
-            }}
-          >
-            <MaterialIcons name="keyboard-arrow-left" size={28} color={isDarkMode ? 'black' : '#3AED97'} />
-          </TouchableOpacity>
+          {/* Header section */}
+          <View style={styles.headerSection}>
+            {/* Back Button (hidden in multi-select mode) */}
+            {!isMultiSelectMode ? (
+              <TouchableOpacity 
+                style={styles.backButton} 
+                onPress={() => {
+                  Animated.timing(fadeAnim, {
+                    toValue: 0,
+                    duration: 300,
+                    useNativeDriver: true,
+                  }).start(() => navigation.goBack());
+                }}
+              >
+                <MaterialIcons name="keyboard-arrow-left" size={28} color={isDarkMode ? 'black' : '#3AED97'} />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={styles.backButton} 
+                onPress={exitMultiSelectMode}
+              >
+                <MaterialIcons name="close" size={28} color={isDarkMode ? 'black' : '#3AED97'} />
+              </TouchableOpacity>
+            )}
 
-          {/* Title */}
-          <Animated.Text 
-            style={[
-              styles.title, 
-              { color: isDarkMode ? 'black' : '#3AED97' },
-              { 
-                opacity: fadeAnim,
-                transform: [{ 
-                  translateY: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-20, 0]
-                  }) 
-                }] 
-              }
-            ]}
-          >
-            Notifications
-          </Animated.Text>
+            {/* Title transforms to selection count in multi-select mode */}
+            <Animated.View style={styles.titleContainer}>
+              <Animated.Text 
+                style={[
+                  styles.title, 
+                  { color: isDarkMode ? 'black' : '#3AED97' },
+                  {
+                    opacity: multiSelectAnim.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: [1, 0, 0]
+                    }),
+                    transform: [{ 
+                      translateY: multiSelectAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, -30]
+                      }) 
+                    }]
+                  }
+                ]}
+              >
+                Notifications
+              </Animated.Text>
+
+              <Animated.Text 
+                style={[
+                  styles.title, 
+                  { color: isDarkMode ? 'black' : '#3AED97' },
+                  {
+                    position: 'absolute',
+                    opacity: multiSelectAnim.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: [0, 0, 1]
+                    }),
+                    transform: [{ 
+                      translateY: multiSelectAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [30, 0]
+                      }) 
+                    }]
+                  }
+                ]}
+              >
+                {selectedIds.length === 0 
+                  ? "Select Items" 
+                  : `${selectedIds.length} Selected`}
+              </Animated.Text>
+            </Animated.View>
+
+            {/* Action buttons for multi-select mode */}
+            {isMultiSelectMode && (
+              <View style={styles.multiSelectActions}>
+                <TouchableOpacity 
+                  style={styles.actionButton} 
+                  onPress={handleSelectAll}
+                >
+                  <MaterialIcons 
+                    name={selectedIds.length === notifications.length ? "deselect" : "select-all"} 
+                    size={22} 
+                    color="#3AED97" 
+                  />
+                </TouchableOpacity>
+                
+                {selectedIds.length > 0 && (
+                  <>
+                    <TouchableOpacity 
+                      style={styles.actionButton} 
+                      onPress={handleMarkSelectedAsRead}
+                    >
+                      <MaterialIcons name="done-all" size={22} color="#3AED97" />
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity 
+                      style={styles.actionButton} 
+                      onPress={handleDeleteSelected}
+                    >
+                      <MaterialIcons name="delete" size={22} color="#FF3B30" />
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            )}
+          </View>
 
           {/* Notification List */}
           {loading ? (
@@ -356,6 +743,12 @@ export default function Notifications({ route, navigation }) {
                   item={item} 
                   index={index}
                   onPress={handleNotificationPress}
+                  onDelete={handleDeleteNotification}
+                  isSelected={selectedIds.includes(item.id)}
+                  onSelect={handleSelectItem}
+                  isMultiSelectMode={isMultiSelectMode}
+                  openSwipeId={openSwipeId}
+                  setOpenSwipeId={setOpenSwipeId}
                 />
               )}
               contentContainerStyle={{ paddingBottom: 20 }}
@@ -419,7 +812,7 @@ export default function Notifications({ route, navigation }) {
                       
                       <TouchableOpacity
                         style={[styles.button, styles.buttonDelete]}
-                        onPress={handleDeleteNotification}
+                        onPress={() => handleDeleteNotification()}
                       >
                         <Text style={styles.textStyle}>Delete</Text>
                       </TouchableOpacity>
@@ -441,30 +834,135 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  headerSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    marginTop: 10,
+    height: 40,
+  },
+  titleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    height: 30,
+    overflow: 'hidden',
+  },
   title: {
     fontSize: 22,
     fontWeight: "bold",
     textAlign: "center",
-    marginBottom: 20,
-    marginTop: 10,
+  },
+  multiSelectActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    marginLeft: 15,
+    padding: 5,
   },
   backButton: {
-    position: "absolute",
-    top: 20,
-    left: 10,
-    zIndex: 10,
+    paddingHorizontal: 5,
+  },
+  notificationItemContainer: {
+    position: 'relative',
+    marginVertical: 5,
+    height: 60,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  notificationCardWrapper: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: '100%',
+    zIndex: 2
+  },
+  deleteButtonContainer: {
+    position: 'absolute',
+    right: 20,
+    top: '50%',
+    marginTop: -18, // Half of the button height
+    zIndex: 1,
+    opacity: 0, // Start hidden
+  },
+  notificationItemWrapper: {
+    flex: 1,
+    position: 'relative',
+    height: '100%',
+  },
+  swipeableContent: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: '100%',
+  },
+  deleteButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
   },
   notificationCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 10,
-    backgroundColor: "#3AED97",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 15,
-    marginVertical: 5,
+    backgroundColor: '#3AED97',
+    borderRadius: 10,
+    height: 60
+  },
+  notificationCardSelected: {
+    backgroundColor: "rgba(58, 237, 151, 0.9)", // Brighter green for selected safe
+    borderWidth: 1,
+    borderColor: "#fff",
+  },
+  notificationCardMalicious: {
+    backgroundColor: "#FFF8E1", // Amber color for malicious notifications
   },
   notificationCardRead: {
-    backgroundColor: "rgba(58, 237, 151, 0.6)",
+    backgroundColor: "rgba(58, 237, 151, 0.6)", // Dimmed green for read safe notifications
+  },
+  notificationCardMaliciousRead: {
+    backgroundColor: "rgba(255, 248, 225, 0.6)", // Dimmed amber for read malicious notifications
+    // This style will be applied when both read and malicious conditions are true
+  },
+  notificationCardMaliciousSelected: {
+    backgroundColor: "rgba(255, 248, 225, 0.9)", // Brighter amber for selected malicious
+    borderWidth: 1,
+    borderColor: "#fff",
+  },
+  checkboxContainer: {
+    marginRight: 10,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#fff",
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: "#000",
+    borderColor: "#fff",
   },
   icon: {
     width: 24,
@@ -487,6 +985,7 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 12,
     color: "#000",
+    marginLeft: 5,
   },
   timeTextRead: {
     opacity: 0.7,
