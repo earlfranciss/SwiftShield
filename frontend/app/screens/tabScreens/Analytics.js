@@ -5,6 +5,7 @@ import {
   Text,
   View,
   ActivityIndicator,
+  TouchableOpacity,
   FlatList,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -13,6 +14,7 @@ import PieGraph from "../components/PieGraph";
 import ThreatLevelCard from "../components/ThreatLevelCard";
 import RecentActivityLogs from "../components/RecentActivityLogs";
 import StatsText from "../components/StatsText";
+import DetailsModal from "../components/DetailsModal";
 import config from "../../config";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -28,6 +30,9 @@ export default function Analytics() {
     High: 0,
     Critical: 0,
   });
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [logLoading, setLogLoading] = useState(false); // Track individual log loading
 
 
   useFocusEffect(
@@ -39,7 +44,7 @@ export default function Analytics() {
           // Fetch all required APIs in parallel
           const [logsRes, urlsScannedRes, threatsBlockedRes, severityCountsRes] =
             await Promise.all([
-              fetch(`${config.BASE_URL}/recent-activity`).then((res) => res.json()), // ✅ Correct API
+              fetch(`${config.BASE_URL}/recent-activity`).then((res) => res.json()),
               fetch(`${config.BASE_URL}/urls-scanned`).then((res) => res.json()),
               fetch(`${config.BASE_URL}/threats-blocked`).then((res) => res.json()),
               fetch(`${config.BASE_URL}/severity-counts`).then((res) => res.json()),
@@ -64,9 +69,47 @@ export default function Analytics() {
       }
   
       fetchAnalyticsData();
-      // fetchRecentActivity();
     }, [])
   );
+
+  const formatProbability = (prob) => {
+    // Check if probability exists and is a valid number
+    if (prob === null || prob === undefined || isNaN(parseFloat(prob))) {
+      return "N/A%";
+    }
+    
+    // Convert to number, multiply by 100, round to integer, and add % sign
+    try {
+      const percentage = (parseFloat(prob) * 100).toFixed(0);
+      return `${percentage}%`;
+    } catch (error) {
+      console.error("Error formatting probability:", error, "Value:", prob);
+      return "N/A%";
+    }
+  };
+
+  const showModal = (logItem) => {
+    console.log("Opening modal with log:", logItem);
+    
+    // Format data for modal
+    const modalData = {
+      id: logItem.id,
+      url: logItem.url || logItem.link.split(" - ")[0], // Extract URL from link if needed
+      platform: logItem.platform || "Web",
+      date_scanned: logItem.date_scanned || "Unknown",
+      severity: logItem.severity || "Unknown",
+      probability: logItem.probability !== undefined ? `${Math.round(logItem.probability * 100)}%` : "N/A%",
+      recommended_action: logItem.recommended_action || "Unknown"
+    };
+    
+    setSelectedLog(modalData);
+    setModalVisible(true);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setSelectedLog(null);
+  };
   
 
   if (loading) {
@@ -113,23 +156,8 @@ export default function Analytics() {
     { label: "Threats Blocked", value: threatsBlocked },
   ];
 
-  const fetchRecentActivity = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${config.BASE_URL}/recent-activity`);
-      const data = await response.json();
-      console.log("Recent Activity Data:", data);
-      setLogsData(data.recent_activity);  // ✅ Set logsData correctly
-    } catch (error) {
-      console.error("Error fetching recent activity:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const viewabilityConfig = {
-    // minimumViewTime: 100, // Item must be visible for 300ms to be considered seen
-    // viewAreaCoveragePercentThreshold: 50, // At least 50% of the item must be visible
     itemVisiblePercentThreshold: 100,
   };
   
@@ -152,24 +180,29 @@ export default function Analytics() {
         <Text style={styles.recentActivityTitle}>Recent Activity:</Text>
         {logsData?.length > 0 ? (
           <FlatList
-            data={logsData}  // ✅ Use logsData directly
-            keyExtractor={(item, index) => index.toString()}
-            renderItem={({ item }) => <RecentActivityLogs logItem={item} />}
+            data={logsData}
+            keyExtractor={(item, index) => item.id || index.toString()}
+            renderItem={({ item }) => (
+              <TouchableOpacity onPress={() => showModal(item)}>
+                <RecentActivityLogs logItem={item} />
+              </TouchableOpacity>
+            )}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
-            initialNumToRender={1} // Show only one full item
-            maxToRenderPerBatch={1} // Render only one item at a time
-            windowSize={2} // Keeps only the next item slightly visible
-            style={{ height: 100, overflow: "hidden" }} // Ensures third item is hidden
             viewabilityConfig={viewabilityConfig}
           />
         ) : (
-          <Text style={styles.noActivityText}>
-            No recent activity available.
-          </Text>
+          <Text style={styles.noActivityText}>No recent activity available.</Text>
         )}
-
       </View>
+
+      <DetailsModal 
+        visible={modalVisible} 
+        onClose={closeModal} 
+        logDetails={selectedLog || {}} 
+        onUpdatePress={() => console.log("Update log:", selectedLog)}
+        onDeletePress={() => console.log("Delete log:", selectedLog)}
+      />
     </SafeAreaView>
   );
 }

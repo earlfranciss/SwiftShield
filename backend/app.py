@@ -12,13 +12,9 @@ import os
 import pymongo
 from datetime import datetime, timedelta
 from flask_cors import CORS
-
-import uuid
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, flash
 from flask_bcrypt import Bcrypt
-from pymongo import MongoClient
 from flask_pymongo import PyMongo
-from dotenv import load_dotenv
 from bson.objectid import ObjectId
 
 warnings.filterwarnings('ignore')
@@ -32,7 +28,7 @@ if not db_connection_string or not secret_key:
     raise ValueError("Environment variables DB_CONNECTION_STRING or SECRET_KEY are not set")
 
 # Load the model
-model_path = os.path.join(os.path.dirname(__file__), "../ai-models/pickle/model.pkl")
+model_path = os.path.join(os.path.dirname(__file__), "../ai-models/pickle/stackmodel.pkl")
 with open(model_path, "rb") as file:
     stacked = pickle.load(file)
 
@@ -49,8 +45,12 @@ except pymongo.errors.ServerSelectionTimeoutError:
 
 app = Flask(__name__)
 app.config["DEBUG"] = True
+
 CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins
-bcrypt = Bcrypt(app)
+
+# ✅ Initialize Bcrypt properly
+bcrypt = Bcrypt(app) 
+
 
 
 def time_ago(scan_time):
@@ -72,8 +72,47 @@ def time_ago(scan_time):
         return f"{int(seconds / 2592000)} months ago"
     else:
         return f"{int(seconds / 31536000)} years ago"
-    
-    
+
+# Helper Function to Fetch Logs with Detection Details
+def fetch_logs(limit=None):
+    log_entries = logs.aggregate([
+        {
+            "$lookup": {
+                "from": "Detection",
+                "localField": "detect_id",
+                "foreignField": "detect_id",
+                "as": "detection_info"
+            }
+        },
+        {"$unwind": "$detection_info"},
+        {"$sort": {"detection_info.timestamp": pymongo.DESCENDING}}
+    ])
+
+    formatted_logs = []
+    for log in log_entries:
+        detection_entry = log.get("detection_info", {})
+
+        # Extract details properly
+        timestamp = detection_entry.get("timestamp")
+        formatted_time = time_ago(timestamp) if timestamp else "Unknown"
+        details = detection_entry.get("details", "Unknown")  # ✅ Ensure details are included
+        source = detection_entry.get("metadata", {}).get("source", "Scan")  # ✅ Ensure source is included
+
+        formatted_logs.append({
+            "id": str(log["_id"]),
+            "title": "Phishing Detected" if details == "Phishing" else "Safe Link Verified",
+            "link": f"{detection_entry.get('url', 'Unknown URL')} - {source}",
+            "time": formatted_time,  # ✅ Convert to '15 mins ago'
+            "icon": "suspicious-icon" if details == "Phishing" else "safe-icon",
+        })
+
+        if limit and len(formatted_logs) >= limit:
+            break  # Stop when limit is reached
+
+    return formatted_logs
+
+
+
 # URL Prediction
 @app.route("/", methods=["POST"])
 def index():
@@ -89,13 +128,58 @@ def index():
 
         # Extract features from the URL
         obj = FeatureExtraction(url)
-        x = np.array(obj.getFeaturesList()).reshape(1, 30)
+        features_list = obj.getFeaturesList()
+
+
+        # Print the extracted feature count
+        print(f"✅ Extracted features count in app.py: {len(features_list)}")
+        print(f"✅ Extracted features data: {features_list}")
+
+        # IMPORTANT: Force the feature list to have exactly 30 features
+        # This will ensure the reshape works regardless of what getFeaturesList returns
+        if len(features_list) < 30:
+            # Add zeros for missing features
+            features_list = features_list + [0] * (30 - len(features_list))
+        elif len(features_list) > 30:
+            # Trim excess features
+            features_list = features_list[:30]
+
+        # Verify we now have exactly 30 features
+        print(f"✅ Adjusted feature count: {len(features_list)}")
+
+        # Now reshape will work correctly
+        x = np.array(features_list).reshape(1, 30)
+
+        # Simple severity classification based on phishing probability
+        severity_map = {
+            1: "LOW",
+            2: "MEDIUM", 
+            3: "HIGH",
+            4: "CRITICAL"
+        }
+
     
         # Get predictions
         y_pred = stacked.predict(x)[0]
         y_pro_phishing = stacked.predict_proba(x)[0, 0]
         y_pro_non_phishing = stacked.predict_proba(x)[0, 1]
-        phishing_percentage =  y_pro_phishing * 100
+        # Get the final ensemble score (combined model output)
+        ensemble_score = float(stacked.predict_proba(x)[0, 1])
+
+        # Determine severity based on ensemble score (NOT phishing percentage)
+        if ensemble_score < 0.40:  # Increase threshold for LOW severity
+            severity = "LOW"
+        elif ensemble_score < 0.70:
+            severity = "MEDIUM"
+        elif ensemble_score < 0.90:
+            severity = "HIGH"
+        else:
+            severity = "CRITICAL"
+
+
+        # ✅ Print for debugging
+        print(f"🚨 Severity for {url}: {severity} (ensemble_score={ensemble_score})")
+
         
         # Generate unique detect_id
         detect_id = str(uuid.uuid4())  
@@ -111,6 +195,7 @@ def index():
             "nb_score": float(y_pro_phishing * 0.8),  # Example transformation
             "nlp_score": float(y_pro_non_phishing * 0.7),
             "features": obj.getFeaturesList(),
+            "severity": severity,  # ✅ Store severity
             "metadata": {"source": "Scan"}
         }
         detection.insert_one(detection_data)  # MongoDB will create the collection if it doesn't exist
@@ -119,21 +204,29 @@ def index():
         log_data = {
             "log_id": str(uuid.uuid4()),
             "detect_id": detect_id,  # Foreign key reference
-            "probability": phishing_percentage,
-            "severity": "High" if phishing_percentage > 80 else "Medium",
+            "probability": ensemble_score,
+            "severity": severity,  # ✅ Use the new severity classification
             "platform": "Web",
             "verdict": "Safe" if y_pred == 1 else "Phishing",
         }
+
         logs.insert_one(log_data) 
+        log_data["_id"] = str(logs.inserted_id)
         
         # Response
         response = {
             "url": url,
             "prediction": int(y_pred),
             "safe_percentage": y_pro_non_phishing * 100,
-            "phishing_percentage": phishing_percentage,
-            "detect_id": detect_id  # Include for reference
+            "phishing_percentage": ensemble_score,
+            "severity": severity,  # ✅ Return severity in API response
+            "detect_id": detect_id,  # Include for reference
+            "log_details": log_data  # Send log details for the modal
         }
+
+        
+        
+        
         return jsonify(response)
     
     except Exception as e:
@@ -141,40 +234,164 @@ def index():
         return jsonify({"error": str(e)}), 500
       
       
+# ✅ **GET - Fetch Recent Activity**
+@app.route("/recent-activity", methods=["GET"])
+def get_recent_activity():
+    try:
+        # Use MongoDB aggregation to join Detection and Logs collections
+        pipeline = [
+            {
+                "$lookup": {
+                    "from": "Logs",
+                    "localField": "detect_id",
+                    "foreignField": "detect_id",
+                    "as": "log_info"
+                }
+            },
+            {"$unwind": {"path": "$log_info", "preserveNullAndEmptyArrays": True}},
+            {"$sort": {"timestamp": pymongo.DESCENDING}}
+        ]
+        
+        recent_activity = list(detection.aggregate(pipeline))
+        formatted_activity = []
+
+        for activity in recent_activity:
+            # Get log info if it exists
+            log_info = activity.get("log_info", {})
+            
+            # Determine if it's phishing based on either detection details or log verdict
+            is_phishing = activity.get("details") == "Phishing" or log_info.get("verdict") == "Phishing"
+            
+            # Format date for display
+            timestamp = activity.get("timestamp")
+            formatted_time = time_ago(timestamp) if timestamp else "Unknown"
+            
+            # Using the same approach as in /logs/<log_id> for probability
+            formatted_activity.append({
+                "id": str(activity["_id"]),
+                "detect_id": activity.get("detect_id", "N/A"),
+                "title": "Phishing Detected" if is_phishing else "Safe Link Verified",
+                "link": f"{activity.get('url', 'Unknown URL')} - {activity.get('metadata', {}).get('source', 'Scan')}",
+                "time": formatted_time,
+                "icon": "suspicious-icon" if is_phishing else "safe-icon",
+                "severity": log_info.get("severity", activity.get("severity", "Medium")),
+                "probability": log_info.get("probability", 0),  # Same as in /logs/<log_id>
+                "platform": log_info.get("platform", "Web"),
+                "recommended_action": "Block URL" if is_phishing else "Allow URL",
+                # Additional fields needed for modal
+                "url": activity.get("url", "Unknown URL"),
+                "date_scanned": timestamp
+            })
+
+        return jsonify({"recent_activity": formatted_activity})
+
+    except Exception as e:
+        print(f"🔥 Error in /recent-activity: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/recent-activity-logs", methods=["GET"])
+def get_recent_activity_logs():
+    try:
+        recent_activity = list(detection.aggregate([
+            {
+                "$lookup": {
+                    "from": "logs",  # Join with logs collection
+                    "localField": "detect_id",
+                    "foreignField": "detect_id",
+                    "as": "log_info"
+                }
+            },
+            {"$unwind": "$log_info"},  # Flatten results
+            {"$sort": {"timestamp": pymongo.DESCENDING}}
+        ]))
+
+        formatted_activity = []
+        for activity in recent_activity:
+            formatted_activity.append({
+                "id": str(activity["_id"]),  # This is detection ID
+                "log_id": str(activity["log_info"]["_id"]),  # ✅ Include log_id for updates/deletes
+                "detect_id": activity.get("detect_id", "N/A"),
+                "title": "Phishing Detected" if activity.get("details") == "Phishing" else "Safe Link Verified",
+                "link": f"{activity.get('url', 'Unknown URL')} - {activity.get('metadata', {}).get('source', 'Scan')}",
+                "time": time_ago(activity.get("timestamp")) if activity.get("timestamp") else "Unknown",
+                "icon": "suspicious-icon" if activity.get("details") == "Phishing" else "safe-icon",
+                "severity": activity.get("log_info").get("severity", "Medium"),
+                "probability": activity.get("log_info").get("probability", 0),
+                "platform": activity.get("log_info").get("platform", "Unknown"),
+                "recommended_action": activity.get("log_info").get("recommended_action", "Allow URL"),
+            })
+
+        return jsonify({"recent_activity": formatted_activity})
+
+    except Exception as e:
+        print(f"🔥 Error in /recent-activity: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+
+# ✅ **GET - Fetch Severity Counts**
+@app.route("/severity-counts", methods=["GET"])
+def get_severity_counts():
+    try:
+        severity_counts = {
+            "Low": detection.count_documents({"severity": "LOW"}),
+            "Medium": detection.count_documents({"severity": "MEDIUM"}),
+            "High": detection.count_documents({"severity": "HIGH"}),
+            "Critical": detection.count_documents({"severity": "CRITICAL"})
+        }
+
+        """
+        severity_counts = {
+            "Low": detection.count_documents({"ensemble_score": {"$lt": 0.40}}),
+            "Medium": detection.count_documents({"ensemble_score": {"$gte": 0.40, "$lt": 0.70}}),
+            "High": detection.count_documents({"ensemble_score": {"$gte": 0.70, "$lt": 0.90}}),
+            "Critical": detection.count_documents({"ensemble_score": {"$gte": 0.90}})
+        }
+        """
+
+        print(f"✅ Severity counts: {severity_counts}")
+        return jsonify({"severity_counts": severity_counts})
+
+    except Exception as e:
+        print(f"🔥 Error in /severity-counts: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ✅ **GET - Fetch Total URLs Scanned**
+@app.route("/urls-scanned", methods=["GET"])
+def get_urls_scanned():
+    try:
+        total_urls_scanned = detection.count_documents({})
+        return jsonify({"total_urls_scanned": total_urls_scanned})
+
+    except Exception as e:
+        print(f"🔥 Error in /urls-scanned: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ✅ **GET - Fetch Threats Blocked**
+@app.route("/threats-blocked", methods=["GET"])
+def get_threats_blocked():
+    try:
+        threats_blocked = detection.count_documents({"ensemble_score": {"$gt": 0.6}})  # Adjust threshold as needed
+        return jsonify({"threats_blocked": threats_blocked})
+
+    except Exception as e:
+        print(f"🔥 Error in /threats-blocked: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ✅ **GET - Fetch Logs (General)**
 @app.route("/logs", methods=["GET"])
 def get_logs():
     try:
-        # Fetch logs with corresponding detection info, sorted by detection.timestamp (latest first)
-        log_entries = logs.aggregate([
-            {
-                "$lookup": {
-                    "from": "Detection",  # Join with Detection collection
-                    "localField": "detect_id",
-                    "foreignField": "detect_id",
-                    "as": "detection_info"
-                }
-            },
-            { "$unwind": "$detection_info"},{"$sort": {"detection_info.timestamp": pymongo.DESCENDING}}
-        ])
-
-        formatted_logs = []
-        for log in log_entries:
-            detection_entry = log["detection_info"]  # Get detection fields
-
-            formatted_logs.append({
-                "id": str(log["_id"]),
-                "title": "Phishing Detected" if log["verdict"] == "Phishing" else "Safe Link Verified",
-                "link": f"{detection_entry['url']} - {detection_entry.get('metadata', {}).get('source', 'Scan')}",
-                "time": time_ago(detection_entry["timestamp"]) if "timestamp" in detection_entry else "N/A",
-                "icon": "suspicious-icon" if log["verdict"] == "Phishing" else "safe-icon",
-            })
-
-        return jsonify(formatted_logs)
+        logs_data = fetch_logs()
+        return jsonify(logs_data)
 
     except Exception as e:
         print(f"🔥 Error in /logs: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
 
 
 # ✅ NEW API TO FETCH A SINGLE LOG'S DETAILS FOR NOTIFICATION CLICK
@@ -200,6 +417,59 @@ def get_log_details(log_id):
         }
 
         return jsonify(log_details)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/logs/<log_id>", methods=["PUT"])
+def update_log(log_id):
+    try:
+        data = request.json
+        log = logs.find_one({"_id": ObjectId(log_id)})
+        if not log:
+            return jsonify({"error": "Log not found"}), 404
+
+        update_fields = {}
+        if "severity" in data:
+            update_fields["severity"] = data["severity"]
+        if "probability" in data:
+            update_fields["probability"] = data["probability"]
+        if "platform" in data:
+            update_fields["platform"] = data["platform"]
+        if "recommended_action" in data:
+            update_fields["recommended_action"] = data["recommended_action"]
+
+        if not update_fields:
+            return jsonify({"error": "No valid fields to update"}), 400
+
+        logs.update_one({"_id": ObjectId(log_id)}, {"$set": update_fields})
+
+        updated_log = logs.find_one({"_id": ObjectId(log_id)})
+        return jsonify({
+            "message": "Log updated successfully",
+            "log": {
+                "id": str(updated_log["_id"]),
+                "severity": updated_log.get("severity"),
+                "probability": updated_log.get("probability"),
+                "platform": updated_log.get("platform"),
+                "recommended_action": updated_log.get("recommended_action"),
+            }
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/logs/<log_id>", methods=["DELETE"])
+def delete_log(log_id):
+    try:
+        log = logs.find_one({"_id": ObjectId(log_id)})
+        if not log:
+            return jsonify({"error": "Log not found"}), 404
+
+        logs.delete_one({"_id": ObjectId(log_id)})
+
+        return jsonify({"message": "Log deleted successfully", "log_id": log_id})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -273,12 +543,15 @@ def Login():
 
     user = users.find_one({'email': email})
     if not user:
+        print(f"Login failed: No user found with email {email}")  # 👈 Debugging
         return jsonify({"error": "Invalid email or password"}), 401
 
     # Verify password
     if not bcrypt.check_password_hash(user['password'], password):
+        print(f"Login failed: Incorrect password for {email}")  # 👈 Debugging
         return jsonify({"error": "Invalid email or password"}), 401
 
+    # Update last login time
     users.update_one({'_id': user['_id']}, {"$set": {"last_login": datetime.now()}})
 
     print(f"User {email} logged in successfully")  # 👈 Debugging
@@ -289,6 +562,70 @@ def Login():
         "email": user['email'],
         "firstName": user['firstName']
     }), 200
+
+
+@app.route("/weekly-threats", methods=["GET"])
+def get_weekly_threats():
+    try:
+        # Get today's date and the start of the last 7 days range
+        today = datetime.now().date()
+        start_date = today - timedelta(days=6)  # **Start from 6 days ago to today**
+        start_date_iso = start_date.strftime("%Y-%m-%dT00:00:00")  # Format for MongoDB query
+
+        # Aggregation pipeline to fetch timestamps, extract day, and filter last 7 days
+        pipeline = [
+            {
+                "$project": {
+                    "localDate": {
+                        "$dateToString": { "format": "%Y-%m-%d", "date": "$timestamp" }
+                    },
+                    "dayOfWeek": {
+                        "$dayOfWeek": "$timestamp"  # Extract correct weekday (1=Sunday, ..., 7=Saturday)
+                    }
+                }
+            },
+            {
+                "$match": {  # Filter only the last 7 days (no older scans)
+                    "localDate": {"$gte": start_date_iso}
+                }
+            },
+            {
+                "$group": {  # Group by day of the week
+                    "_id": "$dayOfWeek",
+                    "threat_count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"_id": 1}}  # Ensure correct order
+        ]
+
+        results = list(detection.aggregate(pipeline))
+
+        # Correct mapping for MongoDB's `$dayOfWeek` (1=Sunday, ..., 7=Saturday)
+        days_map = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"}
+        weekly_data = {days_map[i]: 0 for i in range(1, 8)}  # Initialize all days to 0
+
+        # Populate the dictionary with actual threat counts
+        for entry in results:
+            day_name = days_map.get(entry["_id"], "Unknown")
+            weekly_data[day_name] = entry["threat_count"]
+
+        # Ensure output is sorted by actual **dates**, not just Sunday-Saturday
+        ordered_days = []
+        ordered_values = []
+        for i in range(7):
+            day = (start_date + timedelta(days=i)).strftime("%a")  # Convert to "Mon", "Tue", etc.
+            ordered_days.append(day)
+            ordered_values.append(weekly_data.get(day, 0))  # Default to 0 if no data
+
+        response = {
+            "labels": ordered_days,  # Ordered from last 7 days
+            "data": ordered_values   # Correct threat counts
+        }
+
+        return jsonify(response)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)
