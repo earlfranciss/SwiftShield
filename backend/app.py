@@ -266,7 +266,16 @@ def get_recent_activity():
             timestamp = activity.get("timestamp")
             formatted_time = time_ago(timestamp) if timestamp else "Unknown"
             
-            # Using the same approach as in /logs/<log_id> for probability
+            # Get probability and ensure it's a valid float
+            probability = 0.0
+            if log_info.get("probability") is not None:
+                probability = float(log_info.get("probability"))
+            elif activity.get("ensemble_score") is not None:
+                probability = float(activity.get("ensemble_score"))
+                
+            # Print debug info
+            print(f"Debug - ID: {activity.get('_id')}, Probability: {probability}, Type: {type(probability)}")
+            
             formatted_activity.append({
                 "id": str(activity["_id"]),
                 "detect_id": activity.get("detect_id", "N/A"),
@@ -274,8 +283,8 @@ def get_recent_activity():
                 "link": f"{activity.get('url', 'Unknown URL')} - {activity.get('metadata', {}).get('source', 'Scan')}",
                 "time": formatted_time,
                 "icon": "suspicious-icon" if is_phishing else "safe-icon",
-                "severity": log_info.get("severity", activity.get("severity", "Medium")),
-                "probability": log_info.get("probability", 0),  # Same as in /logs/<log_id>
+                "severity": activity.get("severity", "Medium"),
+                "probability": probability,  # Now guaranteed to be a float
                 "platform": log_info.get("platform", "Web"),
                 "recommended_action": "Block URL" if is_phishing else "Allow URL",
                 # Additional fields needed for modal
@@ -290,43 +299,6 @@ def get_recent_activity():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/recent-activity-logs", methods=["GET"])
-def get_recent_activity_logs():
-    try:
-        recent_activity = list(detection.aggregate([
-            {
-                "$lookup": {
-                    "from": "logs",  # Join with logs collection
-                    "localField": "detect_id",
-                    "foreignField": "detect_id",
-                    "as": "log_info"
-                }
-            },
-            {"$unwind": "$log_info"},  # Flatten results
-            {"$sort": {"timestamp": pymongo.DESCENDING}}
-        ]))
-
-        formatted_activity = []
-        for activity in recent_activity:
-            formatted_activity.append({
-                "id": str(activity["_id"]),  # This is detection ID
-                "log_id": str(activity["log_info"]["_id"]),  # ✅ Include log_id for updates/deletes
-                "detect_id": activity.get("detect_id", "N/A"),
-                "title": "Phishing Detected" if activity.get("details") == "Phishing" else "Safe Link Verified",
-                "link": f"{activity.get('url', 'Unknown URL')} - {activity.get('metadata', {}).get('source', 'Scan')}",
-                "time": time_ago(activity.get("timestamp")) if activity.get("timestamp") else "Unknown",
-                "icon": "suspicious-icon" if activity.get("details") == "Phishing" else "safe-icon",
-                "severity": activity.get("log_info").get("severity", "Medium"),
-                "probability": activity.get("log_info").get("probability", 0),
-                "platform": activity.get("log_info").get("platform", "Unknown"),
-                "recommended_action": activity.get("log_info").get("recommended_action", "Allow URL"),
-            })
-
-        return jsonify({"recent_activity": formatted_activity})
-
-    except Exception as e:
-        print(f"🔥 Error in /recent-activity: {str(e)}")
-        return jsonify({"error": str(e)}), 500
 
 
 
@@ -334,28 +306,35 @@ def get_recent_activity_logs():
 @app.route("/severity-counts", methods=["GET"])
 def get_severity_counts():
     try:
-        severity_counts = {
-            "Low": detection.count_documents({"severity": "LOW"}),
-            "Medium": detection.count_documents({"severity": "MEDIUM"}),
-            "High": detection.count_documents({"severity": "HIGH"}),
-            "Critical": detection.count_documents({"severity": "CRITICAL"})
+        # Define the severity mapping for consistent case formatting
+        severity_map = {
+            "low": "Low",
+            "medium": "Medium",
+            "high": "High",
+            "critical": "Critical"
         }
 
-        """
-        severity_counts = {
-            "Low": detection.count_documents({"ensemble_score": {"$lt": 0.40}}),
-            "Medium": detection.count_documents({"ensemble_score": {"$gte": 0.40, "$lt": 0.70}}),
-            "High": detection.count_documents({"ensemble_score": {"$gte": 0.70, "$lt": 0.90}}),
-            "Critical": detection.count_documents({"ensemble_score": {"$gte": 0.90}})
-        }
-        """
+        total_counts = {key: 0 for key in severity_map.values()}  # Initialize counts
 
-        print(f"✅ Severity counts: {severity_counts}")
-        return jsonify({"severity_counts": severity_counts})
+        for collection in [logs, detection]:  # Query both collections
+            pipeline = [
+                {"$match": {"severity": {"$exists": True}}},  # Ensure 'severity' field exists
+                {"$group": {"_id": {"$toLower": "$severity"}, "count": {"$sum": 1}}}  # Normalize to lowercase
+            ]
+
+            results = collection.aggregate(pipeline)
+            for result in results:
+                severity = severity_map.get(result["_id"], None)  # Map to proper format
+                if severity:
+                    total_counts[severity] += result["count"]
+
+        print(f"✅ Combined Severity Counts: {total_counts}")
+        return jsonify({"severity_counts": total_counts})
 
     except Exception as e:
         print(f"🔥 Error in /severity-counts: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
 
 
 # ✅ **GET - Fetch Total URLs Scanned**
@@ -421,58 +400,6 @@ def get_log_details(log_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route("/logs/<log_id>", methods=["PUT"])
-def update_log(log_id):
-    try:
-        data = request.json
-        log = logs.find_one({"_id": ObjectId(log_id)})
-        if not log:
-            return jsonify({"error": "Log not found"}), 404
-
-        update_fields = {}
-        if "severity" in data:
-            update_fields["severity"] = data["severity"]
-        if "probability" in data:
-            update_fields["probability"] = data["probability"]
-        if "platform" in data:
-            update_fields["platform"] = data["platform"]
-        if "recommended_action" in data:
-            update_fields["recommended_action"] = data["recommended_action"]
-
-        if not update_fields:
-            return jsonify({"error": "No valid fields to update"}), 400
-
-        logs.update_one({"_id": ObjectId(log_id)}, {"$set": update_fields})
-
-        updated_log = logs.find_one({"_id": ObjectId(log_id)})
-        return jsonify({
-            "message": "Log updated successfully",
-            "log": {
-                "id": str(updated_log["_id"]),
-                "severity": updated_log.get("severity"),
-                "probability": updated_log.get("probability"),
-                "platform": updated_log.get("platform"),
-                "recommended_action": updated_log.get("recommended_action"),
-            }
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/logs/<log_id>", methods=["DELETE"])
-def delete_log(log_id):
-    try:
-        log = logs.find_one({"_id": ObjectId(log_id)})
-        if not log:
-            return jsonify({"error": "Log not found"}), 404
-
-        logs.delete_one({"_id": ObjectId(log_id)})
-
-        return jsonify({"message": "Log deleted successfully", "log_id": log_id})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/Registration", methods=['POST'])
