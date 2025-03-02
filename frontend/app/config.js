@@ -1,10 +1,18 @@
 import Constants from "expo-constants";
 
 const getBaseURL = () => {
-  const host = Constants.expoConfig?.hostUri?.split(":")[0]; // Get laptop's local IP
-  console.log("Extracted Host:", host);
+  let host;
 
-  return host ? `http://${host}:5000` : "http://localhost:5000"; // Fallback to localhost if undefined
+  // Get host from Expo manifest (more reliable)
+  if (Constants.expoGo?.debuggerHost) {
+    host = Constants.expoGo.debuggerHost.split(":")[0]; // Extract the IP only
+  } else if (Constants.expoConfig?.hostUri) {
+    host = Constants.expoConfig.hostUri.split(":")[0]; // Fallback if available
+  }
+
+  console.log("Extracted Host IP:", host);
+
+  return host ? `http://${host}:5000` : "http://127.0.0.1:5000"; // Fallback for Web
 };
 
 const config = {

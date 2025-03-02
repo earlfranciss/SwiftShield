@@ -1,31 +1,12 @@
 import React, { useState } from "react";
-import {
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  Dimensions,
-} from "react-native";
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-const screenWidth = Dimensions.get("window").width;
-
-const filters = [
-  { id: "recent", label: "Recent" },
-  { id: "whitelisted", label: "Whitelisted" },
-  { id: "blacklisted", label: "Blacklisted" },
-  { id: "low", label: "Low" },
-  { id: "medium", label: "Medium" },
-  { id: "high", label: "High" },
-  { id: "critical", label: "Critical" },
-];
-
-const CarouselFilter = ({ onFilterChange }) => {
-  const [selectedFilter, setSelectedFilter] = useState("recent");
+const CarouselFilter = ({ filters, onFilterChange }) => {
+  const [selectedFilter, setSelectedFilter] = useState(filters[0]?.id || "recent");
 
   const handleFilterPress = (filterId) => {
     setSelectedFilter(filterId);
-    onFilterChange(filterId); // Notify parent component of the filter change
+    onFilterChange(filterId);
   };
 
   return (
@@ -37,18 +18,10 @@ const CarouselFilter = ({ onFilterChange }) => {
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={[
-              styles.card,
-              item.id === selectedFilter && styles.selectedCard,
-            ]}
+            style={[styles.card, item.id === selectedFilter && styles.selectedCard]}
             onPress={() => handleFilterPress(item.id)}
           >
-            <Text
-              style={[
-                styles.label,
-                item.id === selectedFilter && styles.selectedLabel,
-              ]}
-            >
+            <Text style={[styles.label, item.id === selectedFilter && styles.selectedLabel]}>
               {item.label}
             </Text>
           </TouchableOpacity>
@@ -60,14 +33,10 @@ const CarouselFilter = ({ onFilterChange }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    marginVertical: 1,
-  },
-  listContent: {
-    paddingHorizontal: 10,
-  },
+  container: { marginVertical: 5 },
+  listContent: { paddingHorizontal: 10 },
   card: {
-    backgroundColor: "rgba(58, 237, 151, 0.8)", // This is the same color with 80% opacity
+    backgroundColor: "rgba(58, 237, 151, 0.8)",
     paddingVertical: 5,
     paddingHorizontal: 10,
     borderRadius: 10,
@@ -76,18 +45,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   selectedCard: {
-    borderColor: "#34d399", // Highlight color for selected filter
-    backgroundColor: "#34d3991a", // Light shade for selected
+    borderColor: "#34d399",
+    backgroundColor: "#34d3991a",
   },
-  label: {
-    color: "#030303",
-    fontSize: 12,
-    textAlign: "center",
-  },
-  selectedLabel: {
-    color: "#34d399",
-    fontWeight: "bold",
-  },
+  label: { color: "#030303", fontSize: 12, textAlign: "center" },
+  selectedLabel: { color: "#34d399", fontWeight: "bold" },
 });
 
 export default CarouselFilter;

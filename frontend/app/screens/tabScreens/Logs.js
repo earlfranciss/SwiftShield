@@ -54,6 +54,16 @@ export default function Logs() {
     setSelectedLog(null);
   };
 
+  const filters = [
+    { id: "recent", label: "Recent" },
+    { id: "whitelisted", label: "Whitelisted" },
+    { id: "blacklisted", label: "Blacklisted" },
+    { id: "low", label: "Low" },
+    { id: "medium", label: "Medium" },
+    { id: "high", label: "High" },
+    { id: "critical", label: "Critical" },
+  ];
+
   const handleScan = () => {
     console.log("Scanning URL:", url);
     // Add your URL scanning logic here

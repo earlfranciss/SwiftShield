@@ -7,7 +7,7 @@ import {
   ScrollView,
 } from "react-native";
 
-export default function Settings({ navigation }) {
+export default function Settings({ navigation, isDarkMode }) {
   const handleSignOut = () => {
     // Navigate to the Login screen when the user clicks "Sign-out"
     navigation.replace("Login"); // navigation will be passed correctly now
@@ -37,7 +37,17 @@ export default function Settings({ navigation }) {
         <TouchableOpacity style={styles.optionButton}>
           <Text style={styles.optionText}>Privacy Policy</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.optionButton}>
+
+       {/* Help & Support to Reports */} 
+        <TouchableOpacity
+          style={styles.optionButton}
+          onPress={() =>
+            navigation.navigate("Reports", {
+              isDarkMode: isDarkMode,
+              onToggleDarkMode: handleSignOut, // Pass any function if needed
+            })
+          }
+        >
           <Text style={styles.optionText}>Help and Support</Text>
         </TouchableOpacity>
 
