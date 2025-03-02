@@ -20,6 +20,7 @@ function TopBar({ onToggleDarkMode, isDarkMode, navigation }) {
                     color={isDarkMode ? "black" : "#3AED97"}
                 />
             </TouchableOpacity>
+            
             {/* Open Notifications */}
             <TouchableOpacity onPress={() => navigation.navigate('Notifications', { isDarkMode, onToggleDarkMode })}>
                 <Ionicons 

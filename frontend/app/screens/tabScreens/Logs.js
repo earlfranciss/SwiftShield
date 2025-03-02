@@ -43,6 +43,7 @@ export default function Logs({ route }) {
     { id: 'critical', label: 'Critical' }
   ];
 
+
   const showModal = async (logId) => {
     console.log('Fetching log details for ID:', logId);
     setLogLoading(true);
@@ -61,13 +62,23 @@ export default function Logs({ route }) {
     } finally {
       setLogLoading(false);
     }
+
   };
 
   const closeModal = () => {
-    console.log('Close modal called');
     setModalVisible(false);
     setSelectedLog(null);
   };
+
+  const filters = [
+    { id: "recent", label: "Recent" },
+    { id: "whitelisted", label: "Whitelisted" },
+    { id: "blacklisted", label: "Blacklisted" },
+    { id: "low", label: "Low" },
+    { id: "medium", label: "Medium" },
+    { id: "high", label: "High" },
+    { id: "critical", label: "Critical" },
+  ];
 
   const handleScan = () => {
     console.log("Scanning URL:", url);
@@ -159,6 +170,7 @@ export default function Logs({ route }) {
       );
     });
   };
+
 
   return (
     <SafeAreaView style={styles.container}>

@@ -10,7 +10,7 @@ const { height } = Dimensions.get("window");
 const iconMap = {
   "suspicious-icon": require("../../../assets/images/suspicious-icon.png"),
   "safe-icon": require("../../../assets/images/safe-icon.png"),
-  // Add more mappings if necessary
+  
 };
 
 const RecentActivityLogs = () => {

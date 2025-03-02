@@ -1,15 +1,21 @@
-from flask import Flask, request, jsonify
 import numpy as np
 import warnings
 import pickle
-from feature import FeatureExtraction
-from dotenv import load_dotenv
+import uuid
 import os
 import pymongo
+import pytz
+from pytz import timezone
+from pymongo import MongoClient
+from feature import FeatureExtraction
+from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from flask_cors import CORS
-import uuid
+
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_bcrypt import Bcrypt
+from flask_pymongo import PyMongo
+
 from bson.objectid import ObjectId
 
 warnings.filterwarnings('ignore')
@@ -22,7 +28,10 @@ secret_key = os.getenv("SECRET_KEY")
 if not db_connection_string or not secret_key:
     raise ValueError("Environment variables DB_CONNECTION_STRING or SECRET_KEY are not set")
 
-model_path = os.path.join(os.path.dirname(__file__), "../ai-models/pickle/model.pkl")
+
+# Load the model
+model_path = os.path.join(os.path.dirname(__file__), "../ai-models/pickle/stackmodel.pkl")
+
 with open(model_path, "rb") as file:
     stacked = pickle.load(file)
 
@@ -32,6 +41,8 @@ try:
     logs = db.get_collection("Logs")
     detection = db.get_collection("Detection")
     users = db.get_collection("Users")
+    reports = db.get_collection("Reports")
+    # Test connection
     client.server_info()
 except pymongo.errors.ServerSelectionTimeoutError:
     raise ValueError("Could not connect to MongoDB. Check DB_CONNECTION_STRING.")
@@ -41,7 +52,9 @@ app.config["DEBUG"] = True
 CORS(app, resources={r"/*": {"origins": "*"}})  
 bcrypt = Bcrypt(app)
 
-
+# Set timezone to Philippines (Asia/Manila)
+PH_TZ = pytz.timezone("Asia/Manila")
+  
 def time_ago(scan_time):
     now = datetime.now()
     diff = now - scan_time
@@ -62,6 +75,79 @@ def time_ago(scan_time):
     else:
         return f"{int(seconds / 31536000)} years ago"
 
+
+# URL Prediction
+@app.route("/", methods=["POST"])
+def index():
+    try:
+        #print("Received data:", request.get_json()) 
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data received"}), 400  # Handle empty data
+        
+        url = data.get("url", "")
+        if not url:
+            return jsonify({"error": "No URL provided"}), 400
+
+        # Extract features from the URL
+        obj = FeatureExtraction(url)
+        x = np.array(obj.getFeaturesList()).reshape(1, 30)
+    
+        # Get predictions
+        y_pred = stacked.predict(x)[0]
+        y_pro_phishing = stacked.predict_proba(x)[0, 0]
+        y_pro_non_phishing = stacked.predict_proba(x)[0, 1]
+        phishing_percentage =  y_pro_phishing * 100
+        
+        # Generate unique detect_id
+        detect_id = str(uuid.uuid4())  
+        
+        # Insert into `Detection` collection
+        detection_data = {
+            "detect_id": detect_id,
+            "url": url,
+            "timestamp": datetime.now(),
+            "ensemble_score": float(stacked.predict_proba(x)[0, 1]),
+            "svm_score": float(y_pro_phishing),  # Example score
+            "rf_score": float(y_pro_non_phishing),  # Example score
+            "nb_score": float(y_pro_phishing * 0.8),  # Example transformation
+            "nlp_score": float(y_pro_non_phishing * 0.7),
+            "features": obj.getFeaturesList(),
+            "metadata": {"source": "Scan"}
+        }
+        detection.insert_one(detection_data)  # MongoDB will create the collection if it doesn't exist
+        
+        # Insert into `Logs` collection
+        log_data = {
+            "log_id": str(uuid.uuid4()),
+            "detect_id": detect_id,  # Foreign key reference
+            "probability": phishing_percentage,
+            "severity": "High" if phishing_percentage > 80 else "Medium",
+            "platform": "Web",
+            "verdict": "Safe" if y_pred == 1 else "Phishing",
+        }
+        logs.insert_one(log_data) 
+        log_data["_id"] = str(logs.inserted_id)
+        
+        # Response
+        response = {
+            "url": url,
+            "prediction": int(y_pred),
+            "safe_percentage": y_pro_non_phishing * 100,
+            "phishing_percentage": phishing_percentage,
+            "detect_id": detect_id,  # Include for reference
+            "log_details": log_data  # Send log details for the modal
+        }
+        
+        
+        
+        return jsonify(response)
+    
+    except Exception as e:
+        print("Error:", str(e))
+        return jsonify({"error": str(e)}), 500
+      
+      
 
 @app.route("/logs", methods=["GET"])
 def get_logs():
@@ -97,6 +183,7 @@ def get_logs():
         return jsonify({"error": str(e)}), 500
 
 
+
 # ✅ NEW API TO FETCH A SINGLE LOG'S DETAILS FOR NOTIFICATION CLICK
 @app.route("/logs/<log_id>", methods=["GET"])
 def get_log_details(log_id):
@@ -123,6 +210,189 @@ def get_log_details(log_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# Route to create a report
+@app.route("/reports", methods=["POST"])
+def create_report():
+    try:
+        data = request.json
+        title = data.get("title")
+        description = data.get("description")
+
+        if not title or not description:
+            return jsonify({"message": "Title and Description are required"}), 400
+        
+        report_id = ObjectId()  
+
+        report = {
+            "_id": report_id,  # Explicitly store the ID as a string
+            "title": title,
+            "description": description,
+            "status": "Pending",
+            "created_at": datetime.now(PH_TZ),  # Store with proper timezone
+        }
+        result = reports.insert_one(report)
+
+        return jsonify({"message": "Report created successfully", "id": str(result.inserted_id)}), 201
+
+    except Exception as e:
+        return jsonify({"message": f"Error creating report: {str(e)}"}), 500
+
+# Route to edit/update a report (status & remarks only)
+@app.route("/reports/<report_id>", methods=["PUT"])
+def update_report(report_id):
+    try:
+        print(f"Received Report ID: {report_id}")  # Debugging log
+
+        # Validate if report_id is a valid ObjectId
+        if not ObjectId.is_valid(report_id):
+            return jsonify({"message": "Invalid report ID"}), 400
+
+        data = request.json
+        status = data.get("status")
+        remarks = data.get("remarks", "").strip()
+
+        # Validate status
+        valid_statuses = {"Pending", "In Progress", "Resolved"}
+        if status not in valid_statuses:
+            return jsonify({"message": "Invalid status"}), 400
+
+        if not remarks:
+            return jsonify({"message": "Remarks are required"}), 400
+
+        # Update report in database
+        update_result = reports.update_one(
+            {"_id": ObjectId(report_id)},
+            {
+                "$set": {
+                    "status": status,
+                    "remarks": remarks,
+                    "updated_at": datetime.now(PH_TZ),  # Update timestamp
+                }
+            }
+        )
+
+        if update_result.modified_count == 0:
+            # Check if report exists
+            report_exists = reports.find_one({"_id": ObjectId(report_id)})
+            if not report_exists:
+                return jsonify({"message": "Report not found"}), 404
+            else:
+                return jsonify({"message": "No changes made to report"}), 200
+
+        # Fetch updated report
+        updated_report = reports.find_one({"_id": ObjectId(report_id)})
+
+        if not updated_report:
+            return jsonify({"message": "Error retrieving updated report"}), 500
+
+        # Convert `_id` and timestamps
+        updated_report["_id"] = str(updated_report["_id"])
+        if "created_at" in updated_report:
+            updated_report["created_at"] = updated_report["created_at"].strftime("%Y-%m-%d %H:%M:%S")
+        if "updated_at" in updated_report:
+            updated_report["updated_at"] = updated_report["updated_at"].strftime("%Y-%m-%d %H:%M:%S")
+
+        return jsonify({"message": "Report updated successfully", "report": updated_report}), 200
+
+    except Exception as e:
+        return jsonify({"message": f"Error updating report: {str(e)}"}), 500
+
+# Archive report
+@app.route("/reports/<report_id>/archive", methods=["PUT"])
+def archive_report(report_id):
+    try:
+        print(f"Received Report ID for Archiving: {report_id}")  # Debugging log
+
+        # Validate ObjectId
+        if not ObjectId.is_valid(report_id):
+            return jsonify({"message": "Invalid report ID"}), 400
+
+        # Fetch the report
+        report = reports.find_one({"_id": ObjectId(report_id)})
+        if not report:
+            return jsonify({"message": "Report not found"}), 404
+
+        # Check if the report is already archived
+        if report.get("status") == "Archived":
+            return jsonify({"message": "Report is already archived"}), 400
+
+        # Ensure the report is "Resolved" before archiving
+        if report.get("status") != "Resolved":
+            return jsonify({"message": "Only resolved reports can be archived"}), 400
+
+        # Get remarks from request
+        data = request.json
+        new_remarks = data.get("remarks", "Report archived").strip()
+
+        if not new_remarks:
+            return jsonify({"message": "Remarks are required"}), 400
+
+        # Preserve existing remarks and append new remarks
+        existing_remarks = report.get("remarks", "").strip()
+        updated_remarks = f"{existing_remarks} | {new_remarks} (Archived)".strip()
+
+        # Update the report: Change status to "Archived" and add archive timestamp
+        update_result = reports.update_one(
+            {"_id": ObjectId(report_id)},
+            {
+                "$set": {
+                    "status": "Archived",  # Change status
+                    "remarks": updated_remarks,
+                    "archived_at": datetime.now(PH_TZ),
+                    "updated_at": datetime.now(PH_TZ),
+                }
+            }
+        )
+
+        if update_result.modified_count == 0:
+            return jsonify({"message": "No changes made to the report"}), 200
+
+        return jsonify({"message": "Report archived successfully", "status": "Archived"}), 200
+
+    except Exception as e:
+        return jsonify({"message": f"Error archiving report: {str(e)}"}), 500
+
+# Route to get all reports
+@app.route("/reports", methods=["GET"])
+def get_reports():
+    try:
+        # Get filter and search parameters from request
+        report_filter = request.args.get("filter", "").lower()
+        search_query = request.args.get("search", "").strip().lower()
+
+        # Define query condition for filtering archived and active reports
+        if report_filter == "archived":
+            query = {"archived_at": {"$exists": True}}  # Get only archived reports
+        else:
+            query = {"archived_at": {"$exists": False}}  # Get only active reports
+
+        # Apply search query if provided
+        if search_query:
+            query["title"] = {"$regex": search_query, "$options": "i"}  # Case-insensitive search
+
+        reports_cursor = reports.find(query)
+
+        reportslist = []
+        for report in reports_cursor:
+            report_data = {
+                "id": str(report["_id"]),
+                "title": report["title"],
+                "description": report["description"],
+                "status": report["status"],
+                "archived_at": report.get("archived_at"),  # Include archive timestamp if available
+                "created_at": report["created_at"].strftime("%Y-%m-%d %H:%M:%S") if "created_at" in report else None,
+            }
+            reportslist.append(report_data)
+
+        # Sort reports in descending order (newest first)
+        reportslist.sort(key=lambda x: x["created_at"] or "", reverse=True)
+
+        return jsonify(reportslist), 200
+
+    except Exception as e:
+        return jsonify({"message": f"Error retrieving reports: {str(e)}"}), 500
+
 
 
 @app.route("/Registration", methods=['POST'])
@@ -205,5 +475,70 @@ def Login():
     }), 200
 
 
+@app.route("/weekly-threats", methods=["GET"])
+def get_weekly_threats():
+    try:
+        # Get today's date and the start of the last 7 days range
+        today = datetime.now().date()
+        start_date = today - timedelta(days=6)  # **Start from 6 days ago to today**
+        start_date_iso = start_date.strftime("%Y-%m-%dT00:00:00")  # Format for MongoDB query
+
+        # Aggregation pipeline to fetch timestamps, extract day, and filter last 7 days
+        pipeline = [
+            {
+                "$project": {
+                    "localDate": {
+                        "$dateToString": { "format": "%Y-%m-%d", "date": "$timestamp" }
+                    },
+                    "dayOfWeek": {
+                        "$dayOfWeek": "$timestamp"  # Extract correct weekday (1=Sunday, ..., 7=Saturday)
+                    }
+                }
+            },
+            {
+                "$match": {  # Filter only the last 7 days (no older scans)
+                    "localDate": {"$gte": start_date_iso}
+                }
+            },
+            {
+                "$group": {  # Group by day of the week
+                    "_id": "$dayOfWeek",
+                    "threat_count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"_id": 1}}  # Ensure correct order
+        ]
+
+        results = list(detection.aggregate(pipeline))
+
+        # Correct mapping for MongoDB's `$dayOfWeek` (1=Sunday, ..., 7=Saturday)
+        days_map = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"}
+        weekly_data = {days_map[i]: 0 for i in range(1, 8)}  # Initialize all days to 0
+
+        # Populate the dictionary with actual threat counts
+        for entry in results:
+            day_name = days_map.get(entry["_id"], "Unknown")
+            weekly_data[day_name] = entry["threat_count"]
+
+        # Ensure output is sorted by actual **dates**, not just Sunday-Saturday
+        ordered_days = []
+        ordered_values = []
+        for i in range(7):
+            day = (start_date + timedelta(days=i)).strftime("%a")  # Convert to "Mon", "Tue", etc.
+            ordered_days.append(day)
+            ordered_values.append(weekly_data.get(day, 0))  # Default to 0 if no data
+
+        response = {
+            "labels": ordered_days,  # Ordered from last 7 days
+            "data": ordered_values   # Correct threat counts
+        }
+
+        return jsonify(response)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)
+    
