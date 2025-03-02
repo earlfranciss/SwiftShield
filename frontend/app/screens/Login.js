@@ -8,28 +8,60 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import GradientScreen from "../screens/components/GradientScreen";
+import GradientScreen from "./components/GradientScreen";
 import { LinearGradient } from "expo-linear-gradient";
+import config from "../config";
 
 export default function Login({ navigation }) {
-  const [idNumber, setIdNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   // Load the font
   const [fontsLoaded] = useFonts({
     "Poppins-ExtraBold": require("../../assets/fonts/Poppins-ExtraBold.ttf"),
   });
-
+   
   if (!fontsLoaded) {
     return null; // Wait until the font is loaded
   }
-
-  const handleLogin = () => {
-    console.log(
-      `ID Number: ${idNumber}, Password: ${password}, Remember Me: ${rememberMe}`
-    );
-    navigation.replace("Tabs");
+  
+  const handleLogin = async () => {
+    try {
+      const response = await fetch(`${config.BASE_URL}/Login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        // Login successful
+        console.log('Login successful:', data);
+        // Store user information if needed
+        // AsyncStorage.setItem('userToken', data.userId);
+        navigation.replace('Tabs');
+      } else {
+        // Login failed
+        console.log('Login failed:', data.error);
+        // Show error message to user
+        alert(data.error || 'Login failed');
+      }
+    } catch (error) {
+      console.error('Error during login:', error);
+      alert('Network error. Please try again.');
+    }
+  };
+  
+  const togglePasswordVisibility = () => {
+    setIsPasswordVisible(!isPasswordVisible);
   };
 
   return (
@@ -43,10 +75,12 @@ export default function Login({ navigation }) {
           <Ionicons name="person-outline" size={20} color="#3AED97" />
           <TextInput
             style={styles.input}
-            placeholder="ID Number"
+            placeholder="Email"
             placeholderTextColor="rgba(49, 238, 154, 0.66)"
-            value={idNumber}
-            onChangeText={(text) => setIdNumber(text)}
+            value={email}
+            onChangeText={(text) => setEmail(text)}
+            autoCapitalize="none"
+            keyboardType="email-address"
           />
         </View>
 
@@ -56,11 +90,17 @@ export default function Login({ navigation }) {
             style={styles.input}
             placeholder="Password"
             placeholderTextColor="rgba(49, 238, 154, 0.66)"
-            secureTextEntry
+            secureTextEntry={!isPasswordVisible}
             value={password}
             onChangeText={(text) => setPassword(text)}
           />
-          <Ionicons name="eye-outline" size={20} color="#3AED97" />
+          <TouchableOpacity onPress={togglePasswordVisibility} style={styles.eyeIcon}>
+            <Ionicons 
+              name={isPasswordVisible ? "eye-off-outline" : "eye-outline"} 
+              size={20} 
+              color="#3AED97" 
+            />
+          </TouchableOpacity>
         </View>
 
         {/* Login Button */}
@@ -96,7 +136,7 @@ export default function Login({ navigation }) {
 
         {/* Register Row */}
         <View style={styles.registerRow}>
-          <Text style={styles.optionText1}>No account yet? </Text>
+          <Text style={styles.optionText1}>Don't have an account? </Text>
           <TouchableOpacity onPress={() => navigation.navigate("Register")}>
             <Text style={styles.registerText}>Register</Text>
           </TouchableOpacity>
@@ -111,14 +151,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 40,
+    paddingHorizontal: 30,
   },
   title: {
-    fontSize: 32,
+    fontSize: 40,
     fontFamily: "Poppins-ExtraBold", // Apply the Poppins ExtraBold font
     color: "#3AED97",
-    marginBottom: 290, // Adjust spacing from top
-    alignItems: "top",
+    marginBottom: 40, // Adjust spacing from top
+    alignItems: "center",
   },
   inputContainer: {
     flexDirection: "row",
@@ -138,12 +178,15 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
   },
+  eyeIcon: {
+    padding: 5,
+  },
   loginButton: {
     width: "100%",
     height: 40,
     borderRadius: 8,
     overflow: "hidden", // Ensures gradient stays rounded
-    marginTop: 40,
+    marginTop: 10,
     marginBottom: 20,
   },
   gradientButton: {
@@ -187,7 +230,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   optionText1: {
-    color: "#000000",
+    color: "#fff",
     fontSize: 14,
     fontWeight: "500",
   },

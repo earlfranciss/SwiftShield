@@ -6,9 +6,17 @@ from feature import FeatureExtraction
 from dotenv import load_dotenv
 import os
 import pymongo
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask_cors import CORS
+
 import uuid
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask_bcrypt import Bcrypt
+from pymongo import MongoClient
+from flask_pymongo import PyMongo
+from dotenv import load_dotenv
+from bson.objectid import ObjectId
+
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -36,6 +44,7 @@ try:
     db = client.get_database()
     logs = db.get_collection("Logs")
     detection = db.get_collection("Detection")
+    users = db.get_collection("Users")
     # Test connection
     client.server_info()
 except pymongo.errors.ServerSelectionTimeoutError:
@@ -45,7 +54,31 @@ except pymongo.errors.ServerSelectionTimeoutError:
 app = Flask(__name__)
 app.config["DEBUG"] = True
 CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins
+bcrypt = Bcrypt(app)
 
+
+def time_ago(scan_time):
+    now = datetime.now()
+    diff = now - scan_time
+
+    seconds = diff.total_seconds()
+    
+    if seconds < 60:
+        return "Just now"
+    elif seconds < 3600:
+        return f"{int(seconds / 60)} mins ago"
+    elif seconds < 86400:
+        return f"{int(seconds / 3600)} hours ago"
+    elif seconds < 604800:
+        return f"{int(seconds / 86400)} days ago"
+    elif seconds < 2592000:  # Approximate 30 days
+        return f"{int(seconds / 604800)} weeks ago"
+    elif seconds < 31536000:  # Approximate 12 months
+        return f"{int(seconds / 2592000)} months ago"
+    else:
+        return f"{int(seconds / 31536000)} years ago"
+    
+    
 # URL Prediction
 @app.route("/", methods=["POST"])
 def index():
@@ -83,7 +116,7 @@ def index():
             "nb_score": float(y_pro_phishing * 0.8),  # Example transformation
             "nlp_score": float(y_pro_non_phishing * 0.7),
             "features": obj.getFeaturesList(),
-            "metadata": {"source": "API request"}
+            "metadata": {"source": "Scan"}
         }
         detection.insert_one(detection_data)  # MongoDB will create the collection if it doesn't exist
         
@@ -111,23 +144,33 @@ def index():
     except Exception as e:
         print("Error:", str(e))
         return jsonify({"error": str(e)}), 500
-    
+      
+      
 @app.route("/logs", methods=["GET"])
 def get_logs():
     try:
-        # Fetch logs sorted by timestamp in descending order (most recent first)
-        log_entries = logs.find().sort("probability", pymongo.DESCENDING)  # Sort by probability for severity order
+        # Fetch logs with corresponding detection info, sorted by detection.timestamp (latest first)
+        log_entries = logs.aggregate([
+            {
+                "$lookup": {
+                    "from": "Detection",  # Join with Detection collection
+                    "localField": "detect_id",
+                    "foreignField": "detect_id",
+                    "as": "detection_info"
+                }
+            },
+            { "$unwind": "$detection_info"},{"$sort": {"detection_info.timestamp": pymongo.DESCENDING}}
+        ])
 
         formatted_logs = []
         for log in log_entries:
-            # Fetch the corresponding detection details using detect_id (FK reference)
-            detection_entry = detection.find_one({"detect_id": log["detect_id"]})
-            
+            detection_entry = log["detection_info"]  # Get detection fields
+
             formatted_logs.append({
                 "id": str(log["_id"]),
                 "title": "Phishing Detected" if log["verdict"] == "Phishing" else "Safe Link Verified",
-                "link": f"{detection_entry['url']} - {detection_entry.get('metadata', {}).get('source', 'Scan')}" if detection_entry else "N/A",
-                "time": detection_entry["timestamp"].strftime("%Y-%m-%d %H:%M:%S") if detection_entry and "timestamp" in detection_entry else "N/A",
+                "link": f"{detection_entry['url']} - {detection_entry.get('metadata', {}).get('source', 'Scan')}",
+                "time": time_ago(detection_entry["timestamp"]) if "timestamp" in detection_entry else "N/A",
                 "icon": "suspicious-icon" if log["verdict"] == "Phishing" else "safe-icon",
             })
 
@@ -137,7 +180,108 @@ def get_logs():
         return jsonify({"error": str(e)}), 500
 
 
- 
+
+@app.route("/Registration", methods=['POST'])
+def Registration():
+    data = request.json
+    
+    email = data.get('email')
+    password = data.get('password')
+    first_name = data.get('firstName')
+    last_name = data.get('lastName')
+    contact_number = data.get('contactNumber')
+
+    # Validate required fields
+    if not email or not password or not first_name or not last_name or not contact_number:
+        return jsonify({"error": "All fields are required"}), 400
+
+    # Validate email format
+    import re
+    email_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+    if not email_pattern.match(email):
+        return jsonify({"error": "Invalid email format"}), 400
+
+    # Validate password strength
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters long"}), 400
+
+    # Check if user already exists
+    existing_user = users.find_one({'email': email})
+    if existing_user:
+        return jsonify({"error": "User with this email already exists"}), 400
+
+    try:
+        # Hash the password
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+
+        # Generate a unique user ID
+        user_id = str(ObjectId())
+
+        # Create user document
+        new_user = {
+            '_id': user_id,
+            'email': email,
+            'password': hashed_password,
+            'firstName': first_name,
+            'lastName': last_name,
+            'contactNumber': contact_number,
+            'created_at': datetime.now(),
+            'last_login': None,
+            'role': 'user',
+            'scans': []
+        }
+
+        # Insert the new user
+        result = users.insert_one(new_user)
+
+        if not result.acknowledged:
+            return jsonify({"error": "Failed to insert user into database"}), 500
+
+        print(f"User registered successfully: {email}")
+
+        return jsonify({
+            "message": "User registered successfully",
+            "userId": user_id,
+            "email": email,
+            "firstName": first_name,
+            "redirect": "/Login"  # 👈 Signal frontend to redirect
+        }), 201
+
+    except Exception as e:
+        print(f"Registration error: {str(e)}")
+        return jsonify({"error": f"Registration failed: {str(e)}"}), 500
+
+
+
+@app.route("/Login", methods=['POST'])
+def Login():
+    data = request.json
+
+    email = data.get('email')
+    password = data.get('password')
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    # Check if user exists
+    user = users.find_one({'email': email})
+    if not user:
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    # Verify password
+    if not bcrypt.check_password_hash(user['password'], password):
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    # Update last login time
+    users.update_one({'_id': user['_id']}, {"$set": {"last_login": datetime.now()}})
+
+    return jsonify({
+        "message": "Login successful",
+        "userId": str(user['_id']),
+        "email": user['email'],
+        "firstName": user['firstName']
+    }), 200
+
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)
-
+    

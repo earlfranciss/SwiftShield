@@ -15,6 +15,9 @@ import CarouselFilter from "../components/CarouselFilter";
 import { useFocusEffect } from "@react-navigation/native";
 import ListItem from "../components/ListItem";
 import config from "../../config";
+import { useNavigation } from "@react-navigation/native";
+import DetailsModal from '../components/DetailsModal';
+
 
 const iconMap = {
   "suspicious-icon": require("../../../assets/images/suspicious-icon.png"),
@@ -27,7 +30,17 @@ export default function Logs() {
   const [loading, setLoading] = useState(true);
   const viewableItems = useSharedValue([]);
   const [activeFilter, setActiveFilter] = useState("recent");
+  const [modalType, setModalType] = useState(null);
 
+  const showModal = (type) => {
+    setModalType(type);
+  };
+  
+  const closeModal = () => {
+    setModalType(null);
+  };
+
+  
   const handleScan = () => {
     console.log("Scanning URL:", url);
     // Add your URL scanning logic here
@@ -102,13 +115,18 @@ export default function Logs() {
             data={filteredLogs}
             keyExtractor={(item) => item.id.toString()} // Ensure keys are strings
             renderItem={({ item }) => (
-              <ListItem
-                item={{
-                  ...item,
-                  icon: iconMap[item.icon], 
-                }}
-                viewableItems={viewableItems}
-              />
+              <TouchableOpacity
+                onPress={() => showModal('failure')}
+                //onPress={() => navigation.navigate("LogDetails", { log: item })} // Navigate with data
+              >
+                <ListItem
+                  item={{
+                    ...item,
+                    icon: iconMap[item.icon],
+                  }}
+                  viewableItems={viewableItems}
+                />
+              </TouchableOpacity>
             )}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
@@ -119,6 +137,10 @@ export default function Logs() {
           />
         )}
       </View>
+      <DetailsModal 
+        visible={modalType === 'failure'} 
+        onClose={closeModal}
+      />
     </SafeAreaView>
   );
 }
