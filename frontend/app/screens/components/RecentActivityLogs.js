@@ -1,84 +1,57 @@
-import React, { useState, useCallback } from "react";
-import { FlatList, StyleSheet, View, Dimensions, ActivityIndicator } from "react-native";
-import { useSharedValue } from "react-native-reanimated";
-import ListItem from "./ListItem";
-import { useFocusEffect } from '@react-navigation/native';
-import config from "../../config";
-
-const { height } = Dimensions.get("window");
+import React from "react";
+import { View, Text, StyleSheet, Image } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
 const iconMap = {
   "suspicious-icon": require("../../../assets/images/suspicious-icon.png"),
   "safe-icon": require("../../../assets/images/safe-icon.png"),
-  
 };
 
-const RecentActivityLogs = () => {
-  const [logs, setLogs] = useState([]);
-  const viewableItems = useSharedValue([]);
-  const [loading, setLoading] = useState(true);
-
-  // Function to fetch logs
-  const fetchLogs = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${config.BASE_URL}/logs`);
-      const data = await response.json();
-      setLogs(data);
-    } catch (error) {
-      console.error("Error fetching logs:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Re-fetch logs when the screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      fetchLogs();
-    }, [])
-  );
-
-  const viewabilityConfig = {
-    itemVisiblePercentThreshold: 50, // Adjust as needed
-  };
-
+const RecentActivityLogs = ({ logItem }) => {
   return (
-    <View style={styles.container}>
-      {loading ? (
-        <ActivityIndicator size="large" color="#0000ff" />
-      ) : (
-        <FlatList
-          data={logs}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ListItem
-              item={{
-                ...item,
-                icon: iconMap[item.icon], // Use mapped static require
-              }}
-              viewableItems={viewableItems}
-            />
-          )}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-          onViewableItemsChanged={({ viewableItems: vItems }) => {
-            viewableItems.value = vItems.map((vItem) => vItem.item.id);
-          }}
-          viewabilityConfig={viewabilityConfig}
-        />
-      )}
-    </View>
+    <LinearGradient colors={["#2dbd78", "#2dbd78"]} style={styles.logContainer}>
+      <Image source={iconMap[logItem.icon]} style={styles.icon} />
+      <View style={styles.textContainer}>
+        <Text style={styles.title}>{logItem.title}</Text>
+        <Text style={styles.subtitle}>{logItem.link}</Text>
+      </View>
+      <Text style={styles.time}>{logItem.time}</Text>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    height: 200,
-    overflow: "hidden",
+  logContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    padding: 10,
+    paddingHorizontal: 20,
+    marginBottom: 5,
+    height: 55,
+    
   },
-  listContent: {
-    paddingBottom: 20,
+  icon: {
+    width: 24,
+    height: 24,
+    marginRight: 10,
+  },
+  textContainer: {
+    flex: 1,
+    marginVertical: 10,
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: "bold", // Ensures the title is bold
+    color: "#000",
+  },
+  subtitle: {
+    fontSize: 12,
+    color: "#000",
+  },
+  time: {
+    fontSize: 12,
+    color: "#6c757d",
   },
 });
 

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Image
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialIcons'; // Ensure you have react-native-vector-icons installed
 
 const iconMap = {
   "suspicious": require("../../../assets/images/suspicious-icon.png"),
@@ -16,13 +17,62 @@ const iconMap = {
 };
 
 const severityColors = {
-  "low": "#31EE9A", // Green
-  "medium": "#FFC107", // Darker Yellow
-  "high": "#FF8C00", // Darker Orange
-  "critical": "#FF0000" // Red
+  "low": "#31EE9A", 
+  "medium": "#FFC107", 
+  "high": "#FF8C00", 
+  "critical": "#FF0000" 
 };
 
-const DetailsModal = ({ visible, onClose, logDetails, loading }) => {
+const handleUpdate = async () => {
+  if (!logDetails?.log_id) return;
+
+  try {
+    const response = await fetch(`${config.BASE_URL}/logs/${logDetails.log_id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        severity: "High",
+        probability: 90,
+        platform: "Web",
+        recommended_action: "Review URL",
+      }),
+    });
+
+    const data = await response.json();
+    if (data.error) {
+      console.error("Error updating log:", data.error);
+    } else {
+      console.log("Log updated successfully:", data);
+      onClose();
+    }
+  } catch (error) {
+    console.error("Error updating log:", error);
+  }
+};
+
+const handleDelete = async () => {
+  if (!logDetails?.log_id) return;
+
+  try {
+    const response = await fetch(`${config.BASE_URL}/logs/${logDetails.log_id}`, {
+      method: "DELETE",
+    });
+
+    const data = await response.json();
+    if (data.error) {
+      console.error("Error deleting log:", data.error);
+    } else {
+      console.log("Log deleted successfully:", data);
+      onClose();
+    }
+  } catch (error) {
+    console.error("Error deleting log:", error);
+  }
+};
+
+
+const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, onDeletePress }) => {
+
   const [screenDimensions, setScreenDimensions] = useState(Dimensions.get('window'));
 
   useEffect(() => {
@@ -56,16 +106,12 @@ const DetailsModal = ({ visible, onClose, logDetails, loading }) => {
     }
   };
 
-  // Determine the icon based on verdict (Safe/Phishing)
   const isSafe = logDetails?.recommended_action === "Allow URL";
   const iconSource = isSafe ? iconMap.safe : iconMap.suspicious;
-
-  // Ensure probability percentage is a whole number
   const probability = logDetails?.probability ? Math.round(logDetails.probability) : "N/A";
-
-  // Get severity level and color
   const severity = logDetails?.severity ? logDetails.severity.toLowerCase() : "unknown";
-  const severityColor = severityColors[severity] || "#FFFFFF"; // Default white if not recognized
+  const severityColor = severityColors[severity] || "#FFFFFF";
+
 
   return (
     <Modal
@@ -85,10 +131,22 @@ const DetailsModal = ({ visible, onClose, logDetails, loading }) => {
             { width: modalWidth, left: modalLeft, top: screenDimensions.height / 2 - 200 }
           ]}
         >
+            
+          {/* Update & Delete Icons */}
+          <View style={styles.headerIcons}>
+            <TouchableOpacity onPress={onUpdatePress} style={styles.iconButton}>
+              <Icon name="edit" size={24} color="#FFC107" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onDeletePress} style={styles.iconButton}>
+              <Icon name="delete" size={24} color="#FF0000" />
+            </TouchableOpacity>
+          </View>
+
           {loading ? (
             <ActivityIndicator size="large" color="#31EE9A" />
           ) : logDetails ? (
             <>
+
               {/* Dynamic Icon */}
               <View style={styles.iconContainer}>
                 <Image source={iconSource} style={styles.icon} />
@@ -161,6 +219,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     alignItems: 'center',
+  },
+  headerIcons: {
+    flexDirection: 'row',
+    position: 'absolute',
+    right: 15,
+    top: 15,
+  },
+  iconButton: {
+    marginLeft: 10,
   },
   iconContainer: {
     marginBottom: 15,

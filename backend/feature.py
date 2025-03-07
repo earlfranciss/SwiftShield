@@ -13,7 +13,8 @@ from urllib.parse import urlparse
 
 class FeatureExtraction:
     features = []
-    def __init__(self,url):
+
+    def __init__(self, url):
         self.features = []
         self.url = url
         self.domain = ""
@@ -39,9 +40,7 @@ class FeatureExtraction:
         except:
             pass
 
-
-        
-
+        # Feature extraction
         self.features.append(self.UsingIp())
         self.features.append(self.longUrl())
         self.features.append(self.shortUrl())
@@ -52,7 +51,6 @@ class FeatureExtraction:
         self.features.append(self.Hppts())
         self.features.append(self.DomainRegLen())
         self.features.append(self.Favicon())
-        
 
         self.features.append(self.NonStdPort())
         self.features.append(self.HTTPSDomainURL())
@@ -73,11 +71,10 @@ class FeatureExtraction:
         self.features.append(self.WebsiteTraffic())
         self.features.append(self.PageRank())
         self.features.append(self.GoogleIndex())
-        self.features.append(self.LinksPointingToPage())
+        # self.features.append(self.LinksPointingToPage())
         self.features.append(self.StatsReport())
 
-
-     # 1.UsingIp
+    # 1. Using IP
     def UsingIp(self):
         try:
             ipaddress.ip_address(self.url)
@@ -85,88 +82,46 @@ class FeatureExtraction:
         except:
             return 1
 
-    # 2.longUrl
+    # 2. Long URL
     def longUrl(self):
-        if len(self.url) < 54:
-            return 1
-        if len(self.url) >= 54 and len(self.url) <= 75:
-            return 0
-        return -1
+        return -1 if len(self.url) > 75 else (0 if 54 <= len(self.url) <= 75 else 1)
 
-    # 3.shortUrl
+    # 3. Short URL
     def shortUrl(self):
-        match = re.search('bit\.ly|goo\.gl|shorte\.st|go2l\.ink|x\.co|ow\.ly|t\.co|tinyurl|tr\.im|is\.gd|cli\.gs|'
-                    'yfrog\.com|migre\.me|ff\.im|tiny\.cc|url4\.eu|twit\.ac|su\.pr|twurl\.nl|snipurl\.com|'
-                    'short\.to|BudURL\.com|ping\.fm|post\.ly|Just\.as|bkite\.com|snipr\.com|fic\.kr|loopt\.us|'
-                    'doiop\.com|short\.ie|kl\.am|wp\.me|rubyurl\.com|om\.ly|to\.ly|bit\.do|t\.co|lnkd\.in|'
-                    'db\.tt|qr\.ae|adf\.ly|goo\.gl|bitly\.com|cur\.lv|tinyurl\.com|ow\.ly|bit\.ly|ity\.im|'
-                    'q\.gs|is\.gd|po\.st|bc\.vc|twitthis\.com|u\.to|j\.mp|buzurl\.com|cutt\.us|u\.bb|yourls\.org|'
-                    'x\.co|prettylinkpro\.com|scrnch\.me|filoops\.info|vzturl\.com|qr\.net|1url\.com|tweez\.me|v\.gd|tr\.im|link\.zip\.net', self.url)
-        if match:
-            return -1
-        return 1
+        match = re.search(r'bit\.ly|goo\.gl|shorte\.st|tinyurl|ow\.ly|t\.co|lnkd\.in', self.url)
+        return -1 if match else 1
 
-    # 4.Symbol@
+    # 4. Symbol '@'
     def symbol(self):
-        if re.findall("@",self.url):
-            return -1
-        return 1
-    
-    # 5.Redirecting//
+        return -1 if "@" in self.url else 1
+
+    # 5. Redirecting '//'
     def redirecting(self):
-        if self.url.rfind('//')>6:
-            return -1
-        return 1
-    
-    # 6.prefixSuffix
+        return -1 if self.url.rfind('//') > 6 else 1
+
+    # 6. Prefix-Suffix
     def prefixSuffix(self):
-        try:
-            match = re.findall('\-', self.domain)
-            if match:
-                return -1
-            return 1
-        except:
-            return -1
-    
-    # 7.SubDomains
+        return -1 if '-' in self.domain else 1
+
+    # 7. Subdomains
     def SubDomains(self):
-        dot_count = len(re.findall("\.", self.url))
-        if dot_count == 1:
-            return 1
-        elif dot_count == 2:
-            return 0
-        return -1
+        dot_count = self.url.count('.')
+        return -1 if dot_count > 2 else (0 if dot_count == 2 else 1)
 
-    # 8.HTTPS
+    # 8. HTTPS
     def Hppts(self):
-        try:
-            https = self.urlparse.scheme
-            if 'https' in https:
-                return 1
-            return -1
-        except:
-            return 1
+        return 1 if 'https' in self.urlparse.scheme else -1
 
-    # 9.DomainRegLen
+    # 9. Domain Registration Length
     def DomainRegLen(self):
         try:
             expiration_date = self.whois_response.expiration_date
             creation_date = self.whois_response.creation_date
-            try:
-                if(len(expiration_date)):
-                    expiration_date = expiration_date[0]
-            except:
-                pass
-            try:
-                if(len(creation_date)):
-                    creation_date = creation_date[0]
-            except:
-                pass
+            expiration_date = expiration_date[0] if isinstance(expiration_date, list) else expiration_date
+            creation_date = creation_date[0] if isinstance(creation_date, list) else creation_date
 
-            age = (expiration_date.year-creation_date.year)*12+ (expiration_date.month-creation_date.month)
-            if age >=12:
-                return 1
-            return -1
+            age = (expiration_date.year - creation_date.year) * 12 + (expiration_date.month - creation_date.month)
+            return 1 if age >= 12 else -1
         except:
             return -1
 
@@ -176,32 +131,21 @@ class FeatureExtraction:
             for head in self.soup.find_all('head'):
                 for head.link in self.soup.find_all('link', href=True):
                     dots = [x.start(0) for x in re.finditer('\.', head.link['href'])]
-                    if self.url in head.link['href'] or len(dots) == 1 or self.domain in head.link['href']:
+                    if self.url in head.link['href'] or len(dots) == 1 or domain in head.link['href']:
                         return 1
             return -1
         except:
             return -1
 
-    # 11. NonStdPort
+    # 11. Non-Standard Port
     def NonStdPort(self):
-        try:
-            port = self.domain.split(":")
-            if len(port)>1:
-                return -1
-            return 1
-        except:
-            return -1
+        return -1 if ':' in self.domain else 1
 
-    # 12. HTTPSDomainURL
+    # 12. HTTPS in Domain
     def HTTPSDomainURL(self):
-        try:
-            if 'https' in self.domain:
-                return -1
-            return 1
-        except:
-            return -1
-    
-    # 13. RequestURL
+        return -1 if 'https' in self.domain else 1
+
+    # 13. Request URL
     def RequestURL(self):
         try:
             for img in self.soup.find_all('img', src=True):
@@ -246,7 +190,7 @@ class FeatureExtraction:
         try:
             i,unsafe = 0,0
             for a in self.soup.find_all('a', href=True):
-                if "#" in a['href'] or "javascript" in a['href'].lower() or "mailto" in a['href'].lower() or not (self.url in a['href'] or self.domain in a['href']):
+                if "#" in a['href'] or "javascript" in a['href'].lower() or "mailto" in a['href'].lower() or not (url in a['href'] or self.domain in a['href']):
                     unsafe = unsafe + 1
                 i = i + 1
 
@@ -421,7 +365,7 @@ class FeatureExtraction:
     # 26. WebsiteTraffic   
     def WebsiteTraffic(self):
         try:
-            rank = BeautifulSoup(urllib.request.urlopen("http://data.alexa.com/data?cli=10&dat=s&url=" + self.url).read(), "xml").find("REACH")['RANK']
+            rank = BeautifulSoup(urllib.request.urlopen("http://data.alexa.com/data?cli=10&dat=s&url=" + url).read(), "xml").find("REACH")['RANK']
             if (int(rank) < 100000):
                 return 1
             return 0
@@ -433,57 +377,30 @@ class FeatureExtraction:
         try:
             prank_checker_response = requests.post("https://www.checkpagerank.net/index.php", {"name": self.domain})
 
-            global_rank = int(re.findall(r"Global Rank: ([0-9]+)", prank_checker_response.text)[0])
+            global_rank = int(re.findall(r"Global Rank: ([0-9]+)", rank_checker_response.text)[0])
             if global_rank > 0 and global_rank < 100000:
                 return 1
             return -1
         except:
             return -1
-            
 
-    # 28. GoogleIndex
+    # 28. Google Index
     def GoogleIndex(self):
         try:
-            site = search(self.url, 5)
-            if site:
-                return 1
-            else:
-                return -1
+            return 1 if search(self.url, 5) else -1
         except:
             return 1
 
-    # 29. LinksPointingToPage
-    def LinksPointingToPage(self):
-        try:
-            number_of_links = len(re.findall(r"<a href=", self.response.text))
-            if number_of_links == 0:
-                return 1
-            elif number_of_links <= 2:
-                return 0
-            else:
-                return -1
-        except:
-            return -1
-
-    # 30. StatsReport
+    # 30. Stats Report
     def StatsReport(self):
         try:
             url_match = re.search(
-        'at\.ua|usa\.cc|baltazarpresentes\.com\.br|pe\.hu|esy\.es|hol\.es|sweddy\.com|myjino\.ru|96\.lt|ow\.ly', self.url)
+        'at\.ua|usa\.cc|baltazarpresentes\.com\.br|pe\.hu|esy\.es|hol\.es|sweddy\.com|myjino\.ru|96\.lt|ow\.ly', url)
             ip_address = socket.gethostbyname(self.domain)
-            ip_match = re.search('146\.112\.61\.108|213\.174\.157\.151|121\.50\.168\.88|192\.185\.217\.116|78\.46\.211\.158|181\.174\.165\.13|46\.242\.145\.103|121\.50\.168\.40|83\.125\.22\.219|46\.242\.145\.98|'
-                                '107\.151\.148\.44|107\.151\.148\.107|64\.70\.19\.203|199\.184\.144\.27|107\.151\.148\.108|107\.151\.148\.109|119\.28\.52\.61|54\.83\.43\.69|52\.69\.166\.231|216\.58\.192\.225|'
-                                '118\.184\.25\.86|67\.208\.74\.71|23\.253\.126\.58|104\.239\.157\.210|175\.126\.123\.219|141\.8\.224\.221|10\.10\.10\.10|43\.229\.108\.32|103\.232\.215\.140|69\.172\.201\.153|'
-                                '216\.218\.185\.162|54\.225\.104\.146|103\.243\.24\.98|199\.59\.243\.120|31\.170\.160\.61|213\.19\.128\.77|62\.113\.226\.131|208\.100\.26\.234|195\.16\.127\.102|195\.16\.127\.157|'
-                                '34\.196\.13\.28|103\.224\.212\.222|172\.217\.4\.225|54\.72\.9\.51|192\.64\.147\.141|198\.200\.56\.183|23\.253\.164\.103|52\.48\.191\.26|52\.214\.197\.72|87\.98\.255\.18|209\.99\.17\.27|'
-                                '216\.38\.62\.18|104\.130\.124\.96|47\.89\.58\.141|78\.46\.211\.158|54\.86\.225\.156|54\.82\.156\.19|37\.157\.192\.102|204\.11\.56\.48|110\.34\.231\.42', ip_address)
-            if url_match:
-                return -1
-            elif ip_match:
-                return -1
-            return 1
+            ip_match = re.search(r'146\.112\.61\.108|213\.174\.157\.151', ip_address)
+            return -1 if url_match or ip_match else 1
         except:
             return 1
-    
+
     def getFeaturesList(self):
         return self.features

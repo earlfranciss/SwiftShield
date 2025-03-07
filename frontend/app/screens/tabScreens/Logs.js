@@ -43,7 +43,6 @@ export default function Logs({ route }) {
     { id: 'critical', label: 'Critical' }
   ];
 
-
   const showModal = async (logId) => {
     console.log('Fetching log details for ID:', logId);
     setLogLoading(true);
@@ -62,7 +61,6 @@ export default function Logs({ route }) {
     } finally {
       setLogLoading(false);
     }
-
   };
 
   const closeModal = () => {
@@ -170,7 +168,6 @@ export default function Logs({ route }) {
       );
     });
   };
-
 
   return (
     <SafeAreaView style={styles.container}>
