@@ -26,12 +26,17 @@ import Notifications from "./screens/stackScreens/Notifications";
 import Login from "./screens/Login";
 import Registration from "./screens/Registration";
 import ForgotPassword from "./screens/ForgotPassword";
+import Reports from "./screens/reportsPage/Reports";
+import CreateReport from "./screens/reportsPage/CreateReport";
+import EditReport from "./screens/reportsPage/EditReport";
+
 
 //Icons
 import { Entypo } from "@expo/vector-icons";
 import Octicons from "@expo/vector-icons/Octicons";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import Ionicons from "@expo/vector-icons/Ionicons";
+
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -182,7 +187,7 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
                 />
               }
             >
-              <Settings />
+              <Settings navigation={navigation} isDarkMode={isDarkMode} />
             </GradientScreen>
           )}
         </Tab.Screen>
@@ -207,6 +212,9 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
           />
         )}
       </Stack.Screen>
+      <Stack.Screen name="Reports" component={Reports} />
+      <Stack.Screen name="CreateReport" component={CreateReport} />
+      <Stack.Screen name="EditReport" component={EditReport} />
       <Stack.Screen
         name="Notifications"
         component={Notifications}

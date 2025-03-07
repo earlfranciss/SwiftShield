@@ -15,48 +15,86 @@ import CarouselFilter from "../components/CarouselFilter";
 import { useFocusEffect } from "@react-navigation/native";
 import ListItem from "../components/ListItem";
 import config from "../../config";
-import { useNavigation } from "@react-navigation/native";
 import DetailsModal from '../components/DetailsModal';
-
 
 const iconMap = {
   "suspicious-icon": require("../../../assets/images/suspicious-icon.png"),
   "safe-icon": require("../../../assets/images/safe-icon.png"),
 };
 
-export default function Logs() {
+export default function Logs({ route }) {
   const [url, setUrl] = useState("");
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const viewableItems = useSharedValue([]);
   const [activeFilter, setActiveFilter] = useState("recent");
-  const [modalType, setModalType] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [logLoading, setLogLoading] = useState(false); // Track individual log loading
 
-  const showModal = (type) => {
-    setModalType(type);
+  // Define filter options
+  const filterOptions = [
+    { id: 'recent', label: 'Recent' },
+    { id: 'whitelisted', label: 'Whitelisted' },
+    { id: 'blacklisted', label: 'Blacklisted' },
+    { id: 'low', label: 'Low' },
+    { id: 'medium', label: 'Medium' },
+    { id: 'high', label: 'High' },
+    { id: 'critical', label: 'Critical' }
+  ];
+
+
+  const showModal = async (logId) => {
+    console.log('Fetching log details for ID:', logId);
+    setLogLoading(true);
+    try {
+      const response = await fetch(`${config.BASE_URL}/logs/${logId}`);
+      const data = await response.json();
+      
+      if (data.error) {
+        console.error("Error fetching log details:", data.error);
+      } else {
+        setSelectedLog(data);
+        setModalVisible(true);
+      }
+    } catch (error) {
+      console.error("Error fetching log details:", error);
+    } finally {
+      setLogLoading(false);
+    }
+
   };
-  
+
   const closeModal = () => {
-    setModalType(null);
+    setModalVisible(false);
+    setSelectedLog(null);
   };
 
-  
+  const filters = [
+    { id: "recent", label: "Recent" },
+    { id: "whitelisted", label: "Whitelisted" },
+    { id: "blacklisted", label: "Blacklisted" },
+    { id: "low", label: "Low" },
+    { id: "medium", label: "Medium" },
+    { id: "high", label: "High" },
+    { id: "critical", label: "Critical" },
+  ];
+
   const handleScan = () => {
     console.log("Scanning URL:", url);
-    // Add your URL scanning logic here
   };
 
   const handleFilterChange = (filter) => {
     setActiveFilter(filter);
     console.log("Active Filter:", filter);
-    // Add your filtering logic here
+    fetchLogs(filter);
   };
 
-  // Function to fetch logs
-  const fetchLogs = async () => {
+  // Fetch logs with server-side filtering
+  const fetchLogs = async (filterType = activeFilter) => {
     try {
       setLoading(true);
-      const response = await fetch(`${config.BASE_URL}/logs`); // Corrected URL
+      const response = await fetch(`${config.BASE_URL}/logs?filter=${filterType}`);
       const data = await response.json();
       setLogs(data);
     } catch (error) {
@@ -73,16 +111,66 @@ export default function Logs() {
     }, [])
   );
 
+  // Handle notification click (if logId is passed from route)
+  useFocusEffect(
+    useCallback(() => {
+      if (route?.params?.logId) {
+        showModal(route.params.logId);
+      }
+    }, [route?.params?.logId])
+  );
+
   const viewabilityConfig = {
     itemVisiblePercentThreshold: 100,
   };
 
-  const filteredLogs = logs.filter((log) => {
-    if (activeFilter === "recent") return true; 
-    if (activeFilter === "suspicious") return log.icon === "suspicious-icon";
-    if (activeFilter === "safe") return log.icon === "safe-icon";
-    return true;
-  });
+  // Filter logs based on active category and search
+  const getFilteredLogs = () => {
+    return logs.filter(log => {
+      // Category-based filtering
+      let passesCategoryFilter = false;
+
+      switch (activeFilter) {
+        case "recent":
+          passesCategoryFilter = true; // Show all logs for "recent"
+          break;
+        case "whitelisted":
+          passesCategoryFilter = log.status?.toLowerCase().includes("safe") || 
+                                 log.status?.toLowerCase().includes("whitelist");
+          break;
+        case "blacklisted":
+          passesCategoryFilter = log.status?.toLowerCase().includes("phishing") || 
+                                 log.status?.toLowerCase().includes("blacklist");
+          break;
+        case "low":
+          passesCategoryFilter = log.severity?.toLowerCase() === "low";
+          break;
+        case "medium":
+          passesCategoryFilter = log.severity?.toLowerCase() === "medium";
+          break;
+        case "high":
+          passesCategoryFilter = log.severity?.toLowerCase() === "high";
+          break;
+        case "critical":
+          passesCategoryFilter = log.severity?.toLowerCase() === "critical";
+          break;
+        default:
+          passesCategoryFilter = true;
+      }
+
+      if (!passesCategoryFilter) return false;
+
+      // Search-based filtering
+      if (!url || url.trim() === "") return true; 
+
+      const searchTerm = url.toLowerCase().trim();
+
+      return Object.values(log).some(value =>
+        typeof value === "string" && value.toLowerCase().includes(searchTerm)
+      );
+    });
+  };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -94,7 +182,7 @@ export default function Logs() {
             style={styles.textInput}
             placeholder="www.malicious.link"
             placeholderTextColor="#6c757d"
-            onChangeText={(text) => setUrl(text)}
+            onChangeText={text => setUrl(text)}
             value={url}
           />
           <TouchableOpacity onPress={handleScan} style={styles.iconWrapper}>
@@ -104,7 +192,11 @@ export default function Logs() {
       </View>
 
       {/* Filter Section */}
-      <CarouselFilter onFilterChange={handleFilterChange} />
+      <CarouselFilter 
+        filters={filterOptions}
+        activeFilter={activeFilter}
+        onFilterChange={handleFilterChange} 
+      />
 
       {/* List Items Section */}
       <View style={styles.listContainer}>
@@ -112,12 +204,12 @@ export default function Logs() {
           <ActivityIndicator size="large" color="#0000ff" />
         ) : (
           <FlatList
-            data={filteredLogs}
-            keyExtractor={(item) => item.id.toString()} // Ensure keys are strings
+            data={getFilteredLogs()}
+            extraData={url}
+            keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
               <TouchableOpacity
-                onPress={() => showModal('failure')}
-                //onPress={() => navigation.navigate("LogDetails", { log: item })} // Navigate with data
+                onPress={() => showModal(item.id)}
               >
                 <ListItem
                   item={{
@@ -137,9 +229,12 @@ export default function Logs() {
           />
         )}
       </View>
+
       <DetailsModal 
-        visible={modalType === 'failure'} 
+        visible={modalVisible}
         onClose={closeModal}
+        logDetails={selectedLog} 
+        loading={logLoading}
       />
     </SafeAreaView>
   );
@@ -149,7 +244,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    marginHorizontal: 20,
   },
   text: {
     color: "#31EE9A",

@@ -20,6 +20,7 @@ function TopBar({ onToggleDarkMode, isDarkMode, navigation, hasUnreadNotificatio
                     color={isDarkMode ? "black" : "#3AED97"}
                 />
             </TouchableOpacity>
+            
             {/* Open Notifications */}
             <TouchableOpacity 
                 style={styles.notificationButton}
