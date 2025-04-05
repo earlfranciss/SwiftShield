@@ -1,30 +1,36 @@
 {
-  "expo": {
-    "name": "SwiftShield",
-    "slug": "SwiftShield",
-    "scheme": "swiftshield",
-    "newArchEnabled": true,
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./frontend/assets/images/icon.png",
-    "userInterfaceStyle": "automatic",
-    
-    "splash": {
-      "image": "./frontend/assets/images/splash-icon.png",
-      "resizeMode": "contain",
+  "name": "SwiftShield",
+  "displayName": "SwiftShield"
+}
+
+
+/* {
+  "name": "SwiftShield",
+  "displayName": "SwiftShield",
+  "slug": "swiftshield",
+  "version": "1.0.0",
+  "orientation": "portrait",
+  "icon": "./src/assets/images/icon.png",
+  "userInterfaceStyle": "automatic",
+  "splash": {
+    "image": "./src/assets/images/splash-icon.png",
+    "resizeMode": "contain",
+    "backgroundColor": "#ffffff"
+  },
+  "ios": {
+    "supportsTablet": true
+  },
+  "android": {
+    "adaptiveIcon": {
+      "foregroundImage": "./src/assets/images/adaptive-icon.png",
       "backgroundColor": "#ffffff"
     },
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./frontend/assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      }
-    },
-    "web": {
-      "favicon": "./frontend/assets/images/favicon.png"
-    }
+    "package": "com.anonymous.swiftshield",
+    "permissions": [
+      "RECEIVE_SMS",
+      "READ_SMS",
+      "INTERNET"
+    ]
   }
-}
+} 
+*/
