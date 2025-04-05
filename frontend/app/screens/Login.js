@@ -30,33 +30,27 @@ export default function Login({ navigation }) {
   const handleLogin = async () => {
     try {
       const response = await fetch(`${config.BASE_URL}/Login`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          email: email,
-          password: password,
-        }),
+        body: JSON.stringify({ email, password }),
       });
-      
-      const data = await response.json();
-      
+  
+      const text = await response.text(); // Log raw response
+      console.log("Raw response:", text);
+  
+      const data = JSON.parse(text); // Try parsing JSON
       if (response.ok) {
-        // Login successful
-        console.log('Login successful:', data);
-        // Store user information if needed
-        // AsyncStorage.setItem('userToken', data.userId);
-        navigation.replace('Tabs');
+        console.log("Login successful:", data);
+        navigation.replace("Tabs");
       } else {
-        // Login failed
-        console.log('Login failed:', data.error);
-        // Show error message to user
-        alert(data.error || 'Login failed');
+        console.log("Login failed:", data.error);
+        alert(data.error || "Login failed");
       }
     } catch (error) {
-      console.error('Error during login:', error);
-      alert('Network error. Please try again.');
+      console.error("Error during login:", error);
+      alert("Network error. Please try again.");
     }
   };
   

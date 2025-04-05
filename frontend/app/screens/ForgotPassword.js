@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useFonts } from "expo-font";
 import {
   View,
@@ -8,13 +8,25 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import GradientScreen from "../screens/components/GradientScreen";
 import { LinearGradient } from "expo-linear-gradient";
+import config from "../config";
 
-export default function ForgotPassword({ navigation }) {
-  const [email, setEmail] = useState("");
+export default function ResetPassword({ navigation, route }) {
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Check if token was passed through route params (from deep link)
+  useEffect(() => {
+    if (route.params?.token) {
+      setToken(route.params.token);
+    }
+  }, [route.params]);
 
   // Load the font
   const [fontsLoaded] = useFonts({
@@ -26,22 +38,72 @@ export default function ForgotPassword({ navigation }) {
     return null;
   }
 
-  const handleResetLink = async () => {
-    if (!email) {
-      alert("Please enter your email address");
+  const toggleShowPassword = () => {
+    setShowPassword(!showPassword);
+  };
+
+  const toggleShowConfirmPassword = () => {
+    setShowConfirmPassword(!showConfirmPassword);
+  };
+
+  const handleResetPassword = async () => {
+    // Validate inputs
+    if (!token) {
+      Alert.alert("Error", "Please enter the reset token from your email");
       return;
     }
-    
+
+    if (!password) {
+      Alert.alert("Error", "Please enter a new password");
+      return;
+    }
+
+    if (password.length < 8) {
+      Alert.alert("Error", "Password must be at least 8 characters long");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match");
+      return;
+    }
+
     try {
-      // Here you would add the API call to your backend
-      // For now, we'll simulate it
-      console.log(`Reset password email sent to: ${email}`);
-      alert("Password reset link has been sent to your email");
-      // Navigate back to login after successful submission
-      navigation.navigate("Login");
+      const response = await fetch(`${config.BASE_URL}/ResetPassword`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ token, password }),
+      });
+
+      const text = await response.text();
+      console.log("Raw response:", text);
+
+      try {
+        const data = JSON.parse(text);
+        if (response.ok) {
+          Alert.alert(
+            "Success",
+            "Your password has been reset successfully!",
+            [
+              {
+                text: "Go to Login",
+                onPress: () => navigation.navigate("Login"),
+              },
+            ]
+          );
+        } else {
+          Alert.alert("Error", data.error || "Failed to reset password");
+        }
+      } catch (parseError) {
+        console.error("JSON parsing error:", parseError);
+        Alert.alert("Error", "Unexpected response from server. Please try again.");
+      }
     } catch (error) {
       console.error("Reset password error:", error);
-      alert("Failed to send reset link. Please try again.");
+      Alert.alert("Error", "Network error. Please try again.");
     }
   };
 
@@ -56,50 +118,84 @@ export default function ForgotPassword({ navigation }) {
           <Text style={styles.title}>SWIFTSHIELD</Text>
 
           {/* Instructional Text */}
-          <Text style={styles.subtitle}>Send Reset Password Link</Text>
+          <Text style={styles.subtitle}>Reset Your Password</Text>
           <Text style={styles.instruction}>
-            Enter your registered email below to receive password reset
-            instructions.
+            Enter a new password.
           </Text>
 
-          {/* Email Input */}
-          <Text style={styles.textLabel}></Text>
+          {/* Password Input */}
           <View style={styles.inputContainer}>
             <Ionicons
-              name="person-outline"
+              name="lock-closed-outline"
               size={20}
               color="#3AED97"
               style={styles.genIcon}
             />
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder="New Password"
               placeholderTextColor="rgba(49, 238, 154, 0.66)"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
               autoCapitalize="none"
             />
+            <TouchableOpacity onPress={toggleShowPassword}>
+              <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color="#3AED97"
+              />
+            </TouchableOpacity>
           </View>
 
-          {/* Reset Link Button */}
-          <TouchableOpacity style={styles.resetButton} onPress={handleResetLink}>
+          {/* Confirm Password Input */}
+          <View style={styles.inputContainer}>
+            <Ionicons
+              name="lock-closed-outline"
+              size={20}
+              color="#3AED97"
+              style={styles.genIcon}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm Password"
+              placeholderTextColor="rgba(49, 238, 154, 0.66)"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={!showConfirmPassword}
+              autoCapitalize="none"
+            />
+            <TouchableOpacity onPress={toggleShowConfirmPassword}>
+              <Ionicons
+                name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color="#3AED97"
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Reset Password Button */}
+          <TouchableOpacity
+            style={styles.resetButton}
+            onPress={handleResetPassword}
+          >
             <LinearGradient
               colors={["#3AED97", "#BCE26E", "#FCDE58"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.gradientButton}
             >
-              <Text style={styles.resetButtonText}>Send Reset Link</Text>
+              <Text style={styles.resetButtonText}>Reset Password</Text>
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* Login Link */}
-          <TouchableOpacity 
-            style={styles.loginLink} 
+          {/* Back to Login Link */}
+          <TouchableOpacity
+            style={styles.loginLink}
             onPress={() => navigation.navigate("Login")}
           >
-            <Text style={styles.loginLinkText}>Login</Text>
+            <Text style={styles.loginLinkText}>Back to Login</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

@@ -1,5 +1,8 @@
 {
-  "plugins": [
-    "expo-router"
-  ]
+  "expo": {
+    "scheme": "swiftshield",
+    "plugins": [
+      "expo-router"
+    ]
+  }
 }

@@ -22,6 +22,8 @@ import Notifications from "./screens/stackScreens/Notifications";
 import Login from "./screens/Login";
 import Registration from "./screens/Registration";
 import ForgotPassword from "./screens/ForgotPassword";
+import ResetPassword from "./screens/ResetPassword";
+import EditProfile from "./screens/EditProfile";
 
 //Icons
 import { Entypo } from "@expo/vector-icons";
@@ -178,6 +180,8 @@ function MainStack() {
       <Stack.Screen name="Login" component={Login} />
       <Stack.Screen name="Register" component={Registration} />
       <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
+      <Stack.Screen name="ResetPassword" component={ResetPassword} />
+      <Stack.Screen name="EditProfile" component={EditProfile} />
       <Stack.Screen name="Tabs" component={TabGroup} />
       <Stack.Screen
         name="Notifications"
