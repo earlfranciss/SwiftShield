@@ -3,7 +3,7 @@ services:
     name: swiftshield
     env: python
     buildCommand: "pip install -r backend/requirements.txt"
-    startCommand: "gunicorn backend.run:app"
+    startCommand: "gunicorn app:app"
     envVars:
       - key: FLASK_ENV
         value: production
