@@ -47,7 +47,7 @@ try:
     db = client.get_database()
     logs = db.get_collection("Logs")
     detection = db.get_collection("Detection")
-    user = db.get_collection("Users")
+    users = db.get_collection("Users")
     # Test connection
     client.server_info()
 except pymongo.errors.ServerSelectionTimeoutError:
@@ -289,9 +289,9 @@ def Login():
 
     # Check if user exists
 
-        user = users.find_one({'email': email})
+    user = users.find_one({'email': email})
 
-    if not users:
+    if not user:
         return jsonify({"error": "Invalid email or password"}), 401
 
     # Verify password

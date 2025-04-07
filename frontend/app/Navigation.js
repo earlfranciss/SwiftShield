@@ -22,14 +22,16 @@ import Notifications from "./screens/stackScreens/Notifications";
 import Login from "./screens/Login";
 import Registration from "./screens/Registration";
 import ForgotPassword from "./screens/ForgotPassword";
-import ResetPassword from "./screens/ResetPassword";
 import EditProfile from "./screens/EditProfile";
+
+
 
 //Icons
 import { Entypo } from "@expo/vector-icons";
 import Octicons from "@expo/vector-icons/Octicons";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import Ionicons from "@expo/vector-icons/Ionicons";
+
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -164,7 +166,7 @@ function TabGroup({ navigation }) {
                 />
               }
             >
-              <Settings />
+              <Settings navigation={navigation} isDarkMode={isDarkMode} />
             </GradientScreen>
           )}
         </Tab.Screen>
@@ -180,9 +182,8 @@ function MainStack() {
       <Stack.Screen name="Login" component={Login} />
       <Stack.Screen name="Register" component={Registration} />
       <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
-      <Stack.Screen name="ResetPassword" component={ResetPassword} />
-      <Stack.Screen name="EditProfile" component={EditProfile} />
       <Stack.Screen name="Tabs" component={TabGroup} />
+      <Stack.Screen name="EditProfile" component={EditProfile} />
       <Stack.Screen
         name="Notifications"
         component={Notifications}

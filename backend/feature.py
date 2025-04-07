@@ -97,7 +97,7 @@ class FeatureExtraction:
     def shortUrl(self):
         match = re.search('bit\.ly|goo\.gl|shorte\.st|go2l\.ink|x\.co|ow\.ly|t\.co|tinyurl|tr\.im|is\.gd|cli\.gs|'
                     'yfrog\.com|migre\.me|ff\.im|tiny\.cc|url4\.eu|twit\.ac|su\.pr|twurl\.nl|snipurl\.com|'
-                    'short\.to|BudURL\.com|ping\.fm|post\.ly|Just\.as|bkite\.com|snipr\.com|fic\.kr|loopt\.us|'
+                    r'short\.to|BudURL\.com|ping\.fm|post\.ly|Just\.as|bkite\.com|snipr\.com|fic\.kr|loopt\.us|'
                     'doiop\.com|short\.ie|kl\.am|wp\.me|rubyurl\.com|om\.ly|to\.ly|bit\.do|t\.co|lnkd\.in|'
                     'db\.tt|qr\.ae|adf\.ly|goo\.gl|bitly\.com|cur\.lv|tinyurl\.com|ow\.ly|bit\.ly|ity\.im|'
                     'q\.gs|is\.gd|po\.st|bc\.vc|twitthis\.com|u\.to|j\.mp|buzurl\.com|cutt\.us|u\.bb|yourls\.org|'
@@ -121,7 +121,7 @@ class FeatureExtraction:
     # 6.prefixSuffix
     def prefixSuffix(self):
         try:
-            match = re.findall('\-', self.domain)
+            match = re.findall(r'\-', self.domain)
             if match:
                 return -1
             return 1
@@ -130,7 +130,7 @@ class FeatureExtraction:
     
     # 7.SubDomains
     def SubDomains(self):
-        dot_count = len(re.findall("\.", self.url))
+        dot_count = len(re.findall(r"\.", self.url))
         if dot_count == 1:
             return 1
         elif dot_count == 2:
@@ -175,7 +175,7 @@ class FeatureExtraction:
         try:
             for head in self.soup.find_all('head'):
                 for head.link in self.soup.find_all('link', href=True):
-                    dots = [x.start(0) for x in re.finditer('\.', head.link['href'])]
+                    dots = [x.start(0) for x in re.finditer(r'\.', head.link['href'])]
                     if self.url in head.link['href'] or len(dots) == 1 or self.domain in head.link['href']:
                         return 1
             return -1
