@@ -26,12 +26,16 @@ class FeatureExtraction:
         self.urlparse = ""
         self.response = ""
         self.soup = ""
-
+        
         try:
-            self.response = requests.get(url)
-            self.soup = BeautifulSoup(self.response.text, 'html.parser')
-        except:
-            pass
+            self.response = requests.get(url, timeout=5)
+            if self.response.status_code == 200:
+                self.soup = BeautifulSoup(self.response.text, "html.parser")  # Use "html.parser"
+            else:
+                self.soup = None  # Set to None if the response is not 200
+        except Exception as e:
+            print(f"Error fetching {url}: {e}")
+            self.soup = None
 
         try:
             self.urlparse = urlparse(url)
@@ -51,39 +55,49 @@ class FeatureExtraction:
             pass
         
 
-        self.features.append(self.UsingIp())
-        self.features.append(self.longUrl())
-        self.features.append(self.shortUrl())
-        self.features.append(self.symbol())
-        self.features.append(self.redirecting())
-        self.features.append(self.prefixSuffix())
-        self.features.append(self.SubDomains())
-        self.features.append(self.Hppts())
-        self.features.append(self.DomainRegLen())
-        self.features.append(self.Favicon())
-        
+        # ✅ Add Features with Exception Handling
+        feature_functions = [
+            self.URLLength, self.DomainLength, self.IsDomainIP, self.TLD,
+            self.URLSimilarityIndex, self.CharContinuationRate, self.TLDLegitimateProb, self.URLCharProb,
+            self.TLDLength, self.NoOfSubDomain, self.HasObfuscation, self.NoOfObfuscatedChar,
+            self.ObfuscationRatio, self.NoOfLetterInURL, self.LetterRatioInURL, self.NoOfDigitsInURL,
+            self.DigitRatioInURL, self.NoOfEqualsInURL, self.NoOfQMarkInURL, self.NoOfAmpersandInURL,
+            self.NoOfOtherSpecialCharsInURL, self.SpecialCharRatioInURL, self.IsHTTPS, self.LineOfCode,
+            self.LargestLineLength, self.HasTitle, self.DomainTitleMatchScore, self.URLTitleMatchScore,
+            self.HasFavicon, self.IsResponsive, self.NoOfURLRedirect, self.NoOfSelfRedirect,
+            self.HasDescription, self.NoOfiFrame, self.HasExternalFormSubmit, self.HasSocialNet,
+            self.HasSubmitButton, self.HasHiddenFields, self.HasPasswordField, self.Bank,
+            self.Pay, self.Crypto, self.HasCopyrightInfo, self.NoOfImage, self.NoOfCSS,
+            self.NoOfJS, self.NoOfSelfRef, self.NoOfEmptyRef, self.NoOfExternalRef,
+            self.CheckRedirects, self.NoOfExternalRedirects, self.shortURL, self.symbolAt,
+            self.DomainRegLen, self.AgeofDomain, self.RequestURL, self.DNSRecording,
+            self.WebsiteTraffic, self.GoogleIndex, self.PageRank, self.LinksPointingToPage,
+            self.StatsReport
+        ]
 
-        self.features.append(self.NonStdPort())
-        self.features.append(self.HTTPSDomainURL())
-        self.features.append(self.RequestURL())
-        self.features.append(self.AnchorURL())
-        self.features.append(self.LinksInScriptTags())
-        self.features.append(self.ServerFormHandler())
-        self.features.append(self.InfoEmail())
-        self.features.append(self.AbnormalURL())
-        self.features.append(self.WebsiteForwarding())
-        self.features.append(self.StatusBarCust())
+# ✅ Debugging: Print Features One by One Before Appending
+        for idx, func in enumerate(feature_functions, start=1):
+            try:
+                value = func()
+                self.features.append(value)
+                print(f"✅ Feature {idx}: {func.__name__} -> {value}")  # Print feature name & value
+            except Exception as e:
+                print(f"🚨 Feature {idx} ({func.__name__}) failed: {e}")
+                self.features.append(0)  # Append placeholder if function fails
 
-        self.features.append(self.DisableRightClick())
-        self.features.append(self.UsingPopupWindow())
-        self.features.append(self.IframeRedirection())
-        self.features.append(self.AgeofDomain())
-        self.features.append(self.DNSRecording())
-        self.features.append(self.WebsiteTraffic())
-        self.features.append(self.PageRank())
-        self.features.append(self.GoogleIndex())
-        self.features.append(self.LinksPointingToPage())
-        self.features.append(self.StatsReport())
+
+        # ✅ Ensure Exactly 30 Features
+        if len(self.features) < 30:
+            print(f"🚨 Warning: Only {len(self.features)} features extracted, forcing 30.")
+            while len(self.features) < 30:
+                self.features.append(0)  # Add placeholder for missing feature
+
+        try:
+            self.severity = self.classify_severity()
+        except Exception as e:
+            print(f"🚨 Error calculating severity: {e}")
+            self.severity = 0  # Default value
+
 
     # 1. URL Length
     def URLLength(self):
@@ -161,27 +175,46 @@ class FeatureExtraction:
         
     # 18. Has External Form Submit
     def HasExternalFormSubmit(self):
+        if self.soup is None:
+            print(f"Skipping {self.url} - Unable to fetch page content.")
+            return -1  # Default value when the page couldn't be loaded
+        
         return 1 if any(form.get('action', '').startswith('http') for form in self.soup.find_all('form')) else 0
         
     # 19. Has Password Field
     def HasPasswordField(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return 1 if any(input_.get('type') == 'password' for input_ in self.soup.find_all('input')) else 0
         
      # 20. No. of iFrame
     def NoOfiFrame(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return len(self.soup.find_all('iframe'))
 
     
     # 21. No. of Image
     def NoOfImage(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return len(self.soup.find_all('img'))
         
     # 22. No. of CSS
     def NoOfCSS(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return len(self.soup.find_all('link', {'rel': 'stylesheet'}))
         
     # 23. No. of JS
     def NoOfJS(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return len(self.soup.find_all('script'))
 
         
@@ -277,14 +310,23 @@ class FeatureExtraction:
         
     # 41. Has Social Net
     def HasSocialNet(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return 1 if self.soup.find_all('a', href=re.compile(r'facebook|twitter|linkedin|instagram')) else 0
 
     # 42. Has Submit Button
     def HasSubmitButton(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return 1 if self.soup.find_all('input', {'type': 'submit'}) else 0
         
     # 43. Has Hidden Fields
     def HasHiddenFields(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         return  1 if self.soup.find_all('input', {'type': 'hidden'}) else 0
 
     # 44. Has Copyright Info
@@ -305,36 +347,51 @@ class FeatureExtraction:
         
     # 48. No Of Self Ref
     def NoOfSelfRef(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         links = [a['href'] for a in self.soup.find_all('a', href=True)]
         return sum(1 for link in links if urlparse(link).netloc == "")
 
     # 49. No Of Empty Ref
     def NoOfEmptyRef(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         links = [a['href'] for a in self.soup.find_all('a', href=True)]
         return sum(1 for link in links if link == "#")
 
     # 50. No Of External Ref
     def NoOfExternalRef(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         links = [a['href'] for a in self.soup.find_all('a', href=True)]
         return sum(1 for link in links if urlparse(link).netloc not in ["", urlparse(self.url).netloc])
 
     # 51. Checks Redirects
     def CheckRedirects(self):
+        if self.soup is None:
+            return 0  # Default value when the page couldn't be loaded
+        
         redirect_count = 0
         links = [a['href'] for a in self.soup.find_all('a', href=True)]
         
         for link in links:
             try:
                 response = requests.get(link, timeout=5, allow_redirects=True)
-                if len(response.history) > 0:  # Checks if there were redirects
+                if len(response.history) > 0:
                     redirect_count += 1
             except:
-                continue 
+                continue
         
         return redirect_count
 
     # 52. Check External Redirect
     def NoOfExternalRedirects(self):
+        if self.soup is None:
+            return 0  # Return -1 if the page couldn't be fetched
+        
         external_redirects = 0
         links = [a['href'] for a in self.soup.find_all('a', href=True)]
         
@@ -348,6 +405,7 @@ class FeatureExtraction:
                 continue  
         
         return external_redirects
+
 
     # 53. Short URL (Checks if the URL is too short, often suspicious)
     def shortURL(self):
@@ -373,24 +431,29 @@ class FeatureExtraction:
     def DomainRegLen(self):
         try:
             domain_info = whois.whois(urlparse(self.url).netloc)
-            if domain_info.expiration_date:
+            if domain_info.expiration_date and domain_info.creation_date:
                 reg_length = (domain_info.expiration_date - domain_info.creation_date).days
-                return 1 if reg_length >= 365 else -1  # Legitimate if registered for at least a year
+                return 1 if reg_length >= 365 else -1
         except:
-            return -1 
+            return -1
+        return -1
     
     # 56. Age of Domain (Checks how old the domain is)
     def AgeofDomain(self):
         try:
             domain_info = whois.whois(urlparse(self.url).netloc)
-            if domain_info.creation_date:
+            if domain_info.creation_date and domain_info.updated_date:
                 age = (domain_info.creation_date - domain_info.updated_date).days
-                return 1 if age > 180 else -1  # Legitimate if older than 6 months
+                return 1 if age > 180 else -1
         except:
-            return -1 
+            return -1
+        return -1 
 
     # 57. Request URL (Checks if images/scripts are loaded from an external domain)
     def RequestURL(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         try:
             external_requests = [
                 img['src'] for img in self.soup.find_all('img', src=True) 
@@ -402,6 +465,9 @@ class FeatureExtraction:
 
     # 58. Has External Form Submit (Checks if forms submit to an external site)
     def HasExternalFormSubmit(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         try:
             forms = self.soup.find_all("form", action=True)
             return -1 if any(urlparse(form["action"]).netloc not in ["", urlparse(self.url).netloc] for form in forms) else 1
@@ -427,6 +493,36 @@ class FeatureExtraction:
                 return 1 if rank_value < 100000 else -1  # Legitimate if popular
         except:
             return -1  
+
+    def classify_severity(self):
+        """ Classifies the severity level of a URL based on extracted features. """
+        try:
+            severity_score = 0
+            feature_weights = {
+                "shortURL": -2, "symbolAt": -1, "redirecting": -2, "prefixSuffix": -1,
+                "SubDomains": -2, "IsHTTPS": -1, "HasPasswordField": -3,
+                "NoOfExternalRedirects": -3, "PageRank": -2, "GoogleIndex": -3
+            }
+
+            for feature, weight in feature_weights.items():
+                feature_value = getattr(self, feature, lambda: 0)()
+                severity_score += feature_value * weight
+
+            # ✅ Return Numerical Value Instead of String
+            if severity_score > 5:
+                return 1  # LOW risk
+            elif severity_score > 0:
+                return 2  # MEDIUM risk
+            elif severity_score > -5:
+                return 3  # HIGH risk
+            else:
+                return 4  # CRITICAL risk
+        except Exception as e:
+            print(f"🚨 Error in classify_severity(): {e}")
+            return 0  # Ensure a number is always returned
+
+
+
 
     # 61. Google Index (Checks if the website is indexed on Google)
     def GoogleIndex(self):
@@ -579,6 +675,9 @@ class FeatureExtraction:
 
     # 10. Favicon
     def Favicon(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         try:
             for head in self.soup.find_all('head'):
                 for head.link in self.soup.find_all('link', href=True):
@@ -610,6 +709,9 @@ class FeatureExtraction:
     
     # 13. RequestURL
     def RequestURL(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         try:
             for img in self.soup.find_all('img', src=True):
                 dots = [x.start(0) for x in re.finditer(r'\.', img['src'])]
@@ -650,6 +752,9 @@ class FeatureExtraction:
     
     # 14. AnchorURL
     def AnchorURL(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         try:
             i,unsafe = 0,0
             for a in self.soup.find_all('a', href=True):
@@ -672,37 +777,21 @@ class FeatureExtraction:
             return -1
 
     # 15. LinksInScriptTags
-    def LinksInScriptTags(self):
+    def LinksPointingToPage(self):
         try:
-            i,success = 0,0
-        
-            for link in self.soup.find_all('link', href=True):
-                dots = [x.start(0) for x in re.finditer(r'\.', link['href'])]
-                if self.url in link['href'] or self.domain in link['href'] or len(dots) == 1:
-                    success = success + 1
-                i = i+1
-
-            for script in self.soup.find_all('script', src=True):
-                dots = [x.start(0) for x in re.finditer(r'\.', script['src'])]
-                if self.url in script['src'] or self.domain in script['src'] or len(dots) == 1:
-                    success = success + 1
-                i = i+1
-
-            try:
-                percentage = success / float(i) * 100
-                if percentage < 17.0:
-                    return 1
-                elif((percentage >= 17.0) and (percentage < 81.0)):
-                    return 0
-                else:
-                    return -1
-            except:
-                return 0
-        except:
+            number_of_links = len(re.findall(r"<a href=", self.response.text))
+            result = 1 if number_of_links == 0 else (0 if number_of_links <= 2 else -1)
+            print(f"✅ Debug: LinksPointingToPage() returns {result}")
+            return result
+        except Exception as e:
+            print(f"🚨 Error in LinksPointingToPage(): {e}")
             return -1
 
     # 16. ServerFormHandler
     def ServerFormHandler(self):
+        if self.soup is None:
+            return -1  # Default value when the page couldn't be loaded
+        
         try:
             if len(self.soup.find_all('form', action=True))==0:
                 return 1
@@ -863,14 +952,13 @@ class FeatureExtraction:
     def LinksPointingToPage(self):
         try:
             number_of_links = len(re.findall(r"<a href=", self.response.text))
-            if number_of_links == 0:
-                return 1
-            elif number_of_links <= 2:
-                return 0
-            else:
-                return -1
-        except:
-            return -1
+            result = 1 if number_of_links == 0 else (0 if number_of_links <= 2 else -1)
+            print(f"✅ Debug: LinksPointingToPage() returns {result}")
+            return result
+        except Exception as e:
+            print(f"🚨 Error in LinksPointingToPage(): {e}")
+        return -1  # Ensure it returns a number
+
 
     # 30. StatsReport
     def StatsReport(self):
@@ -887,6 +975,31 @@ class FeatureExtraction:
         except:
             return 1
 
-    
     def getFeaturesList(self):
+        print(f"✅ getFeaturesList() Extracted Features: {len(self.features)}")
+        
+        # Add severity as a feature if it's missing
+        if len(self.features) == 29:
+            try:
+                severity_value = self.classify_severity()
+                self.features.append(severity_value)
+                print(f"✅ Added missing Feature (Severity): {severity_value}")
+            except Exception as e:
+                print(f"🚨 Error adding Severity feature: {e}")
+                self.features.append(0)  # Add default value
+        
+        # Ensure exactly 30 features
+        while len(self.features) < 30:
+            print(f"🚨 Warning: Adding placeholder for missing feature {len(self.features) + 1}")
+            self.features.append(0)  # Placeholder to ensure 30 features
+        
+        # If we somehow have more than 30, trim the excess
+        if len(self.features) > 30:
+            print(f"🚨 Warning: Trimming excess features from {len(self.features)} to 30")
+            self.features = self.features[:30]
+        
+        print(f"✅ Final feature count: {len(self.features)}")
         return self.features
+
+    
+

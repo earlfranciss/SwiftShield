@@ -48,3 +48,8 @@ Thumbs.db
 *.tsbuildinfo
 
 app-example
+
+__pycache__/
+*.pyc
+
+venv
