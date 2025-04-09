@@ -1,3 +1,4 @@
+// Navigation.js
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import {
@@ -9,7 +10,8 @@ import {
   Image,
   AppState
 } from "react-native";
-import React, { useState, useEffect, useRef } from "react";
+// **** Import useRef ****
+import React, { useState, useEffect, useRef } from "react"; 
 import GradientScreen from "./screens/components/GradientScreen";
 import TopBar from "./screens/components/TopBar";
 import NotificationToast from "./screens/components/NotificationToast";
@@ -17,7 +19,6 @@ import { requestNotificationPermissions, setupNotificationListeners, scheduleNot
 import config from "./config";
 
 //Screens
-
 import Home from "./screens/tabScreens/Home";
 import Analytics from "./screens/tabScreens/Analytics";
 import Logs from "./screens/tabScreens/Logs";
@@ -51,7 +52,7 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
   useEffect(() => {
     globalNavigation = navigation;
   }, [navigation]);
-  
+
   const [isDarkMode, setDarkMode] = useState(false);
 
   const handleToggleDarkMode = () => {
@@ -205,10 +206,10 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
       <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
       <Stack.Screen name="Tabs">
         {props => (
-          <TabGroup 
-            {...props} 
-            hasUnreadNotifications={hasUnreadNotifications} 
-            onNotificationRead={onNotificationRead} 
+          <TabGroup
+            {...props}
+            hasUnreadNotifications={hasUnreadNotifications}
+            onNotificationRead={onNotificationRead}
           />
         )}
       </Stack.Screen>
@@ -228,12 +229,14 @@ export default function Navigation() {
   const [inAppNotification, setInAppNotification] = useState(null);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const appState = useRef(AppState.currentState);
-  
+  // **** Add useRef to track the last notified ID ****
+  const lastNotifiedIdRef = useRef(null); 
+
   // Set up notifications on app start
   useEffect(() => {
     // Request permissions
     requestNotificationPermissions();
-    
+
     // Set up listeners for system notifications
     const cleanupListeners = setupNotificationListeners(
       (notification) => {
@@ -246,28 +249,29 @@ export default function Navigation() {
         navigateToNotificationsScreen(data);
       }
     );
-    
+
     // Set up polling for new notifications
     const checkInterval = setInterval(checkForNewNotifications, 30000); // Every 30 seconds
-    
+    checkForNewNotifications(); // Check immediately on mount
+
     // Clean up on unmount
     return () => {
       cleanupListeners();
       clearInterval(checkInterval);
     };
   }, []);
-  
+
   // Monitor app state to determine notification type
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       appState.current = nextAppState;
     });
-    
+
     return () => {
       subscription.remove();
     };
   }, []);
-  
+
   // Function to check for new notifications
   const checkForNewNotifications = async () => {
     try {
@@ -276,90 +280,126 @@ export default function Navigation() {
         console.error('BASE_URL is not defined in config');
         return;
       }
-      
+
       const response = await fetch(`${config.BASE_URL}/logs`);
+      // **** Added error handling for non-ok responses ****
+      if (!response.ok) {
+          console.error(`Error fetching logs: ${response.status} ${response.statusText}`);
+          // Optionally handle specific statuses like 404, 500 etc.
+          return; 
+      }
       const data = await response.json();
-      
+
+      // **** Changed check to ensure data exists and is an array ****
       if (data && Array.isArray(data) && data.length > 0) {
-        // For simplicity, just showing the latest notification
-        // In a real app, you would track which ones have been seen
+        // Get the latest notification (assuming API returns sorted newest first)
         const latestNotification = data[0];
+        console.log(`[Check] Latest log ID from API: ${latestNotification.id}`); // Debug log
         handleNewNotification(latestNotification);
+      } else {
+        // console.log("[Check] No logs found or invalid data format from API."); // Optional debug log
       }
     } catch (error) {
-      console.error('Error checking for notifications:', error);
+      console.error('Error during checkForNewNotifications fetch:', error);
     }
   };
-  
+
   // Handle a new notification
   const handleNewNotification = (notification) => {
+    // **** Ensure notification and its ID exist ****
+    if (!notification || !notification.id) {
+        console.warn("handleNewNotification received invalid notification data:", notification);
+        return;
+    }
+
     // Determine if link is malicious based on icon or other property
     const isMalicious = notification.icon === "suspicious-icon";
-    const title = isMalicious ? 
-      "Warning: Malicious Link Detected" : 
+    const title = isMalicious ?
+      "Warning: Malicious Link Detected" :
       "Safe Link Verified";
-    const body = notification.url || notification.link || "";
-    
-    // Set unread notifications flag
+    const body = notification.link || ""; // Use link as body
+
+    // Set unread notifications flag (might need refinement later if you track read status globally)
     setHasUnreadNotifications(true);
-    
-    if (appState.current === 'active') {
-      // App is in foreground, show in-app notification
-      setInAppNotification({
-        ...notification,
-        id: notification.id || Math.random().toString(),
-        icon: notification.icon || (isMalicious ? "suspicious-icon" : "safe-icon")
-      });
+
+    // **** Core Logic: Check if the ID is new ****
+    if (notification.id !== lastNotifiedIdRef.current) {
+      console.log(`[New Notification] ID ${notification.id} is different from last notified ID ${lastNotifiedIdRef.current}. Showing toast.`); // Debug log
+      if (appState.current === 'active') {
+        // App is in foreground, show in-app notification
+        setInAppNotification({
+          id: notification.id, // Use the actual ID from the log
+          link: notification.link, // Use link from log data
+          icon: notification.icon || (isMalicious ? "suspicious-icon" : "safe-icon"),
+          // Add any other properties your NotificationToast needs from the notification object
+        });
+        // **** Update the last notified ID ****
+        lastNotifiedIdRef.current = notification.id;
+      } else {
+        // App is in background, show system notification
+        console.log(`[New Notification] App not active. Scheduling system notification for ID ${notification.id}.`); // Debug log
+        scheduleNotification(title, body, notification);
+        // **** Update the last notified ID even for background notifications ****
+        // This prevents showing an in-app toast for the same item when the app returns to foreground
+        lastNotifiedIdRef.current = notification.id; 
+      }
     } else {
-      // App is in background, show system notification
-      scheduleNotification(title, body, notification);
+       console.log(`[New Notification] ID ${notification.id} is the SAME as last notified ID ${lastNotifiedIdRef.current}. Skipping toast.`); // Debug log
     }
   };
-  
+
   // Function to navigate to notifications screen using the global navigation variable
   const navigateToNotificationsScreen = (data) => {
     if (globalNavigation) {
       globalNavigation.navigate('Notifications', {
-        isDarkMode: false,
+        isDarkMode: false, // Pass relevant props if needed
         onToggleDarkMode: () => {},
-        ...data
+        ...data // Pass any data needed by the Notifications screen
       });
       // Clear unread notifications when navigating to the Notifications screen
       setHasUnreadNotifications(false);
+    } else {
+        console.warn("Cannot navigate: globalNavigation is not set.");
     }
   };
 
   // Simply return the MainStack and NotificationToast
   return (
     <>
-      <MainStack 
+      <MainStack
         hasUnreadNotifications={hasUnreadNotifications}
         onNotificationRead={() => setHasUnreadNotifications(false)}
       />
-      
+
       {/* Notification Toast */}
       {inAppNotification && (
-        <NotificationToast 
+        <NotificationToast
           notification={inAppNotification}
-          onPress={(notification) => {
+          onPress={(notificationData) => { // Renamed param for clarity
+            console.log("Toast pressed. Navigating with data:", notificationData); // Debug log
             if (globalNavigation) {
-              globalNavigation.navigate('Notifications', {
-                isDarkMode: false,
-                onToggleDarkMode: () => {},
-                notification: notification
+              // Pass the specific notification data needed by the screen
+              globalNavigation.navigate('Notifications', { 
+                notificationIdToHighlight: notificationData.id, // Example: pass ID to highlight
+                // Pass other relevant props if Notifications screen needs them
               });
-              setInAppNotification(null);
-              setHasUnreadNotifications(false);
+              setInAppNotification(null); // Dismiss toast after navigation
+              setHasUnreadNotifications(false); // Mark as read
+            } else {
+                console.warn("Cannot navigate from toast press: globalNavigation not set.");
             }
           }}
-          onDismiss={() => setInAppNotification(null)}
+          onDismiss={() => {
+            console.log("Toast dismissed (timeout or manual)."); // Debug log
+            setInAppNotification(null);
+          }}
         />
       )}
     </>
   );
 }
 
-// Styles
+// Styles (Keep existing styles)
 const styles = StyleSheet.create({
   topBar: {
     height: 60,
