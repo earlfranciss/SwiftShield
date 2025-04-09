@@ -406,34 +406,6 @@ def get_log_details(log_id):
         return jsonify({"error": str(e)}), 500
 
 
-
-# ✅ NEW API TO FETCH A SINGLE LOG'S DETAILS FOR NOTIFICATION CLICK
-@app.route("/logs/<log_id>", methods=["GET"])
-def get_log_details(log_id):
-    try:
-        log = logs.find_one({"_id": ObjectId(log_id)})
-        if not log:
-            return jsonify({"error": "Log not found"}), 404
-
-        detection_entry = detection.find_one({"detect_id": log["detect_id"]})
-        if not detection_entry:
-            return jsonify({"error": "Detection data not found"}), 404
-
-        log_details = {
-            "id": str(log["_id"]),
-            "url": detection_entry["url"],
-            "platform": log.get("platform", "Unknown"),
-            "date_scanned": detection_entry.get("timestamp", "Unknown"),
-            "severity": log.get("severity", "Medium"),
-            "probability": log.get("probability", 0),
-            "recommended_action": "Block URL" if log["verdict"] == "Phishing" else "Allow URL"
-        }
-
-        return jsonify(log_details)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 # Route to create a report
 @app.route("/reports", methods=["POST"])
 def create_report():
