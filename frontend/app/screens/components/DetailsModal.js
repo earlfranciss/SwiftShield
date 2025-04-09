@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Modal, 
-  View, 
-  Text, 
+import {
+  Modal,
+  View,
+  Text,
   TouchableOpacity,
   StyleSheet,
   Dimensions,
   ActivityIndicator,
-  Image
+  Image,
+  Alert
 } from 'react-native';
 
 const iconMap = {
@@ -22,8 +23,15 @@ const severityColors = {
   "critical": "#FF0000" // Red
 };
 
-const DetailsModal = ({ visible, onClose, logDetails, loading }) => {
+const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdate, onDelete }) => {
   const [screenDimensions, setScreenDimensions] = useState(Dimensions.get('window'));
+  const [editedLog, setEditedLog] = useState({});
+
+  useEffect(() => {
+    if (logDetails) {
+      setEditedLog(logDetails);
+    }
+  }, [logDetails]);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -31,7 +39,7 @@ const DetailsModal = ({ visible, onClose, logDetails, loading }) => {
     };
 
     Dimensions.addEventListener('change', updateDimensions);
-    
+
     return () => {
       if (Dimensions.removeEventListener) {
         Dimensions.removeEventListener('change', updateDimensions);
@@ -44,44 +52,52 @@ const DetailsModal = ({ visible, onClose, logDetails, loading }) => {
 
   if (!visible) return null;
 
+  // Handle Close Press
   const handleClosePress = () => {
     if (onClose) {
       onClose();
     }
   };
 
-  const handleBackdropPress = () => {
-    if (onClose) {
-      onClose();
-    }
+  // Handle Delete Press with confirmation
+  const handleDeletePress = () => {
+    Alert.alert("Confirm Delete", "Are you sure you want to delete this log?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          if (onDelete && editedLog?.id) {
+            onDelete(editedLog.id); // Trigger the delete function
+            handleClosePress(); // Optionally close the modal after deletion
+          }
+        },
+      },
+    ]);
   };
 
-  // Determine the icon based on verdict (Safe/Phishing)
-  const isSafe = logDetails?.recommended_action === "Allow URL";
+  const isSafe = editedLog?.recommended_action === "Allow URL";
   const iconSource = isSafe ? iconMap.safe : iconMap.suspicious;
 
-  // Ensure probability percentage is a whole number
-  const probability = logDetails?.probability ? Math.round(logDetails.probability) : "N/A";
-
-  // Get severity level and color
-  const severity = logDetails?.severity ? logDetails.severity.toLowerCase() : "unknown";
-  const severityColor = severityColors[severity] || "#FFFFFF"; // Default white if not recognized
+  const probability = editedLog?.probability ? Math.round(editedLog.probability) : "N/A";
+  const severity = editedLog?.severity ? editedLog.severity.toLowerCase() : "unknown";
+  const severityColor = severityColors[severity] || "#FFFFFF";
 
   return (
     <Modal
       visible={visible}
-      transparent={true}
+      transparent
       animationType="fade"
       onRequestClose={onClose}
     >
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.overlay}
         activeOpacity={1}
-        onPress={handleBackdropPress}
+        onPress={handleClosePress}
       >
-        <View 
+        <View
           style={[
-            styles.modalContainer, 
+            styles.modalContainer,
             { width: modalWidth, left: modalLeft, top: screenDimensions.height / 2 - 200 }
           ]}
         >
@@ -130,14 +146,26 @@ const DetailsModal = ({ visible, onClose, logDetails, loading }) => {
                 </View>
               </View>
 
-              {/* Close Button */}
-              <TouchableOpacity 
-                style={styles.actionButton} 
-                onPress={handleClosePress}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.actionButtonText}>Close</Text>
-              </TouchableOpacity>
+              {/* Buttons Row (Delete before Close) */}
+              <View style={styles.buttonRow}>
+                {/* Delete Button */}
+                <TouchableOpacity 
+                  style={[styles.sideButton, { backgroundColor: '#FF4C4C' }]} 
+                  onPress={handleDeletePress}  // Trigger the delete when pressed
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.actionButtonText}>Delete</Text>
+                </TouchableOpacity>
+
+                {/* Close Button */}
+                <TouchableOpacity 
+                  style={styles.sideButton} 
+                  onPress={handleClosePress}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.actionButtonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
             </>
           ) : (
             <Text style={styles.errorText}>Error loading details.</Text>
@@ -210,7 +238,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 30,
     borderRadius: 15,
-    marginTop: 20,
+    marginTop: 10,
     width: '100%',
     alignItems: 'center',
   },
@@ -225,6 +253,22 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 20,
+  },
+  
+  sideButton: {
+    flex: 1,
+    backgroundColor: '#31EE9A',
+    paddingVertical: 12,
+    marginHorizontal: 5,
+    borderRadius: 15,
+    alignItems: 'center',
+  },        
 });
 
 export default DetailsModal;
+  
