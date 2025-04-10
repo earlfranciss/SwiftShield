@@ -235,7 +235,7 @@
     "glob-to-regexp": "^0.4.1",
     "globals": "^11.12.0",
     "globby": "^11.1.0",
-    "gopd": "^1.0.1",
+    "gopd": "^1.2.0",
     "graceful-fs": "^4.2.11",
     "has-flag": "^4.0.0",
     "has-property-descriptors": "^1.0.2",
