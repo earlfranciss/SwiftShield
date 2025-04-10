@@ -1,105 +1,123 @@
-import { View, Text, Dimensions } from "react-native";
+import { View, Text, Dimensions, StyleSheet, ActivityIndicator } from "react-native";
 import { PieChart } from "react-native-chart-kit";
 
-const PieGraph = () => {
-  const data = [
-    {
-      name: "Text Message:",
-      population: 8,
-      color: "#ffde59",
-      numberColor: "#ffde59", // Number color for Text Message
+// Get screen width - Define it reliably
+const screenWidth = Dimensions.get('window').width;
+
+const PieGraph = ({ data }) => {
+
+  // --- REMOVE Hardcoded data ---
+  // const data = [ ... ]; // DELETE THIS HARDCODED ARRAY
+
+  // --- ADD: Check the INCOMING 'data' prop ---
+  if (!data) {
+    // Handle case where data prop hasn't arrived yet (e.g., initial render)
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="small" color="#AAAAAA" />
+        <Text style={styles.emptyText}>Loading chart data...</Text>
+      </View>
+    );
+  }
+
+  if (!Array.isArray(data) || data.length === 0) {
+    // Handle case where backend returned empty array or fetch failed
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>No scan source data available.</Text>
+      </View>
+    );
+  }
+  // --- END OF ADDED CHECKS ---
+
+  // --- Filter data for chart slices (only show slices > 0) ---
+  // Use the 'data' prop here
+  const chartDataForDisplay = data.filter(item => item.population > 0);
+
+  // --- Handle Case Where All Values Are Zero ---
+  if (chartDataForDisplay.length === 0 && data.length > 0) {
+      // If the original data array had items, but all had population 0
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No scans recorded yet for any source.</Text>
+        </View>
+      );
+  }
+
+
+  // --- Chart Configuration (can stay the same) ---
+  const chartConfig = {
+    color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+    style: {
+      borderRadius: 16,
     },
-    {
-      name: "Email:",
-      population: 20,
-      color: "#ffbd59",
-      numberColor: "#ffbd59", // Number color for Email
-    },
-    {
-      name: "Facebook:",
-      population: 14,
-      color: "#ff914d",
-      numberColor: "#ff914d", // Number color for Facebook
-    },
-  ];
+  };
 
   return (
-    <View style={{ flexDirection: "row", alignItems: "center" }}>
-      {/* Legends with Spacing */}
-      <View style={{ flex: 1, paddingLeft: 10 }}>
-        <Text
-          style={{
-            color: "#3AED97",
-            fontSize: 12,
-            marginBottom: 10,
-            marginLeft: 10,
-          }}
-        >
-          Threats by Source
-        </Text>
+    <View style={styles.container}>
+      {/* --- Custom Legends Section --- */}
+      {/* MODIFY: Use the incoming 'data' prop here to show ALL categories */}
+      <View style={styles.legendContainer}>
         {data.map((item, index) => (
           <View
-            key={index}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between", // Space between legend name and number
-              marginBottom: 5,
-            }}
+            key={item.name || `legend-${index}`} // Use name from prop data as key
+            style={styles.legendItem}
           >
             {/* Legend Name */}
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Text style={{ color: "#3AED97", fontSize: 12, marginLeft: 10 }}>
-                {item.name}
+            <View style={styles.legendTextContainer}>
+              <Text style={styles.legendNameText}>
+                {/* Use name from prop data */}
+                {item.name}:
               </Text>
             </View>
 
             {/* Legend Number */}
             <Text
-              style={{
-                color: item.numberColor,
-                fontSize: 14,
-                fontWeight: "bold",
-              }}
+              style={[
+                styles.legendValueText,
+                // Use color from prop data (provide fallback)
+                { color: item.color || '#FFFFFF' },
+              ]}
             >
+              {/* Use population from prop data */}
               {item.population}
             </Text>
           </View>
         ))}
       </View>
 
-      {/* Pie Chart */}
-      <View style={{ flex: 1, alignItems: "center", marginLeft: 90 }}>
+      {/* --- Pie Chart Section --- */}
+      <View style={styles.chartContainer}>
+        {/* MODIFY: Use the filtered 'chartDataForDisplay' from the prop data */}
         <PieChart
-          data={data.map((item) => ({
-            name: item.name,
-            population: item.population,
-            color: item.color,
-            legendFontColor: "#fff",
-            legendFontSize: 12,
-          }))}
-          width={Dimensions.get("window").width / 2}
+          data={chartDataForDisplay} // Use filtered data from prop
+          width={screenWidth / 2.2}
           height={150}
-          chartConfig={{
-            backgroundColor: "#000",
-            backgroundGradientFrom: "#000",
-            backgroundGradientTo: "#000",
-            decimalPlaces: 0,
-            color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-            labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-            style: {
-              borderRadius: 16,
-            },
-          }}
-          accessor="population"
-          backgroundColor="transparent"
-          paddingLeft="15"
+          chartConfig={chartConfig}
+          accessor={"population"} // Still use 'population' key
+          backgroundColor={"transparent"}
+          paddingLeft={"15"}
           absolute
-          hasLegend={false} // Custom legend handled on the left
+          hasLegend={false}
         />
       </View>
     </View>
   );
 };
+
+// --- Add/Keep Styles ---
+const styles = StyleSheet.create({
+  container: { flexDirection: "row", alignItems: "center", width: '100%' },
+  legendContainer: { flex: 1, paddingRight: 10, justifyContent: 'center' },
+  chartContainer: { alignItems: "center" },
+  legendItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  legendTextContainer: { flexDirection: "row", alignItems: "center" },
+  legendNameText: { color: "#E0E0E0", fontSize: 12 },
+  legendValueText: { fontSize: 14, fontWeight: "bold", textAlign: 'right' },
+  loadingContainer: { height: 150, justifyContent: 'center', alignItems: 'center' },
+  emptyContainer: { height: 150, justifyContent: 'center', alignItems: 'center', padding: 10 },
+  emptyText: { color: '#AAAAAA', fontSize: 12, textAlign: 'center' }
+});
 
 export default PieGraph;

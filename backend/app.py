@@ -17,13 +17,42 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from flask_bcrypt import Bcrypt
 from flask_pymongo import PyMongo
 from bson.objectid import ObjectId
+import whois
+from datetime import datetime, timedelta # Keep timedelta if used elsewhere
+from extraction import FeatureExtraction
+from urllib.parse import urlparse
+import ipaddress
+import tldextract
+from flask_caching import Cache
+
+# Initialize cache object WITHOUT the app first
+cache = Cache(config={"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300})
+
+app = Flask(__name__) # Define Flask app
+app.config["DEBUG"] = True
+# Remove cache config lines from here if you set them above
+# app.config["CACHE_TYPE"] = "SimpleCache"
+# app.config["CACHE_DEFAULT_TIMEOUT"] = 300
+
+# ---> Initialize cache WITH the app object using init_app <---
+cache.init_app(app)
+
+CORS(app, resources={r"/*": {"origins": "*"}})
+bcrypt = Bcrypt(app)
 
 warnings.filterwarnings('ignore')
 
-load_dotenv()
+# ---> Load .env file AFTER imports <---
+dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+print(f"DEBUG: Attempting to load .env file from: {dotenv_path}")
+load_dotenv(dotenv_path=dotenv_path)
+# Test if the key is loaded immediately after
+test_key = os.getenv("GOOGLE_SAFE_BROWSING_API_KEY")
+print(f"DEBUG: Key loaded immediately after load_dotenv: {'Yes' if test_key else 'NO!'}")
 
 db_connection_string = os.getenv("DB_CONNECTION_STRING")
 secret_key = os.getenv("SECRET_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_SAFE_BROWSING_API_KEY") # <<< Load it here
 
 if not db_connection_string or not secret_key:
     raise ValueError("Environment variables DB_CONNECTION_STRING or SECRET_KEY are not set")
@@ -39,7 +68,6 @@ try:
     client = pymongo.MongoClient(db_connection_string, serverSelectionTimeoutMS=5000)
     db = client.get_database()
     logs = db.get_collection("Logs")
-    collection = db.get_collection("logs") 
     detection = db.get_collection("Detection")
     users = db.get_collection("Users")
 
@@ -49,11 +77,12 @@ try:
 except pymongo.errors.ServerSelectionTimeoutError:
     raise ValueError("Could not connect to MongoDB. Check DB_CONNECTION_STRING.")
 
-app = Flask(__name__)
+
 app.config["DEBUG"] = True
 
-CORS(app, resources={r"/*": {"origins": "*"}})  
-bcrypt = Bcrypt(app)
+
+
+DOMAIN_AGE_THRESHOLD_DAYS = 30 # Suspicious if registered less than this many days ago (e.g., 30, 60, 90)
 
 # Set timezone to Philippines (Asia/Manila)
 PH_TZ = pytz.timezone("Asia/Manila")
@@ -117,74 +146,436 @@ def fetch_logs(limit=None):
 
     return formatted_logs
 
+# Load the API Key from environment variables
+SAFE_BROWSING_API_URL = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={GOOGLE_API_KEY}"
+
+@cache.memoize(timeout=60 * 10) # Cache Safe Browsing results for 10 minutes
+def check_known_blocklists(url):
+    """
+    Checks the URL against the Google Safe Browsing API (v4 Lookup).
+    Requires GOOGLE_SAFE_BROWSING_API_KEY environment variable.
+    Returns: "CRITICAL" for MALWARE/POTENTIALLY_HARMFUL_APPLICATION,
+             "HIGH" for SOCIAL_ENGINEERING/UNWANTED_SOFTWARE,
+             None otherwise or on error/no key.
+    """
+    if not GOOGLE_API_KEY:
+        print("DEBUG: check_known_blocklists - GOOGLE_SAFE_BROWSING_API_KEY not set. Skipping check.")
+        return None
+
+    print(f"DEBUG: check_known_blocklists - Checking URL: {url}")
+
+    payload = {
+        "client": {
+            "clientId":      "yourcompany-phishingapp", # Choose a unique ID
+            "clientVersion": "1.0.0"
+        },
+        "threatInfo": {
+            "threatTypes":      ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION"],
+            "platformTypes":    ["ANY_PLATFORM"], # Or specify ["WINDOWS", "LINUX", "OSX", "ANDROID", "IOS"]
+            "threatEntryTypes": ["URL"],
+            "threatEntries": [
+                {"url": url}
+            ]
+        }
+    }
+
+    headers = {'Content-Type': 'application/json'}
+
+    try:
+        response = requests.post(SAFE_BROWSING_API_URL, headers=headers, data=json.dumps(payload), timeout=5)
+        response.raise_for_status() # Raise error for bad status codes
+
+        result = response.json()
+        print(f"DEBUG: check_known_blocklists - Safe Browsing API Response: {result}")
+
+        if 'matches' in result:
+            # A match was found! Determine severity based on threat type
+            highest_severity = None # Track the most severe threat found
+            for match in result['matches']:
+                threat_type = match.get('threatType')
+                if threat_type in ["MALWARE", "POTENTIALLY_HARMFUL_APPLICATION"]:
+                    print(f"DEBUG: check_known_blocklists - Found {threat_type} match for {url}. Flagging CRITICAL.")
+                    return "CRITICAL" # Malware is critical
+                elif threat_type in ["SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE"]:
+                     print(f"DEBUG: check_known_blocklists - Found {threat_type} match for {url}. Flagging HIGH.")
+                     highest_severity = "HIGH" # Phishing/Unwanted is high
+                # Add other threat types if needed
+
+            return highest_severity # Return HIGH if found, otherwise None was found by this check
+        else:
+            # No matches found
+            print(f"DEBUG: check_known_blocklists - No threats found by Safe Browsing for {url}.")
+            return None
+
+    except requests.exceptions.RequestException as e:
+        print(f"ERROR: check_known_blocklists - API request failed for {url}: {e}")
+        return None # Error during API call
+    except Exception as e:
+        print(f"ERROR: check_known_blocklists - Unexpected error processing Safe Browsing result for {url}: {e}")
+        print("DEBUG: check_known_blocklists called")
+        return None # Other processing error
+
+def check_executable_download(url):
+    """
+    Checks if the URL path suggests a direct executable file download.
+    Returns: "HIGH" if likely executable download, None otherwise.
+    """
+    try:
+        # Parse the URL to get the path component
+        parsed_url = urlparse(url)
+        path = parsed_url.path.lower() # Convert path to lowercase for case-insensitive check
+
+        # List of common executable/installer/archive extensions often used for malware
+        executable_extensions = (
+            '.exe', '.msi', '.bat', '.cmd', '.scr', '.ps1', # Windows
+            '.dmg', '.pkg', # macOS
+            '.apk', '.xapk', # Android
+            '.deb', '.rpm', # Linux packages
+            '.jar', # Java archives
+            '.sh', # Shell scripts
+            '.js', # Can be malicious if downloaded directly
+            '.vbs', # VBScript
+            '.zip', '.rar', '.7z', '.tar.gz', '.iso' # Archives often used to hide malware
+        )
+
+        if path.endswith(executable_extensions):
+            print(f"DEBUG: check_executable_download - URL path '{path}' ends with a suspicious extension. Flagging HIGH.")
+            return "HIGH" # Flag as HIGH risk
+        else:
+            return None
+    except Exception as e:
+        print(f"ERROR: check_executable_download - Error checking URL {url}: {e}")
+        return None
+    
+def check_brand_impersonation(url, domain):
+    """
+    Detects potential brand impersonation attempts. (Placeholder)
+    Returns: "HIGH" if impersonation is suspected, None otherwise.
+    """
+    print(f"DEBUG: check_brand_impersonation called for url={url}, domain={domain} (placeholder)")
+    # TODO: Implement actual brand impersonation logic here
+    # (e.g., using fuzzywuzzy, checking keywords in subdomains vs registered domain)
+    return None
+    
+MAX_ALLOWED_REDIRECTS = 3 # Flag as MEDIUM if more redirects than this occur
+import requests # Already imported likely
+import json     # For handling JSON data
+
+def check_redirects(url):
+    """
+    Analyzes URL redirects. Flags if excessive redirects occur.
+    Returns: "MEDIUM" if redirects > MAX_ALLOWED_REDIRECTS, None otherwise or on error.
+    """
+    print(f"DEBUG: check_redirects - Checking URL: {url}")
+    try:
+        # Make a HEAD request first to be quicker and potentially use less data
+        # Use allow_redirects=True to follow them
+        # Set a reasonable timeout
+        # Add a common User-Agent header to avoid simple blocks
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        response = requests.get(url, allow_redirects=True, timeout=10, headers=headers, stream=True) # Add stream=True for GET
+        response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+
+        # Check the number of redirects stored in the history
+        num_redirects = len(response.history)
+        print(f"DEBUG: check_redirects - URL {url} had {num_redirects} redirects.")
+
+        response.close()
+
+        if num_redirects > MAX_ALLOWED_REDIRECTS:
+            print(f"DEBUG: check_redirects - Exceeded max redirects ({MAX_ALLOWED_REDIRECTS}). Flagging MEDIUM.")
+            return "MEDIUM"
+        else:
+            return None
+
+    except requests.exceptions.Timeout:
+        print(f"DEBUG: check_redirects - Timeout occurred for URL: {url}")
+        return None # Timeout isn't necessarily suspicious for this check alone
+    except requests.exceptions.TooManyRedirects:
+        print(f"DEBUG: check_redirects - Requests library detected too many redirects for URL: {url}. Flagging MEDIUM.")
+        return "MEDIUM" # Library itself flagged too many redirects
+    except requests.exceptions.RequestException as e:
+        # Catch other potential request errors (ConnectionError, HTTPError, etc.)
+        print(f"DEBUG: check_redirects - Request failed for {url}: {e}")
+        # Optionally, certain errors (like connection refused) could be suspicious,
+        # but for now, we'll return None for general request errors.
+        return None
+    except Exception as e:
+        # Catch any other unexpected errors
+        print(f"ERROR: check_redirects - Unexpected error for {url}: {e}")
+        return None
+
+@cache.memoize(timeout=3600 * 6) # Cache WHOIS results for 6 hours
+def check_domain_age(domain_name):
+    """
+    Checks the registration age of the domain using WHOIS.
+    Returns: "MEDIUM" if the domain age is less than DOMAIN_AGE_THRESHOLD_DAYS, None otherwise or on error.
+    """
+    if not domain_name:
+        print("DEBUG: check_domain_age - No domain name provided.")
+        return None
+
+    print(f"DEBUG: check_domain_age - Checking domain: {domain_name}")
+    try:
+        # Perform WHOIS lookup
+        w = whois.whois(domain_name)
+
+        # Extract creation date
+        creation_date = w.creation_date
+
+        if not creation_date:
+            print(f"DEBUG: check_domain_age - No creation date found for {domain_name}.")
+            return None # No date found
+
+        # Handle cases where creation_date might be a list
+        if isinstance(creation_date, list):
+            creation_date = creation_date[0] # Take the first date if multiple are returned
+
+        # Ensure it's a datetime object for comparison
+        if not isinstance(creation_date, datetime):
+             # If it's just a date object, add min time to convert to datetime
+             from datetime import date as date_obj # Avoid conflict with datetime module
+             if isinstance(creation_date, date_obj):
+                  creation_date = datetime.combine(creation_date, datetime.min.time())
+             else:
+                  print(f"DEBUG: check_domain_age - Unparseable creation date type for {domain_name}: {type(creation_date)}")
+                  return None # Cannot parse date
+
+        # Calculate age
+        now = datetime.now()
+        age = now - creation_date
+        age_days = age.days
+
+        print(f"DEBUG: check_domain_age - Domain {domain_name} age: {age_days} days.")
+
+        # Check against threshold
+        if age_days < DOMAIN_AGE_THRESHOLD_DAYS:
+            print(f"DEBUG: check_domain_age - Domain {domain_name} is newer than {DOMAIN_AGE_THRESHOLD_DAYS} days. Flagging MEDIUM.")
+            return "MEDIUM"
+        else:
+            return None # Domain is old enough
+
+    except whois.parser.PywhoisError as e:
+        # Specific error for domains that might not be found or have weird WHOIS data
+        print(f"DEBUG: check_domain_age - WHOIS lookup failed for {domain_name} (PywhoisError): {e}")
+        return None # Treat lookup errors as non-suspicious for this specific check
+    except Exception as e:
+        # Catch any other potential errors during lookup or date processing
+        print(f"ERROR: check_domain_age - Unexpected error checking domain {domain_name}: {e}")
+        return None # Treat other errors as non-suspicious for this check
+    
+# Define keyword lists (can be expanded)
+# Keywords suggesting login/security actions - often MEDIUM/HIGH risk contextually
+KEYWORDS_ACTION = ['login', 'signin', 'account', 'secure', 'verify', 'update', 'password', 'credential', 'support', 'service', 'recovery']
+# Keywords suggesting payment/urgency - often MEDIUM/HIGH risk contextually
+KEYWORDS_URGENT_PAY = ['payment', 'confirm', 'unlock', 'alert', 'warning', 'invoice', 'billing', 'required']
+# Keywords suggesting marketing/info - often LOW risk contextually
+KEYWORDS_INFO_PROMO = ['discount', 'promo', 'offer', 'deal', 'sale', 'news', 'blog', 'info', 'win', 'prize', 'free']
+
+def check_suspicious_keywords(url):
+    """
+    Searches for suspicious keywords within the URL (path, query, subdomain).
+    Returns: "MEDIUM" for action/urgent keywords, "LOW" for info/promo keywords, None otherwise.
+    """
+    url_lower = url.lower()
+    print(f"DEBUG: check_suspicious_keywords - Checking URL: {url_lower}")
+
+    # Check for higher-risk keywords first
+    for keyword in KEYWORDS_ACTION + KEYWORDS_URGENT_PAY:
+        if keyword in url_lower:
+            # Simple check: Presence of these keywords raises suspicion.
+            # Context matters (e.g., 'login' in paypal.com/login is fine,
+            # 'login' in paypal.login.xyz.com is bad), but this function
+            # provides a basic signal. Brand impersonation check handles context better.
+            print(f"DEBUG: check_suspicious_keywords - Found action/urgent keyword '{keyword}'. Flagging MEDIUM.")
+            return "MEDIUM" # Flag as Medium risk for these potentially sensitive terms
+
+    # Check for lower-risk keywords if no high-risk ones were found
+    for keyword in KEYWORDS_INFO_PROMO:
+        if keyword in url_lower:
+            # These are less critical but sometimes used in spam/phishing lures
+            print(f"DEBUG: check_suspicious_keywords - Found info/promo keyword '{keyword}'. Flagging LOW.")
+            return "LOW" # Flag as Low risk
+
+    # No suspicious keywords found by this check
+    return None
+
+# Define lists for structure checks (can be expanded)
+KNOWN_SHORTENERS = {
+    'bit.ly', 'goo.gl', 't.co', 'tinyurl.com', 'ow.ly', 'is.gd', 'buff.ly',
+    'adf.ly', 'bit.do', 'mcaf.ee', 'su.pr', 'go.usa.gov', 'rebrand.ly',
+    'tiny.cc', 'lc.chat', 'rb.gy', 'cutt.ly', 'qr.io', 't.ly',
+}
+SUSPICIOUS_TLDS = {
+    '.xyz', '.top', '.club', '.site', '.online', '.link', '.live', '.digital',
+    '.click', '.stream', '.gdn', '.mom', '.lol', '.work', '.info', '.biz',
+    '.men', '.loan', '.zip', '.mov',
+}
+
+def check_url_structure(url):
+    """
+    Analyzes URL structure for suspicious patterns (shorteners, TLDs, IP, port).
+    Returns: "LOW" or "MEDIUM" based on findings, None otherwise.
+    """
+    print(f"DEBUG: check_url_structure - Checking URL: {url}")
+    try:
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc # Full domain including subdomains and port
+        hostname = parsed_url.hostname # Domain without port
+
+        if not hostname: # If hostname is empty (e.g., relative URL?), skip structure checks
+             return None
+
+        # 1. Check for IP Address Hostname
+        try:
+            ipaddress.ip_address(hostname)
+            print("DEBUG: check_url_structure - Domain is an IP Address. Flagging MEDIUM.")
+            return "MEDIUM"
+        except ValueError:
+            pass # It's not an IP, continue checks
+
+        # 2. Extract TLD info (only if not an IP)
+        tld_info = tldextract.extract(url)
+        registered_domain = tld_info.registered_domain # e.g., google.com
+        suffix = f".{tld_info.suffix}" # Get TLD like '.com', '.co.uk'
+
+        # 3. Check for known URL Shorteners
+        if registered_domain in KNOWN_SHORTENERS:
+            print(f"DEBUG: check_url_structure - Domain '{registered_domain}' is a known shortener.")
+            # Return a specific indicator for shorteners, separate from risk level
+            return ("SAFE", "shortener", registered_domain) # Shorteners mask destination, low risk indicator
+
+        # 4. Check for suspicious TLDs
+        if suffix in SUSPICIOUS_TLDS:
+            print(f"DEBUG: check_url_structure - TLD '{suffix}' is potentially suspicious. Flagging LOW.")
+            return "LOW" # Less common TLDs, low risk indicator
+
+        # 5. Check for non-standard ports (http usually 80, https usually 443)
+        if parsed_url.port and parsed_url.port not in [80, 443]:
+             print(f"DEBUG: check_url_structure - Non-standard port '{parsed_url.port}' used. Flagging LOW.")
+             return "LOW"
+
+        # 6. Check subdomain depth (Example: more than 3 parts is suspicious)
+        if tld_info.subdomain:
+             subdomain_parts = tld_info.subdomain.split('.')
+             if len(subdomain_parts) >= 3: # e.g., a.b.c.domain.com -> ['a','b','c'] has 3 parts
+                  print(f"DEBUG: check_url_structure - High subdomain depth ({len(subdomain_parts)} parts). Flagging LOW.")
+                  return "LOW" # Excessive subdomains can be used for obfuscation
+
+        # No specific structural issues found by this check
+        return None
+
+    except Exception as e:
+        print(f"ERROR: check_url_structure - Unexpected error for {url}: {e}")
+        return None
 
 # URL Prediction
 @app.route("/", methods=["POST"])
 def index():
     try:
-        #print("Received data:", request.get_json()) 
         data = request.get_json()
         if not data:
-            return jsonify({"error": "No data received"}), 400  # Handle empty data
+            return jsonify({"error": "No data received"}), 400
         
+        # ... (validation for data and url) ...
         url = data.get("url", "")
         if not url:
             return jsonify({"error": "No URL provided"}), 400
+        
+        if not url.startswith(('http://', 'https://')):
+            print(f"DEBUG: Adding https:// scheme to URL: {url}")
+            url = 'https://' + url # Default to https
 
         # Extract features from the URL
+        # 1. Create the FeatureExtraction instance
         obj = FeatureExtraction(url)
+
+        print("--- CALLING obj.getFeaturesList() NOW ---")
+        # 2. Get features for the ML model
         features_list = obj.getFeaturesList()
+        print(f"--- RETURNED from obj.getFeaturesList(). Type: {type(features_list)}, Length: {len(features_list) if features_list is not None else 'None'} ---")
 
-
+        # ---> ADD THIS VALIDATION BLOCK <---
+        if features_list is None or len(features_list) != 30:
+            print(f"FATAL ERROR in app.py: getFeaturesList did not return 30 features for {url}. Got length: {len(features_list) if features_list is not None else 'None'}")
+            return jsonify({"error": "Internal error during feature extraction."}), 500
+        # ---> END VALIDATION BLOCK <---
+        
         # Print the extracted feature count
         print(f"✅ Extracted features count in app.py: {len(features_list)}")
         print(f"✅ Extracted features data: {features_list}")
 
-        # IMPORTANT: Force the feature list to have exactly 30 features
-        # This will ensure the reshape works regardless of what getFeaturesList returns
-        if len(features_list) < 30:
-            # Add zeros for missing features
-            features_list = features_list + [0] * (30 - len(features_list))
-        elif len(features_list) > 30:
-            # Trim excess features
-            features_list = features_list[:30]
+        x = np.array(features_list).reshape(1, 30) # Assuming 30 features
 
-        # Verify we now have exactly 30 features
-        print(f"✅ Adjusted feature count: {len(features_list)}")
-
-        # Now reshape will work correctly
-        x = np.array(features_list).reshape(1, 30)
-
-        # Simple severity classification based on phishing probability
-        severity_map = {
-            1: "LOW",
-            2: "MEDIUM", 
-            3: "HIGH",
-            4: "CRITICAL"
-        }
-
-    
-        # Get predictions
+        # 3. Get ML predictions
         y_pred = stacked.predict(x)[0]
         y_pro_phishing = stacked.predict_proba(x)[0, 0]
         y_pro_non_phishing = stacked.predict_proba(x)[0, 1]
+        phishing_percentage = y_pro_phishing * 100
+        
         # Get the final ensemble score (combined model output)
-        ensemble_score = float(stacked.predict_proba(x)[0, 1])
+        # ensemble_score = float(stacked.predict_proba(x)[0, 1])
+        
+        # ---> 4. GET THE REGISTERED DOMAIN FROM THE 'obj' INSTANCE <---
+        registered_domain = obj.registered_domain
+        print(f"DEBUG: Registered domain extracted: {registered_domain}") # Optional: debug print
 
-        # Determine severity based on ensemble score (NOT phishing percentage)
-        if ensemble_score < 0.40:  # Increase threshold for LOW severity
-            severity = "LOW"
-        elif ensemble_score < 0.70:
-            severity = "MEDIUM"
-        elif ensemble_score < 0.90:
-            severity = "HIGH"
-        else:
-            severity = "CRITICAL"
+        # 5. Initialize severity
+        severity = "SAFE" # Default
 
+        is_shortener = False
+        shortener_domain = None
 
-        # ✅ Print for debugging
-        print(f"🚨 Severity for {url}: {severity} (ensemble_score={ensemble_score})")
+        # 6. Call the check functions, passing the domain where needed
+        blocklist_severity = check_known_blocklists(url)
+        executable_severity = check_executable_download(url)
+        brand_impersonation_severity = check_brand_impersonation(url, registered_domain)
+        redirect_severity = check_redirects(url)
+        domain_age_severity = check_domain_age(registered_domain)
+        keyword_severity = check_suspicious_keywords(url)
 
+        structure_result = check_url_structure(url)
+        structure_severity = None # Severity level from structure check
+
+        if isinstance(structure_result, tuple) and structure_result[0] == "SAFE" and structure_result[1] == "shortener":
+            is_shortener = True
+            shortener_domain = structure_result[2]
+            # structure_severity remains None because shortener itself isn't a risk level
+        elif isinstance(structure_result, str): # It returned "LOW" or "MEDIUM"
+            structure_severity = structure_result
+
+        # 7. Combine results to determine final severity
+        final_severity = "SAFE" # Default LOW
+
+        # Prioritize rules CRITICAL > HIGH > MEDIUM > LOW
+        if blocklist_severity == "CRITICAL":
+            final_severity = "CRITICAL"
+        elif executable_severity == "HIGH" or blocklist_severity == "HIGH" or brand_impersonation_severity == "HIGH":
+             final_severity = "HIGH"
+        # Use MEDIUM from structure check (IP Address) or other MEDIUM rules
+        elif structure_severity == "MEDIUM" or domain_age_severity == "MEDIUM" or redirect_severity == "MEDIUM" or keyword_severity == "MEDIUM":
+             final_severity = "MEDIUM"
+        # Use LOW from structure check (TLD, port, depth) or other LOW rules
+        elif structure_severity == "LOW" or keyword_severity == "LOW":
+             final_severity = "LOW"
+
+        # Consider ML score only if severity is still LOW or MEDIUM
+        if final_severity in ["SAFE", "LOW", "MEDIUM"]:
+            if phishing_percentage >= 80:
+                 # Upgrade to HIGH only if not already HIGH/CRITICAL
+                 if final_severity != "HIGH": final_severity = "HIGH"
+            elif phishing_percentage >= 60:
+                 # Upgrade SAFE/LOW to MEDIUM if ML moderately high
+                 if final_severity == "SAFE" or final_severity == "LOW": final_severity = "MEDIUM"
+            elif phishing_percentage >= 30 and final_severity == "SAFE":
+                 # Upgrade SAFE to LOW if ML score shows some risk (adjust threshold)
+                 final_severity = "LOW" # Upgrade LOW to MEDIUM if ML moderately high
+
+        severity = final_severity # Assign the final calculated severity
+
+        print(f"DEBUG: Final determined severity for {url}: {severity}")
+        # Print for debugging
+        print(f"🚨 Severity for {url}: {severity} (phishing_percentage={phishing_percentage}%)")
         
         # Generate unique detect_id
         detect_id = str(uuid.uuid4())  
@@ -194,25 +585,30 @@ def index():
             "detect_id": detect_id,
             "url": url,
             "timestamp": datetime.now(),
-            "ensemble_score": float(stacked.predict_proba(x)[0, 1]),
-            "svm_score": float(y_pro_phishing),  # Example score
-            "rf_score": float(y_pro_non_phishing),  # Example score
-            "nb_score": float(y_pro_phishing * 0.8),  # Example transformation
+            # "ensemble_score": ensemble_score,
+            "svm_score": float(y_pro_phishing),
+            "rf_score": float(y_pro_non_phishing),
+            "nb_score": float(y_pro_phishing * 0.8),
             "nlp_score": float(y_pro_non_phishing * 0.7),
-            "features": obj.getFeaturesList(),
-            "severity": severity,  # ✅ Store severity
-            "metadata": {"source": "Scan"}
+            "features": features_list,
+            "severity": severity,  # ✅ Store consistent severity
+            "is_shortener": is_shortener,
+            "shortener_domain": shortener_domain,
+            "metadata": {"source": "Platform"}
         }
-        detection.insert_one(detection_data)  # MongoDB will create the collection if it doesn't exist
+        detection.insert_one(detection_data)
         
         # Insert into `Logs` collection
         log_data = {
             "log_id": str(uuid.uuid4()),
-            "detect_id": detect_id,  # Foreign key reference
-            "probability": ensemble_score,
-            "severity": severity,  # ✅ Use the new severity classification
-            "platform": "Web",
-            "verdict": "Safe" if y_pred == 1 else "Phishing",
+            "detect_id": detect_id,
+            "probability": phishing_percentage,  # ✅ Store phishing percentage
+            "severity": severity,  # ✅ Use consistent severity
+            "platform": "User Scan",
+            "verdict": "Critical" if severity == "CRITICAL" else \
+                       "High" if severity == "HIGH" else \
+                       "Medium" if severity == "MEDIUM" else \
+                       "Low" if severity == "LOW" else "Safe",
         }
 
         logs.insert_one(log_data) 
@@ -223,21 +619,139 @@ def index():
             "url": url,
             "prediction": int(y_pred),
             "safe_percentage": y_pro_non_phishing * 100,
-            "phishing_percentage": ensemble_score,
+            "phishing_percentage": phishing_percentage,
             "severity": severity,  # ✅ Return severity in API response
-            "detect_id": detect_id,  # Include for reference
-            "log_details": log_data  # Send log details for the modal
+            "is_shortener": is_shortener,
+            "shortener_domain": shortener_domain,
+            "detect_id": detect_id,
+            "log_details": log_data
         }
-
-        
-        
         
         return jsonify(response)
     
     except Exception as e:
         print("Error:", str(e))
         return jsonify({"error": str(e)}), 500
-      
+
+# ✅ **GET - Fetch Scan Source Distribution for Pie Chart**
+# Inside app.py
+
+@app.route('/api/stats/scan-source-distribution', methods=['GET'])
+def get_scan_source_distribution():
+    """
+    Fetches the count of scans by source (User Scan, SMS, Email)
+    for displaying in a pie chart. Uses the 'detection' collection.
+    """
+    try:
+        if 'detection' not in globals() or detection is None:
+             print("ERROR...") # Simplified error print
+             return jsonify({"error": "Database collection error."}), 500
+
+        # --- MODIFY Definitions to use new source names ---
+        sources_to_count = ["User Scan", "SMS", "Email"] # <-- Use the new names
+        source_labels = {
+            "User Scan": "Manual (User Scan)", # <-- Updated Label
+            "SMS": "SMS (Automatic)",
+            "Email": "Email (Automatic)"
+        }
+        source_styles = {
+             # Match styles to the correct logical source
+            "User Scan": {"color": "#4CAF50", "legendFontColor": "#7F7F7F", "legendFontSize": 15}, # Style for User Scan
+            "SMS": {"color": "#2196F3", "legendFontColor": "#7F7F7F", "legendFontSize": 15},       # Style for SMS
+            "Email": {"color": "#FF9800", "legendFontColor": "#7F7F7F", "legendFontSize": 15}     # Style for Email
+        }
+        # --- END OF MODIFICATIONS ---
+
+        pie_chart_data = []
+
+        print(f"DEBUG /api/stats/scan-source-distribution: Counting sources: {sources_to_count}")
+
+        for source in sources_to_count:
+            # >> Start of processing for ONE source <<
+
+            # 10. DEBUG LOG: Indicate which source is currently being processed.
+            print(f"--- Processing source: '{source}' ---")
+
+            # 11. BUILD THE QUERY FILTER: Create the exact filter dictionary
+            #     that will be used to search MongoDB. For the first loop iteration,
+            #     this will be `{"metadata.source": "User Scan"}`.
+            query_filter = {"metadata.source": source}
+
+            # 12. DEBUG LOG: Print the filter being used for clarity.
+            print(f"DEBUG: Built query filter: {query_filter}")
+
+            # 13. *** DEBUGGING STEP 1: TRY FINDING ONE MATCHING DOCUMENT ***
+            #     This attempts to find *any single document* in the 'detection'
+            #     collection that matches the `query_filter`.
+            #     Purpose: To verify if the filter *can* match anything at all.
+            try:
+                example_doc = detection.find_one(query_filter)
+                # 14. CHECK find_one RESULT: See if a document was found.
+                if example_doc:
+                    # If find_one succeeded, print confirmation and the document's ID.
+                    # This PROVES that documents matching the filter exist.
+                    print(f"DEBUG: Found at least one example document for '{source}'. ID: {example_doc.get('_id')}")
+                    # Optional: print(f"DEBUG: Example doc metadata: {example_doc.get('metadata')}")
+                else:
+                    # If find_one returned None, print a warning.
+                    # This STRONGLY suggests the filter (e.g., the exact string "User Scan")
+                    # doesn't match any 'metadata.source' value in the database.
+                    print(f"DEBUG: *** find_one returned None for '{source}'. No matching document found with this exact filter. ***")
+            except Exception as find_err:
+                # Catch errors during the find_one operation itself.
+                print(f"ERROR during find_one for '{source}': {find_err}")
+
+            # 15. *** DEBUGGING STEP 2: PERFORM THE COUNT ***
+            #     This uses the *same* `query_filter` to ask MongoDB to count
+            #     *all* documents that match.
+            #     Purpose: To get the actual count number that should be used for the pie chart.
+            try:
+                count = detection.count_documents(query_filter)
+                # 16. DEBUG LOG: Print the numerical result of the count operation.
+                #     >> THIS IS THE KEY OUTPUT TO CHECK << Is this 0 when it shouldn't be?
+                print(f"DEBUG: count_documents result for '{source}': {count}")
+            except Exception as count_err:
+                # Catch errors during the count_documents operation.
+                print(f"ERROR during count_documents for '{source}': {count_err}")
+                count = -1 # Use -1 to signal an error occurred during counting.
+
+            # 17. GET DISPLAY LABEL: Look up the user-friendly label (same as before).
+            label = source_labels.get(source, source)
+
+            # 18. GET STYLE INFO: Look up the style dictionary (same as before).
+            style = source_styles.get(source, {"color": "#cccccc", "legendFontColor": "#7F7F7F", "legendFontSize": 15})
+
+            # 19. PREPARE DATA FOR THIS SOURCE: Create the result dictionary.
+            #     Uses the 'count' obtained in Step 15 (or 0 if count failed).
+            pie_chart_data.append({
+                "name": label,
+                "population": count if count != -1 else 0, # Handle potential count error
+                "color": style["color"],
+                "legendFontColor": style["legendFontColor"],
+                "legendFontSize": style["legendFontSize"]
+            })
+
+            # 20. DEBUG LOG: Indicate the end of processing for this source.
+            print(f"--- Finished processing source: '{source}' ---")
+            # >> End of processing for ONE source. Loop continues to the next. <<
+
+        # 21. DEBUG LOG: Show the final data list (after loop finishes).
+        print(f"✅ Scan Source Distribution data being sent: {pie_chart_data}")
+
+        # 22. RETURN SUCCESS RESPONSE: Send JSON data to frontend.
+        return jsonify(pie_chart_data), 200
+
+    # 23. DATABASE ERROR HANDLING (PyMongo specific)
+    except pymongo.errors.PyMongoError as dbe:
+        print(f"🔥 Database error...") # Simplified
+        return jsonify({"error": "Database query error"}), 500
+
+    # 24. GENERAL ERROR HANDLING (Catch-all)
+    except Exception as e:
+        print(f"🔥 Unexpected error...") # Simplified
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "An internal server error occurred"}), 500
       
 # ✅ **GET - Fetch Recent Activity**
 @app.route("/recent-activity", methods=["GET"])
@@ -308,38 +822,60 @@ def get_recent_activity():
 
 
 # ✅ **GET - Fetch Severity Counts**
+# In app.py
+
+# ... (imports, app setup, other functions) ...
+
+# ✅ **GET - Fetch Severity Counts**
 @app.route("/severity-counts", methods=["GET"])
 def get_severity_counts():
     try:
-        # Define the severity mapping for consistent case formatting
-        severity_map = {
-            "low": "Low",
-            "medium": "Medium",
-            "high": "High",
-            "critical": "Critical"
-        }
+        dashboard_levels = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        print(f"DEBUG /severity-counts: Counting levels: {dashboard_levels}") # Log desired levels
 
-        total_counts = {key: 0 for key in severity_map.values()}  # Initialize counts
+        total_counts = {level: 0 for level in dashboard_levels}
+        print(f"DEBUG /severity-counts: Initialized counts: {total_counts}") # Log initial counts
 
-        for collection in [logs, detection]:  # Query both collections
-            pipeline = [
-                {"$match": {"severity": {"$exists": True}}},  # Ensure 'severity' field exists
-                {"$group": {"_id": {"$toLower": "$severity"}, "count": {"$sum": 1}}}  # Normalize to lowercase
-            ]
+        pipeline = [
+            {"$match": {"severity": {"$in": dashboard_levels}}},
+            {"$group": {"_id": "$severity", "count": {"$sum": 1}}}
+        ]
+        print(f"DEBUG /severity-counts: Aggregation pipeline: {pipeline}") # Log the pipeline
 
-            results = collection.aggregate(pipeline)
-            for result in results:
-                severity = severity_map.get(result["_id"], None)  # Map to proper format
-                if severity:
-                    total_counts[severity] += result["count"]
+        # ---> ADDED: Debug before querying DB <---
+        print(f"DEBUG /severity-counts: Querying 'detection' collection...")
+        # Ensure 'detection' collection object is valid
+        if 'detection' not in globals() or detection is None:
+             print("ERROR /severity-counts: 'detection' collection object is not available!")
+             return jsonify({"error": "Database collection error."}), 500
 
-        print(f"✅ Combined Severity Counts: {total_counts}")
+        # Execute the aggregation
+        results = list(detection.aggregate(pipeline))
+        # ---> ADDED: Debug after querying DB <---
+        print(f"DEBUG /severity-counts: Raw aggregation results from DB: {results}")
+
+        # Process results
+        for result in results:
+            severity_key = result.get("_id") # Use .get() for safety
+            count = result.get("count", 0) # Use .get() with default
+
+            # ---> ADDED: Debug each result item <---
+            print(f"DEBUG /severity-counts: Processing result item - Key: {severity_key}, Count: {count}")
+
+            if severity_key in total_counts:
+                 total_counts[severity_key] = count
+            else:
+                 print(f"⚠️ Unexpected severity key '{severity_key}' found in aggregation results.")
+
+        # Print final counts before sending
+        print(f"✅ Dashboard Severity Counts (Excluding SAFE) being sent: {total_counts}")
         return jsonify({"severity_counts": total_counts})
 
     except Exception as e:
         print(f"🔥 Error in /severity-counts: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Error fetching severity counts."}), 500
 
 
 # ✅ **GET - Fetch Total URLs Scanned**
