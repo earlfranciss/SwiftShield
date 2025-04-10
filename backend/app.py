@@ -942,6 +942,7 @@ def get_log_details(log_id):
         return jsonify({"error": str(e)}), 500
 
 
+
 @app.route("/logs/<log_id>", methods=["DELETE"])
 def delete_log(log_id):
     try:

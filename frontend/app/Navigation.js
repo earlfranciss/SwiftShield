@@ -30,6 +30,8 @@ import ForgotPassword from "./screens/ForgotPassword";
 import Reports from "./screens/reportsPage/Reports";
 import CreateReport from "./screens/reportsPage/CreateReport";
 import EditReport from "./screens/reportsPage/EditReport";
+import ConnectedAppsScreen from './screens/Settings/screens/ConnectedAppsScreen';
+import PushNotificationsScreen from "./screens/Settings/screens/PushNotifications";
 
 
 //Icons
@@ -41,6 +43,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+const SettingsStackNav = createNativeStackNavigator();
 
 // Create a global navigation variable to store the navigation prop
 let globalNavigation = null;
@@ -52,6 +55,61 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
   useEffect(() => {
     globalNavigation = navigation;
   }, [navigation]);
+
+
+  // Define the Settings Stack function
+  function SettingsStack({ navigation, route, isDarkMode, onToggleDarkMode, hasUnreadNotifications, onNotificationRead }) {
+    // navigation here is from the PARENT (Tab Navigator) - USE WITH CAUTION inside stack screens
+  
+    const commonGradientProps = {
+      isDarkMode: isDarkMode,
+      onToggleDarkMode: onToggleDarkMode,
+      // DO NOT pass parent navigation here unless GradientScreen specifically needs it
+      // navigation: navigation,
+    };
+  
+    const commonTopBarProps = {
+        isDarkMode: isDarkMode,
+        onToggleDarkMode: onToggleDarkMode,
+        // Pass the PARENT navigation to TopBar (likely correct for its icons/actions)
+        navigation: navigation,
+        hasUnreadNotifications: hasUnreadNotifications,
+        onNotificationRead: onNotificationRead,
+    };
+
+  return (
+    <SettingsStackNav.Navigator screenOptions={{ headerShown: false }}>
+      <SettingsStackNav.Screen name="SettingsMain">
+        {/* 'props' here contains the CORRECT navigation for SettingsStackNav */}
+        {props => (
+          <GradientScreen {...commonGradientProps} topBar={<TopBar {...commonTopBarProps}/>}>
+            {/* Pass the STACK's props DOWN, remove explicit override */}
+            <Settings {...props} isDarkMode={isDarkMode}/>
+          </GradientScreen>
+        )}
+      </SettingsStackNav.Screen>
+      <SettingsStackNav.Screen name="PushNotifications">
+                {props => (
+                    <GradientScreen {...commonGradientProps}>
+                        {/* No TopBar needed here */}
+                        <PushNotificationsScreen {...props} />
+                    </GradientScreen>
+                )}
+            </SettingsStackNav.Screen>
+      <SettingsStackNav.Screen name="ConnectedApps">
+         {/* 'props' here contains the CORRECT navigation for SettingsStackNav */}
+         {props => (
+            <GradientScreen {...commonGradientProps}>
+                 {/* Pass the STACK's props DOWN, remove explicit override */}
+                <ConnectedAppsScreen {...props} />
+            </GradientScreen>
+         )}
+      </SettingsStackNav.Screen>
+       {/* Add other screens that should be nested under Settings tab here */}
+    </SettingsStackNav.Navigator>
+  );
+}
+  
 
   const [isDarkMode, setDarkMode] = useState(false);
 
@@ -173,23 +231,15 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
         </Tab.Screen>
 
         <Tab.Screen name="Settings" options={{ headerShown: false }}>
-          {() => (
-            <GradientScreen
-              onToggleDarkMode={handleToggleDarkMode}
+          {/* Render SettingsStack, passing down necessary props */}
+          {props => ( // props here includes navigation and route from the Tab navigator
+            <SettingsStack
+              {...props} // Pass down tab's navigation/route
               isDarkMode={isDarkMode}
-              navigation={navigation}
-              topBar={
-                <TopBar
-                  onToggleDarkMode={handleToggleDarkMode}
-                  isDarkMode={isDarkMode}
-                  navigation={navigation}
-                  hasUnreadNotifications={hasUnreadNotifications}
-                  onNotificationRead={onNotificationRead}
-                />
-              }
-            >
-              <Settings navigation={navigation} isDarkMode={isDarkMode} />
-            </GradientScreen>
+              onToggleDarkMode={handleToggleDarkMode}
+              hasUnreadNotifications={hasUnreadNotifications}
+              onNotificationRead={onNotificationRead}
+            />
           )}
         </Tab.Screen>
       </Tab.Navigator>
@@ -213,6 +263,7 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
           />
         )}
       </Stack.Screen>
+      
       <Stack.Screen name="Reports" component={Reports} />
       <Stack.Screen name="CreateReport" component={CreateReport} />
       <Stack.Screen name="EditReport" component={EditReport} />
