@@ -234,6 +234,7 @@ export default function Logs({ route }) {
   };
   
 
+
   // --- Render ---
   console.log(`[Logs.js] Rendering component. Current modalVisible state: ${modalVisible}, Current logLoading state: ${logLoading}`);
 
