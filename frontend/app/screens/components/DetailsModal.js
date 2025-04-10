@@ -72,6 +72,7 @@ const handleDelete = async () => {
 
 
 const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, onDeletePress }) => {
+
   const [screenDimensions, setScreenDimensions] = useState(Dimensions.get('window'));
 
   useEffect(() => {
@@ -111,6 +112,7 @@ const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, on
   const severity = logDetails?.severity ? logDetails.severity.toLowerCase() : "unknown";
   const severityColor = severityColors[severity] || "#FFFFFF";
 
+
   return (
     <Modal
       visible={visible}
@@ -129,6 +131,7 @@ const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, on
             { width: modalWidth, left: modalLeft, top: screenDimensions.height / 2 - 200 }
           ]}
         >
+            
           {/* Update & Delete Icons */}
           <View style={styles.headerIcons}>
             <TouchableOpacity onPress={onUpdatePress} style={styles.iconButton}>
@@ -143,13 +146,17 @@ const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, on
             <ActivityIndicator size="large" color="#31EE9A" />
           ) : logDetails ? (
             <>
+
+              {/* Dynamic Icon */}
               <View style={styles.iconContainer}>
                 <Image source={iconSource} style={styles.icon} />
               </View>
 
+              {/* URL Display */}
               <Text style={styles.urlText}>{logDetails.url || "Unknown URL"}</Text>
               <Text style={styles.urlLabel}>URL</Text>
 
+              {/* Analysis Details Container */}
               <View style={styles.analysisContainer}>
                 <View style={styles.analysisRow}>
                   <Text style={styles.labelText}>Platform:</Text>
@@ -181,6 +188,7 @@ const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, on
                 </View>
               </View>
 
+              {/* Close Button */}
               <TouchableOpacity 
                 style={styles.actionButton} 
                 onPress={handleClosePress}

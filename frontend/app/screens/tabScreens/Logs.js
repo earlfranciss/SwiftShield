@@ -68,6 +68,16 @@ export default function Logs({ route }) {
     setSelectedLog(null);
   };
 
+  const filters = [
+    { id: "recent", label: "Recent" },
+    { id: "whitelisted", label: "Whitelisted" },
+    { id: "blacklisted", label: "Blacklisted" },
+    { id: "low", label: "Low" },
+    { id: "medium", label: "Medium" },
+    { id: "high", label: "High" },
+    { id: "critical", label: "Critical" },
+  ];
+
   const handleScan = () => {
     console.log("Scanning URL:", url);
   };
@@ -158,7 +168,6 @@ export default function Logs({ route }) {
       );
     });
   };
-  
 
   return (
     <SafeAreaView style={styles.container}>
