@@ -29,6 +29,7 @@ import ForgotPassword from "./screens/ForgotPassword";
 import Reports from "./screens/reportsPage/Reports";
 import CreateReport from "./screens/reportsPage/CreateReport";
 import EditReport from "./screens/reportsPage/EditReport";
+import EditProfile from "./screens/EditProfile";
 
 
 //Icons
@@ -203,6 +204,7 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
       <Stack.Screen name="Login" component={Login} />
       <Stack.Screen name="Register" component={Registration} />
       <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
+      <Stack.Screen name="EditProfile" component={EditProfile} />
       <Stack.Screen name="Tabs">
         {props => (
           <TabGroup 
