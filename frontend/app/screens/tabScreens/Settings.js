@@ -41,10 +41,18 @@ export default function Settings({ navigation, isDarkMode }) {
       </TouchableOpacity>
 
       {/* Options Section */}
-      <TouchableOpacity style={styles.optionButton}>
+      <TouchableOpacity
+        style={styles.optionButton}
+        // Add the onPress handler to navigate
+        onPress={() => navigation.navigate('PushNotifications')} // Use the screen name from SettingsStackNav
+      >
         <Text style={styles.optionText}>Push Notifications</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.optionButton}>
+      <TouchableOpacity
+        style={styles.optionButton}
+        // Add the onPress handler to navigate
+        onPress={() => navigation.navigate('ConnectedApps')} // Use the screen name from your navigator
+      >
         <Text style={styles.optionText}>Connected Apps</Text>
       </TouchableOpacity>
 
