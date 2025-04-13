@@ -13,34 +13,11 @@ logs = db.get_collection("Logs")
 @bp.route("/display-logs", methods=["GET"])
 def get_logs():
     try:
-        # Fetch logs with corresponding detection info, sorted by detection.timestamp (latest first)
-        log_entries = logs.aggregate([
-            {
-                "$lookup": {
-                    "from": "Detection",  # Join with Detection collection
-                    "localField": "detect_id",
-                    "foreignField": "detect_id",
-                    "as": "detection_info"
-                }
-            },
-            { "$unwind": "$detection_info"},{"$sort": {"detection_info.timestamp": pymongo.DESCENDING}}
-        ])
-
-        formatted_logs = []
-        for log in log_entries:
-            detection_entry = log["detection_info"]  # Get detection fields
-
-            formatted_logs.append({
-                "id": str(log["_id"]),
-                "title": "Phishing Detected" if log["verdict"] == "Phishing" else "Safe Link Verified",
-                "link": f"{detection_entry['url']} - {detection_entry.get('metadata', {}).get('source', 'Scan')}",
-                "time": time_ago(detection_entry["timestamp"]) if "timestamp" in detection_entry else "N/A",
-                "icon": "suspicious-icon" if log["verdict"] == "Phishing" else "safe-icon",
-            })
-
-        return jsonify(formatted_logs)
+        logs_data = fetch_logs()
+        return jsonify(logs_data)
 
     except Exception as e:
+        print(f" Error in /display-logs: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @bp.route("/weekly-threats", methods=["GET"])
@@ -291,27 +268,33 @@ def fetch_logs(limit=None):
     ])
 
     formatted_logs = []
-    for log in log_entries:
-        detection_entry = log.get("detection_info", {})
-
-        # Extract details properly
+    for log in log_entries: 
+        detection_entry = log.get("detection_info", {}) 
         timestamp = detection_entry.get("timestamp")
         formatted_time = time_ago(timestamp) if timestamp else "Unknown"
-        details = detection_entry.get("details", "Unknown")  
-        source = detection_entry.get("metadata", {}).get("source", "Scan") 
+        source = detection_entry.get("metadata", {}).get("source", "Scan")
+
+        # Get the verdict directly from the 'log' document
+        log_verdict = log.get("verdict", "Unknown") 
+        is_phishing = log_verdict == "Phishing"
+        
 
         formatted_logs.append({
             "id": str(log["_id"]),
-            "title": "Phishing Detected" if details == "Phishing" else "Safe Link Verified",
+            "title": "Phishing Detected" if is_phishing else "Safe Link Verified",
             "link": f"{detection_entry.get('url', 'Unknown URL')} - {source}",
             "time": formatted_time,
-            "icon": "suspicious-icon" if details == "Phishing" else "safe-icon",
+            "icon": "suspicious-icon" if is_phishing else "safe-icon",
+            "severity": detection_entry.get("severity", "Unknown"),
+            "verdict": log_verdict,
+            "logIdForDetails": str(log["_id"])
         })
 
         if limit and len(formatted_logs) >= limit:
-            break  
+            break
 
     return formatted_logs
+
 
 
 

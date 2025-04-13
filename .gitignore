@@ -53,3 +53,6 @@ __pycache__/
 *.pyc
 
 venv
+
+backend/client_secret_web.json
+backend/client_secret.json

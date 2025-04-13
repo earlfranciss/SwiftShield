@@ -8,17 +8,67 @@
 
 
 //Version 2
-import React from 'react';
+// import React from 'react';
+// import { NavigationContainer } from '@react-navigation/native';
+// import "react-native-gesture-handler";
+// import Navigation from './navigation/Navigation'; 
+
+// const App = () => {
+//   console.log('App component with Navigation rendering');
+//   return (
+//     <NavigationContainer>
+//       <Navigation />
+//     </NavigationContainer>
+//   );
+// };
+
+// export default App;
+
+
+import React, {useEffect} from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import "react-native-gesture-handler";
-import Navigation from './navigation/Navigation'; 
+import 'react-native-gesture-handler';
+import Navigation from './navigation/Navigation';
+import { NotificationProvider, useNotifications } from './utils/NotificationContext'; 
+import NotificationToast from './components/NotificationToast'; 
+
+
+const AppContent = () => {
+  const { inAppNotification, setInAppNotification, setHasUnreadNotifications } = useNotifications();
+
+  
+
+
+
+  return (
+    <>
+      <NavigationContainer>
+        <Navigation />
+      </NavigationContainer>
+
+      {/* Notification Toast */}
+      {inAppNotification && (
+        <NotificationToast
+          notification={inAppNotification}
+          onPress={(notification) => {
+            // Handle navigation carefully 
+            console.log("Toast pressed, navigate if possible");
+            // globalNavigation?.navigate(...);
+            setInAppNotification(null);
+            // setHasUnreadNotifications(false); 
+          }}
+          onDismiss={() => setInAppNotification(null)}
+        />
+      )}
+    </>
+  );
+}
 
 const App = () => {
-  console.log('App component with Navigation rendering');
   return (
-    <NavigationContainer>
-      <Navigation />
-    </NavigationContainer>
+    <NotificationProvider>
+       <AppContent />
+    </NotificationProvider>
   );
 };
 

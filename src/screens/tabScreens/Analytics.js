@@ -40,29 +40,42 @@ export default function Analytics() {
       async function fetchAnalyticsData() {
         try {
           setLoading(true);
-  
-          // Fetch all required APIs in parallel
-          const [logsRes, urlsScannedRes, threatsBlockedRes, severityCountsRes] =
-            await Promise.all([
-              fetch(`${config.BASE_URL}/logs/recent-activity`).then((res) => res.json()),
-              fetch(`${config.BASE_URL}/logs/urls-scanned`).then((res) => res.json()),
-              fetch(`${config.BASE_URL}/logs/threats-blocked`).then((res) => res.json()),
-              fetch(`${config.BASE_URL}/logs/severity-counts`).then((res) => res.json()),
-            ]);
-  
-          // Set the data in state
-          setLogsData(logsRes.recent_activity || []); 
-          setTotalUrlsScanned(urlsScannedRes.total_urls_scanned || 0);
-          setThreatsBlocked(threatsBlockedRes.threats_blocked || 0);
-          setSeverityCounts(severityCountsRes.severity_counts || {});
-  
-        } catch (error) {
-          console.error("🔥 Error fetching analytics data:", error);
+      
+          const endpoints = [
+            { key: "logs", url: `${config.BASE_URL}/logs/recent-activity`, fallback: { recent_activity: [] } },
+            { key: "urlsScanned", url: `${config.BASE_URL}/logs/urls-scanned`, fallback: { total_urls_scanned: 0 } },
+            { key: "threatsBlocked", url: `${config.BASE_URL}/logs/threats-blocked`, fallback: { threats_blocked: 0 } },
+            { key: "severityCounts", url: `${config.BASE_URL}/logs/severity-counts`, fallback: { severity_counts: {} } },
+          ];
+      
+          const results = await Promise.all(
+            endpoints.map(async ({ url, fallback }) => {
+              try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
+                return await res.json();
+              } catch (e) {
+                console.error(` Fetch error (${url}):`, e.message);
+                return fallback;
+              }
+            })
+          );
+      
+          const [logsRes, urlsRes, threatsRes, severityRes] = results;
+      
+          setLogsData(logsRes.recent_activity);
+          setTotalUrlsScanned(urlsRes.total_urls_scanned);
+          setThreatsBlocked(threatsRes.threats_blocked);
+          setSeverityCounts(severityRes.severity_counts);
+      
+        } catch (err) {
+          console.error(" Unexpected fetch error:", err);
         } finally {
           setLoading(false);
         }
       }
-  
+      
+      
       fetchAnalyticsData();
     }, [])
   );

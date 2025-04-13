@@ -10,7 +10,7 @@ import {
   StyleSheet,
   Image,
 } from "react-native";
-import { MaterialIcons } from "react-native-vector-icons/MaterialIcons";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons"; 
 import GradientScreen from "../../components/GradientScreen";
 import CarouselFilter from "../../components/CarouselFilter";
 import ReportDetails from "./ReportDetails"; // Import modal component
@@ -30,7 +30,7 @@ const ReportItem = ({ item, openReportModal }) => {
 
   const iconMap = {
     "pending": require("../../assets/images/pending.png"),
-    "in progress": require("../../assets/images/in progress.png"),
+    "in progress": require("../../assets/images/in_progress.png"),
     "resolved": require("../../assets/images/resolved.png"),
     "archived": require("../../assets/images/resolved.png"),
   };

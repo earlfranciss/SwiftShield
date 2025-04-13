@@ -7,13 +7,15 @@ import {
   StyleSheet,
   Dimensions,
   ActivityIndicator,
-  Image
+  Image,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons'; 
 
 const iconMap = {
   "suspicious": require("../assets/images/suspicious-icon.png"),
   "safe": require("../assets/images/safe-icon.png"),
+  "critical": "#FF0000", // Red
 };
 
 const severityColors = {

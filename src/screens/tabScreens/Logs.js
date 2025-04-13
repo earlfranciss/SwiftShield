@@ -92,7 +92,7 @@ export default function Logs({ route }) {
   const fetchLogs = async (filterType = activeFilter) => {
     try {
       setLoading(true);
-      const response = await fetch(`${config.BASE_URL}/logs/logs?filter=${filterType}`);
+      const response = await fetch(`${config.BASE_URL}/logs/display-logs`); 
       const data = await response.json();
       setLogs(data);
     } catch (error) {
@@ -130,15 +130,13 @@ export default function Logs({ route }) {
 
       switch (activeFilter) {
         case "recent":
-          passesCategoryFilter = true; // Show all logs for "recent"
+          passesCategoryFilter = true; 
           break;
         case "whitelisted":
-          passesCategoryFilter = log.status?.toLowerCase().includes("safe") || 
-                                 log.status?.toLowerCase().includes("whitelist");
+          passesCategoryFilter = log.verdict?.toLowerCase() === "safe";
           break;
         case "blacklisted":
-          passesCategoryFilter = log.status?.toLowerCase().includes("phishing") || 
-                                 log.status?.toLowerCase().includes("blacklist");
+          passesCategoryFilter = log.verdict?.toLowerCase() === "phishing";
           break;
         case "low":
           passesCategoryFilter = log.severity?.toLowerCase() === "low";
@@ -206,7 +204,7 @@ export default function Logs({ route }) {
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
               <TouchableOpacity
-                onPress={() => showModal(item.id)}
+                onPress={() => showModal(item.logIdForDetails)}
               >
                 <ListItem
                   item={{

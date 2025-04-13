@@ -405,6 +405,34 @@ def get_log_details(log_id):
         return jsonify({"error": str(e)}), 500
 
 
+# Route to delete logs
+@app.route("/logs/<log_id>", methods=["DELETE"])
+def delete_log(log_id):
+    try:
+        # Check if log_id is valid
+        if not ObjectId.is_valid(log_id):
+            return jsonify({"error": "Invalid log ID"}), 400
+
+        # Find the log entry by log_id
+        log = logs.find_one({"_id": ObjectId(log_id)})
+        if not log:
+            return jsonify({"error": "Log not found"}), 404
+
+        # Delete the corresponding log entry
+        delete_result = logs.delete_one({"_id": ObjectId(log_id)})
+
+        if delete_result.deleted_count == 0:
+            return jsonify({"error": "Failed to delete log"}), 500
+
+        # Optionally, you can also delete related records in the `Detection` collection, if needed
+        detection.delete_one({"detect_id": log["detect_id"]})
+
+        return jsonify({"message": "Log and associated detection deleted successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+        return jsonify({"error": str(e)}), 500
 
 
 # Route to create a report

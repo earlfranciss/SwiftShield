@@ -5,9 +5,30 @@ import {
   View,
   TouchableOpacity,
   ScrollView,
+  Button,
+  Linking,
+  Alert,
 } from "react-native";
+import config from '../../config/config';
+
 
 export default function Settings({ navigation, isDarkMode }) {
+  const handleConnectGmail = () => {
+    // Construct the backend login URL
+    // Optionally pass the desired deep link redirect as a query param
+    const finalRedirect = encodeURIComponent('swiftshield://google/auth/success'); // Your app's deep link scheme
+    const googleLoginUrl = `${config.BASE_URL}/google/login?final_redirect=${finalRedirect}`;
+
+    console.log("Opening Google Login URL:", googleLoginUrl);
+
+    // Open the URL in the system browser or an in-app browser
+    Linking.openURL(googleLoginUrl).catch(err => {
+       console.error("Failed to open URL", err);
+       Alert.alert("Error", "Could not open the connection page.");
+    });
+  };
+
+
   const handleSignOut = () => {
     // Navigate to the Login screen when the user clicks "Sign-out"
     navigation.replace("Login"); // navigation will be passed correctly now
@@ -23,12 +44,26 @@ export default function Settings({ navigation, isDarkMode }) {
           <Text style={styles.email}>johndoe@email.com</Text>
         </View>
       </View>
+      
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Button title="Connect Gmail Account" onPress={handleConnectGmail} />
+        {/* Other settings */}
+      </View>
+    
 
       {/* Options Section */}
-      <TouchableOpacity style={styles.optionButton}>
+      <TouchableOpacity
+        style={styles.optionButton}
+        // Add the onPress handler to navigate
+        onPress={() => navigation.navigate('PushNotifications')} // Use the screen name from SettingsStackNav
+      >
         <Text style={styles.optionText}>Push Notifications</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.optionButton}>
+      <TouchableOpacity
+        style={styles.optionButton}
+        // Add the onPress handler to navigate
+        onPress={() => navigation.navigate('ConnectedApps')} // Use the screen name from your navigator
+      >
         <Text style={styles.optionText}>Connected Apps</Text>
       </TouchableOpacity>
 

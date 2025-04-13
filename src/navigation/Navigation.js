@@ -14,33 +14,29 @@ import React, { useState, useEffect, useRef } from "react";
 import GradientScreen from "../components/GradientScreen";
 import TopBar from "../components/TopBar";
 import NotificationToast from "../components/NotificationToast";
-
 //Services - Import with error handling
 import * as NotificationService from "../services/NotificationService";
 const { requestNotificationPermissions, setupNotificationListeners, scheduleNotification } = NotificationService;
-
 //Config
 import config from "../config/config";
-
 //Tab Screens
 import Home from "../screens/tabScreens/Home";
 import Analytics from "../screens/tabScreens/Analytics";
 import Logs from "../screens/tabScreens/Logs";
 import Settings from "../screens/tabScreens/Settings";
-
 //Stack Screen
 import Notifications from "../screens/stackScreens/Notifications";
-
 //Authentication Screens
 import Login from "../screens/authScreens/Login";
 import Registration from "../screens/authScreens/Registration";
 import ForgotPassword from "../screens/authScreens/ForgotPassword";
-
 //Reports Page 
 import Reports from "../screens/reportsPage/Reports";
 import CreateReport from "../screens/reportsPage/CreateReport";
 import EditReport from "../screens/reportsPage/EditReport";
-
+//Settings Screens
+import ConnectedAppsScreen from '../screens/settingsScreens/screens/ConnectedAppsScreen';
+import PushNotificationsScreen from "../screens/settingsScreens/screens/PushNotifications";
 //Icons
 import Entypo from "react-native-vector-icons/Entypo";
 import Octicons from "react-native-vector-icons/Octicons";
@@ -49,19 +45,69 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+const SettingsStackNav = createNativeStackNavigator();
 
 // Create a global navigation variable to store the navigation prop
 let globalNavigation = null;
 
-//Bottom Tab Bar Component
+// Define the Settings Stack function
+function SettingsStack({ navigation, route, isDarkMode, onToggleDarkMode, hasUnreadNotifications, onNotificationRead }) {
+  // navigation here is from the PARENT (Tab Navigator) - USE WITH CAUTION inside stack screens
+
+  const commonGradientProps = {
+    isDarkMode: isDarkMode,
+    onToggleDarkMode: onToggleDarkMode,
+    // DO NOT pass parent navigation here unless GradientScreen specifically needs it
+    // navigation: navigation,
+  };
+
+  const commonTopBarProps = {
+      isDarkMode: isDarkMode,
+      onToggleDarkMode: onToggleDarkMode,
+      // Pass the PARENT navigation to TopBar (likely correct for its icons/actions)
+      navigation: navigation,
+      hasUnreadNotifications: hasUnreadNotifications,
+      onNotificationRead: onNotificationRead,
+  };
+
+return (
+  <SettingsStackNav.Navigator screenOptions={{ headerShown: false }}>
+    <SettingsStackNav.Screen name="SettingsMain">
+      {/* 'props' here contains the CORRECT navigation for SettingsStackNav */}
+      {props => (
+        <GradientScreen {...commonGradientProps} topBar={<TopBar {...commonTopBarProps}/>}>
+          {/* Pass the STACK's props DOWN, remove explicit override */}
+          <Settings {...props} isDarkMode={isDarkMode}/>
+        </GradientScreen>
+      )}
+    </SettingsStackNav.Screen>
+    <SettingsStackNav.Screen name="PushNotifications">
+              {props => (
+                  <GradientScreen {...commonGradientProps}>
+                      {/* No TopBar needed here */}
+                      <PushNotificationsScreen {...props} />
+                  </GradientScreen>
+              )}
+          </SettingsStackNav.Screen>
+    <SettingsStackNav.Screen name="ConnectedApps">
+       {/* 'props' here contains the CORRECT navigation for SettingsStackNav */}
+       {props => (
+          <GradientScreen {...commonGradientProps}>
+               {/* Pass the STACK's props DOWN, remove explicit override */}
+              <ConnectedAppsScreen {...props} />
+          </GradientScreen>
+       )}
+    </SettingsStackNav.Screen>
+     {/* Add other screens that should be nested under Settings tab here */}
+  </SettingsStackNav.Navigator>
+);
+}
+
+
+// Bottom Tab Bar Component
 // TabGroup component
 function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
-  // Debug log for tab screens
-  console.log("Home screen exists:", typeof Home === 'function');
-  console.log("Analytics screen exists:", typeof Analytics === 'function');
-  console.log("Logs screen exists:", typeof Logs === 'function');
-  console.log("Settings screen exists:", typeof Settings === 'function');
-  
+
   // Store the navigation prop globally when this component mounts
   useEffect(() => {
     globalNavigation = navigation;
@@ -192,23 +238,35 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
           )}
         </Tab.Screen>
         <Tab.Screen name="Settings" options={{ headerShown: false }}>
-          {() => (
-            <GradientScreen
-              onToggleDarkMode={handleToggleDarkMode}
+          {/* Render SettingsStack, passing down necessary props */}
+          {props => ( // props here includes navigation and route from the Tab navigator
+            <SettingsStack
+              {...props} // Pass down tab's navigation/route
+          
+          // {/* {() => (
+          //   <GradientScreen
+          //     onToggleDarkMode={handleToggleDarkMode} */}
               isDarkMode={isDarkMode}
-              navigation={navigation}
-              topBar={
-                <TopBar
-                  onToggleDarkMode={handleToggleDarkMode}
-                  isDarkMode={isDarkMode}
-                  navigation={navigation}
-                  hasUnreadNotifications={hasUnreadNotifications}
-                  onNotificationRead={onNotificationRead}
-                />
-              }
-            >
-              <Settings navigation={navigation} isDarkMode={isDarkMode} />
-            </GradientScreen>
+              
+              
+              
+            //   navigation={navigation}
+            //   topBar={
+            //     <TopBar
+            //       onToggleDarkMode={handleToggleDarkMode}
+            //       isDarkMode={isDarkMode}
+            //       navigation={navigation}
+            //       hasUnreadNotifications={hasUnreadNotifications}
+            //       onNotificationRead={onNotificationRead}
+            //     />
+            //   }
+            // >
+            //   <Settings navigation={navigation} isDarkMode={isDarkMode} />
+            // </GradientScreen>
+            onToggleDarkMode={handleToggleDarkMode}
+              hasUnreadNotifications={hasUnreadNotifications}
+              onNotificationRead={onNotificationRead}
+            />
           )}
         </Tab.Screen>
       </Tab.Navigator>
@@ -219,14 +277,6 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
 // In your Navigation.js file, replace MainStack with this debugging version:
 
 function MainStack({ hasUnreadNotifications, onNotificationRead }) {
-  // Debug log each component to see which ones exist
-  console.log("Login exists:", typeof Login === 'function');
-  console.log("Registration exists:", typeof Registration === 'function');
-  console.log("ForgotPassword exists:", typeof ForgotPassword === 'function');
-  console.log("Reports exists:", typeof Reports === 'function');
-  console.log("CreateReport exists:", typeof CreateReport === 'function');
-  console.log("EditReport exists:", typeof EditReport === 'function');
-  console.log("Notifications exists:", typeof Notifications === 'function');
 
   // Create a minimal error boundary screen
   const ErrorScreen = () => (
@@ -317,14 +367,14 @@ export default function Navigation() {
       }
       
       // Set up polling for new notifications
-      const checkInterval = setInterval(checkForNewNotifications, 30000); // Every 30 seconds
+      //const checkInterval = setInterval(checkForNewNotifications, 30000); // Every 30 seconds
       
       // Clean up on unmount
       return () => {
         if (typeof cleanupListeners === 'function') {
           cleanupListeners();
         }
-        clearInterval(checkInterval);
+        //clearInterval(checkInterval);
       };
     } catch (error) {
       console.error("Error setting up notifications:", error);
