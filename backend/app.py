@@ -1097,90 +1097,73 @@ def create_report():
 def update_report(report_id):
     admin_user_id = session['user_id']
     try:
-        if not ObjectId.is_valid(report_id): return jsonify({"message": "Invalid report ID"}), 400
+        if not ObjectId.is_valid(report_id):
+            return jsonify({"message": "Invalid report ID"}), 400
 
         data = request.json
         status = data.get("status")
         remarks = data.get("remarks", "").strip() # Remarks are required for update
 
         valid_statuses = {"Pending", "In Progress", "Resolved"}
-        if status not in valid_statuses: return jsonify({"message": "Invalid status"}), 400
-        if not remarks: return jsonify({"message": "Remarks are required when updating"}), 400
+        if status not in valid_statuses:
+            return jsonify({"message": "Invalid status"}), 400
+        if not remarks:
+            return jsonify({"message": "Remarks are required when updating"}), 400
 
-        update_fields = {
+        # --- Start Change ---
+        # Define fields to set
+        set_fields = {
             "status": status,
             "remarks": remarks,
-            "updated_at": datetime.now(PH_TZ),
-            # Ensure archived_at is NOT set here
-            "$unset": {"archived_at": ""} # Remove archived_at if re-resolving/progressing
+            "updated_at": datetime.now(PH_TZ)
+        }
+        # Define fields to unset
+        unset_fields = {
+            "archived_at": "" # The value here doesn't matter, only the key
+        }
+
+        # Construct the update document with top-level operators
+        update_operation = {
+            "$set": set_fields,
+            "$unset": unset_fields
         }
 
         update_result = reports_collection.update_one(
             {"_id": ObjectId(report_id)},
-            {"$set": update_fields}
+            update_operation # Use the correctly structured update document
         )
+        # --- End Change ---
 
-        if update_result.matched_count == 0: return jsonify({"message": "Report not found"}), 404
-        if update_result.modified_count == 0: return jsonify({"message": "No changes made to report"}), 200 # Or 304 Not Modified
+        if update_result.matched_count == 0:
+            return jsonify({"message": "Report not found"}), 404
+        # It's okay if modified_count is 0 if the data was already the same,
+        # but we still successfully matched and potentially unset the field.
+        # Consider if you want different logic here. The current logic is fine.
+        # if update_result.modified_count == 0:
+        #    return jsonify({"message": "No changes made to report"}), 200
 
         updated_report = reports_collection.find_one({"_id": ObjectId(report_id)})
+        if not updated_report: # Should not happen if matched_count > 0, but good practice
+             return jsonify({"message": "Updated report could not be retrieved"}), 404
+
         # Convert dates/ID for response
         updated_report["_id"] = str(updated_report["_id"])
         if updated_report.get("created_at"): updated_report["created_at"] = updated_report["created_at"].isoformat()
         if updated_report.get("updated_at"): updated_report["updated_at"] = updated_report["updated_at"].isoformat()
-        if updated_report.get("archived_at"): updated_report["archived_at"] = updated_report["archived_at"].isoformat()
+        # Don't try to format archived_at if it was just unset
+        # if updated_report.get("archived_at"): updated_report["archived_at"] = updated_report["archived_at"].isoformat()
+
 
         print(f"✅ Admin {admin_user_id} updated report {report_id} to status {status}")
         return jsonify({"message": "Report updated successfully", "report": updated_report}), 200
 
     except Exception as e:
-        print(f"🔥 Error updating report {report_id}: {str(e)}")
-        return jsonify({"message": f"Error updating report: {str(e)}"}), 500
+        # Log the full traceback for better debugging
+        import traceback
+        print(f"🔥 Error updating report {report_id}: {str(e)}\n{traceback.format_exc()}")
+        # Avoid leaking detailed internal errors to the client in production
+        return jsonify({"message": "An internal server error occurred while updating the report."}), 500 # Return a generic message
 
-@app.route("/reports/<report_id>/archive", methods=["PUT"])
-@admin_required # Assume only admins archive reports
-def archive_report(report_id):
-    admin_user_id = session['user_id']
-    try:
-        if not ObjectId.is_valid(report_id): return jsonify({"message": "Invalid report ID"}), 400
-
-        report = reports_collection.find_one({"_id": ObjectId(report_id)})
-        if not report: return jsonify({"message": "Report not found"}), 404
-        if report.get("status") == "Archived": return jsonify({"message": "Report is already archived"}), 400
-        if report.get("status") != "Resolved": return jsonify({"message": "Only resolved reports can be archived"}), 400
-
-        # Archive remarks can be optional or fetched from request body if needed
-        # data = request.json
-        # archive_remark = data.get("remarks", "Archived by admin.")
-
-        update_result = reports_collection.update_one(
-            {"_id": ObjectId(report_id)},
-            {
-                "$set": {
-                    "status": "Archived",
-                    # Optionally update remarks on archive:
-                    # "remarks": f"{report.get('remarks', '')} | Archived by admin.".strip(),
-                    "archived_at": datetime.now(PH_TZ),
-                    "updated_at": datetime.now(PH_TZ), # Also update the general updated timestamp
-                }
-            }
-        )
-
-        if update_result.modified_count == 0: return jsonify({"message": "Failed to archive report"}), 500 # Should modify if conditions met
-
-        print(f"✅ Admin {admin_user_id} archived report {report_id}")
-        # Fetch updated report to return
-        archived_report = reports_collection.find_one({"_id": ObjectId(report_id)})
-        archived_report["_id"] = str(archived_report["_id"])
-        if archived_report.get("created_at"): archived_report["created_at"] = archived_report["created_at"].isoformat()
-        if archived_report.get("updated_at"): archived_report["updated_at"] = archived_report["updated_at"].isoformat()
-        if archived_report.get("archived_at"): archived_report["archived_at"] = archived_report["archived_at"].isoformat()
-
-        return jsonify({"message": "Report archived successfully", "report": archived_report}), 200
-
-    except Exception as e:
-        print(f"🔥 Error archiving report {report_id}: {str(e)}")
-        return jsonify({"message": f"Error archiving report: {str(e)}"}), 500
 
 @app.route("/reports", methods=["GET"])
 @login_required # Must be logged in to view reports
