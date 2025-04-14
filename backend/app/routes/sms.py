@@ -67,43 +67,70 @@ def receive_sms():
 
 # Classify Url and Text from Scanned Text Message
 @bp.route("/classify_content", methods=['POST'])
-def classify_content():
+def extract_content_from_sms(): 
     try:
         data = request.json
         if not data:
-             return jsonify({"error": "Missing JSON body"}), 400
-         
+            return jsonify({"error": "Missing JSON body"}), 400
+
         sms_body = data.get('body')
-        sender = data.get('sender') # Optional
+        if sms_body is None: 
+            return jsonify({"error": "Missing 'body' key in request"}), 400
+        if not isinstance(sms_body, str):
+             return jsonify({"error": "'body' must be a string"}), 400
 
-        if not sms_body:
-            return jsonify({"error": "Missing 'body' in request"}), 400
+        # --- Comprehensive URL Extraction ---
+        url_regex = r"""
+            (
+                (?:https?|ftp):\/\/                    # Protocol (http, https, ftp)
+                |                                      
+                www\d{0,3}[.]                          # www. subdomain
+                |                                      
+                [-\w\d_]+\.(?:com|org|net|gov|edu|info|biz|co|io|me|ph|site|xyz|ly|to|gl|be|at|us|ca|uk|de|jp|fr|au|br|cn|in|ru|it|es|ch|nl|se|no|fi|pl|kr|tr|za|ae|hk|sg|tw|vn|th|id|my|ar|cl|mx|co|pe|ve|ec|gt|cr|pa|do|py|uy|sv|hn|ni|bo|cu|ie|pt|gr|cz|hu|ro|sk|bg|lt|lv|ee|si|hr|rs|ba|mk|al|cy|lu|mt|is|li|mc)\b # Common domain.tld pattern (needs refinement for accuracy)
+                |                                     
+                (?:bit\.ly|t\.co|goo\.gl|is\.gd|tinyurl\.com|ow\.ly|buff\.ly)\/[-\w\d_]+ # Common shorteners
+            )
+            (?:[^\s()<>{}\[\]\'",|\\^`]*?)              # Non-space/bracket characters following the start
+            (?:\([^\s()]*?\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]) # Allow paired parentheses, exclude trailing punctuation
+        """
+        # Find all non-overlapping matches, ignore case
+        matches = re.findall(url_regex, sms_body, re.IGNORECASE | re.VERBOSE)
 
-        # Same regex
-        url_regex = r'(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])|(\bwww\.[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])'
-        extracted_urls = re.findall(url_regex, sms_body, re.IGNORECASE)
+        # Clean up matches - re.findall with groups returns tuples, we want the full match
+        # The main group captures the URL patterns we defined
+        extracted_urls = [match[0] for match in matches if match[0]] 
 
-        result = {} 
-        
-        if extracted_urls:
-            # Found URLs, process the first one (or loop through all)
-            # Note: re.findall returns tuples for groups, need to get the full match
-            first_url = [match[0] or match[2] for match in extracted_urls][0] # Get the actual matched URL string
-            print(f"Found URL: {first_url}. Classifying as URL...")
-            # Call your URL classification model/logic here
-            # result = classify_url(first_url)
-            result = classify_url(first_url) # Call REAL classification
-        else:
-            # No URLs found, classify the entire text
-            print(f"No URL found. Classifying text: {sms_body[:50]}...")
-            # Call your text classification model/logic here
-            # result = classify_text(sms_body)
-            result = classify_text(sms_body) # Call REAL classification
+        # Ensure URLs start with http:// or https:// if they look like domains/www
+        processed_urls = []
+        for url in extracted_urls:
+            if not url.startswith(('http://', 'https://', 'ftp://')) and \
+               (url.startswith('www.') or '.' in url.split('/')[0]): 
+                processed_urls.append('http://' + url) 
+            else:
+                processed_urls.append(url)
 
-        # Add logging, database updates, etc.
+        # --- Extract Remaining Text ---
+        remaining_text = sms_body
+        # Remove extracted URLs from the original text (can be tricky with overlapping/complex cases)
+        temp_text = sms_body
+        for url in processed_urls:
+             original_match = url.replace('http://', '', 1) if url.startswith('http://') else url
+             temp_text = temp_text.replace(original_match, '')
+        # Clean up extra whitespace
+        remaining_text = ' '.join(temp_text.split())
 
-        return jsonify(result), 200
+        print(f"Extracted URLs: {processed_urls}")
+        print(f"Remaining Text: {remaining_text}")
+
+        # --- Return Result ---
+        response_data = {
+            "extracted_urls": processed_urls, 
+            "remaining_text": remaining_text  
+        }
+        return jsonify(response_data), 200
 
     except Exception as e:
-        print(f"Error in /classify_content (extract_urls): {str(e)}")
-        return jsonify({"error": "Internal server error during URL extraction"}), 500
+        import traceback
+        print(f"Error in /classify_content (extract_only): {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"error": "Internal server error during content extraction"}), 500

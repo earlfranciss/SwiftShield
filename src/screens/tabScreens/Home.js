@@ -283,8 +283,6 @@ export default function Home() {
 
   // Function called ONLY by the SMS listener callback
   const sendSmsToBackendForProcessing = async (smsData) => {
-    console.log('Processing received SMS for URLs:', smsData);
-    // Endpoint for URL extraction ONLY
     const extractionEndpoint = `${config.BASE_URL}/sms/classify_content`;
     const payload = { // Payload for extraction endpoint
         body: smsData.body,
@@ -294,7 +292,7 @@ export default function Home() {
     console.log(`Requesting URL extraction from ${extractionEndpoint}`);
 
     try {
-        // --- Step 1: Call backend to extract URLs ---
+        // --- Call backend to extract URLs ---
         const extractionResponse = await fetch(extractionEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -309,18 +307,18 @@ export default function Home() {
 
         const extractionData = await extractionResponse.json();
         const extractedUrls = extractionData.extracted_urls || [];
-
+        const remainingText = extractionData.remaining_text || '';
         console.log("Extracted URLs from backend:", extractedUrls);
+        console.log("Remaining Text from backend:", remainingText);
 
-        // --- Step 2: If URLs exist, scan them individually ---
+
+        // --- URLs exist, scan them individually ---
         if (extractedUrls.length > 0) {
             console.log(`Found ${extractedUrls.length} URL(s) to scan.`);
             // Loop through all extracted URLs and scan them
             for (const urlToScan of extractedUrls) {
                console.log(`Scanning extracted URL: ${urlToScan}`);
-               await unifiedScan({ url: urlToScan, sender: smsData.sender }); // Pass sender for context
-               // Optional delay between scans if needed
-               // await new Promise(resolve => setTimeout(resolve, 200));
+               await unifiedScan({ url: urlToScan, sender: smsData.sender }); 
             }
         } else {
             console.log("No URLs found in SMS body by backend.");
@@ -375,9 +373,9 @@ export default function Home() {
         handleNewScanResult(resultDataForNotification);
 
         // Show modal only for direct URL scans (when sender is NOT in original payload)
-        if (payload.url && !payload.sender && data.log_details) {
-            showModal(data.log_details);
-        }
+        // if (payload.url && !payload.sender && data.log_details) {
+        //     showModal(data.log_details);
+        // }
 
     } catch (error) {
         console.error("Error during unified scan:", error.message);
