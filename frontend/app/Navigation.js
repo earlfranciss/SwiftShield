@@ -30,7 +30,7 @@ import ForgotPassword from "./screens/ForgotPassword";
 import Reports from "./screens/reportsPage/Reports";
 import CreateReport from "./screens/reportsPage/CreateReport";
 import EditReport from "./screens/reportsPage/EditReport";
-
+import EditProfile from "./screens/EditProfile";
 
 //Icons
 import { Entypo } from "@expo/vector-icons";
