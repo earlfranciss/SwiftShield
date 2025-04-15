@@ -669,7 +669,8 @@
     "yallist": "^3.1.1",
     "yargs": "^17.7.2",
     "yargs-parser": "^21.1.1",
-    "yocto-queue": "^0.1.0"
+    "yocto-queue": "^0.1.0",
+    "expo-image-picker": "~16.0.6"
   },
   "scripts": {
     "start": "expo start",

@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import GradientScreen from "../components/GradientScreen";
-import { RadioButton } from "react-native-paper";
+import { RadioButton } from "react-native-paper"; 
 import config from "../../config";
 
 export default function EditReport({ navigation, route }) {

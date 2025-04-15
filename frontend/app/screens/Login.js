@@ -6,12 +6,14 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Image,
 } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import GradientScreen from "./components/GradientScreen";
 import { LinearGradient } from "expo-linear-gradient";
 import config from "../config";
 
+const logoPath = require("../../assets/images/logo.png");
 export default function Login({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,33 +32,27 @@ export default function Login({ navigation }) {
   const handleLogin = async () => {
     try {
       const response = await fetch(`${config.BASE_URL}/Login`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          email: email,
-          password: password,
-        }),
+        body: JSON.stringify({ email, password }),
       });
-      
-      const data = await response.json();
-      
+  
+      const text = await response.text(); // Log raw response
+      console.log("Raw response:", text);
+  
+      const data = JSON.parse(text); // Try parsing JSON
       if (response.ok) {
-        // Login successful
-        console.log('Login successful:', data);
-        // Store user information if needed
-        // AsyncStorage.setItem('userToken', data.userId);
-        navigation.replace('Tabs');
+        console.log("Login successful:", data);
+        navigation.replace("Tabs");
       } else {
-        // Login failed
-        console.log('Login failed:', data.error);
-        // Show error message to user
-        alert(data.error || 'Login failed');
+        console.log("Login failed:", data.error);
+        alert(data.error || "Login failed");
       }
     } catch (error) {
-      console.error('Error during login:', error);
-      alert('Network error. Please try again.');
+      console.error("Error during login:", error);
+      alert("Network error. Please try again.");
     }
   };
   
@@ -67,8 +63,12 @@ export default function Login({ navigation }) {
   return (
     <GradientScreen>
       <View style={styles.container}>
-        {/* Title */}
-        <Text style={styles.title}>SWIFTSHIELD</Text>
+         {/* Logo Image */}
+         <Image
+          source={logoPath} // <-- Use the required image path
+          style={styles.logo} // <-- Apply the new logo style
+          resizeMode="contain" // Ensures the logo scales nicely
+        />
 
         {/* Input Fields */}
         <View style={styles.inputContainer}>
@@ -153,12 +153,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 30,
   },
-  title: {
-    fontSize: 40,
-    fontFamily: "Poppins-ExtraBold", // Apply the Poppins ExtraBold font
-    color: "#3AED97",
-    marginBottom: 40, // Adjust spacing from top
-    alignItems: "center",
+  logo: {
+    width: 280, // Adjust width as needed
+    height: 200, // Adjust height as needed
+    marginBottom: 25, // Space below the logo (adjust as needed)
+    // No need for alignItems: 'center' here as the container already does that
   },
   inputContainer: {
     flexDirection: "row",
