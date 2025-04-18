@@ -476,18 +476,64 @@ def index():
         data = request.get_json()
         if not data:
             return jsonify({"error": "No data received"}), 400
-        
-        # ... (validation for data and url) ...
-        url = data.get("url", "")
-        if not url:
+
+        # Get URL from request and trim whitespace
+        url_input = data.get("url", "").strip() # Use a different variable name initially
+
+        if not url_input:
             return jsonify({"error": "No URL provided"}), 400
         
-        if not url.startswith(('http://', 'https://')):
-            print(f"DEBUG: Adding https:// scheme to URL: {url}")
-            url = 'https://' + url # Default to https
+        # --- START BACKEND URL VALIDATION ---
+        print(f"DEBUG: Validating received URL input: '{url_input}'")
 
-        # Extract features from the URL
-        # 1. Create the FeatureExtraction instance
+        # 1. Check if it's purely numeric
+        if url_input.isdigit():
+            print("DEBUG: Validation failed - Input is purely numeric.")
+            return jsonify({"error": "Invalid input. Please enter a valid URL."}), 400
+        
+        # 2. Use urlparse for structural check
+        try:
+            parsed = urlparse(url_input)
+            # A valid URL usually needs at least a domain part (netloc) OR
+            # if no scheme is given, the path might contain the domain initially.
+            # We also check if the domain part contains a dot ('.') to avoid simple words.
+            # And it shouldn't just be a scheme like 'http://'
+
+            # Try to extract the main part that should contain the domain
+            potential_domain = parsed.netloc or (parsed.path.split('/')[0] if parsed.path else None)
+
+            if not potential_domain: # Completely empty or unparsable path/netloc
+                 print("DEBUG: Validation failed - No domain/path part found.")
+                 return jsonify({"error": "Invalid URL format."}), 400
+
+            if '.' not in potential_domain: # Doesn't contain a dot, likely just a word
+                 # Allow 'localhost' explicitly if needed for local testing
+                 if potential_domain.lower() != 'localhost':
+                      print(f"DEBUG: Validation failed - Domain part '{potential_domain}' lacks a dot.")
+                      return jsonify({"error": "Invalid URL. Domain name seems incomplete."}), 400
+
+            if parsed.scheme and not parsed.netloc and not parsed.path: # e.g., just 'http://'
+                 print("DEBUG: Validation failed - Only scheme provided.")
+                 return jsonify({"error": "Invalid URL format."}), 400
+
+            print("DEBUG: Basic URL structure validation passed.")
+
+        except Exception as parse_error:
+            # Catch potential errors during parsing itself, though urlparse is usually robust
+            print(f"ERROR: URL parsing failed during validation: {parse_error}")
+            return jsonify({"error": "Could not parse the provided URL."}), 400
+        # --- END BACKEND URL VALIDATION ---
+        
+        # --- Normalize URL: Add scheme if missing (AFTER validation) ---
+        # Use the validated url_input here
+        if not parsed.scheme: # Check the parsed result from validation
+             print(f"DEBUG: Adding https:// scheme to URL: {url_input}")
+             url = 'https://' + url_input # Assign to the 'url' variable we'll use later
+        else:
+             url = url_input # Use the original input if scheme was present
+
+        # --- Proceed with FeatureExtraction using the potentially normalized 'url' ---
+        print(f"DEBUG: Proceeding with feature extraction for: {url}")
         obj = FeatureExtraction(url)
 
         print("--- CALLING obj.getFeaturesList() NOW ---")
@@ -594,7 +640,7 @@ def index():
             "severity": severity,  # ✅ Store consistent severity
             "is_shortener": is_shortener,
             "shortener_domain": shortener_domain,
-            "metadata": {"source": "Platform"}
+            "metadata": {"source": "Manual Scan"} # Set the source correctly!
         }
         detection.insert_one(detection_data)
         
@@ -630,8 +676,10 @@ def index():
         return jsonify(response)
     
     except Exception as e:
-        print("Error:", str(e))
-        return jsonify({"error": str(e)}), 500
+        print("Error in index function:", str(e))
+        import traceback
+        traceback.print_exc() # Print full traceback for easier debugging
+        return jsonify({"error": "An internal server error occurred."}), 500
 
 # ✅ **GET - Fetch Scan Source Distribution for Pie Chart**
 # Inside app.py
@@ -639,118 +687,86 @@ def index():
 @app.route('/api/stats/scan-source-distribution', methods=['GET'])
 def get_scan_source_distribution():
     """
-    Fetches the count of scans by source (User Scan, SMS, Email)
+    Fetches the count of scans by source (Manual Scan, SMS, Email)
     for displaying in a pie chart. Uses the 'detection' collection.
+    Returns data with names and colors expected by the frontend PieGraph.
     """
     try:
+        # Basic check for database collection
         if 'detection' not in globals() or detection is None:
-             print("ERROR...") # Simplified error print
+             # Use app logger if configured, otherwise print
+             # current_app.logger.error("Database collection 'detection' not available.")
+             print("ERROR: Database collection 'detection' not available.")
              return jsonify({"error": "Database collection error."}), 500
 
-        # --- MODIFY Definitions to use new source names ---
-        sources_to_count = ["User Scan", "SMS", "Email"] # <-- Use the new names
-        source_labels = {
-            "User Scan": "Manual (User Scan)", # <-- Updated Label
-            "SMS": "SMS (Automatic)",
-            "Email": "Email (Automatic)"
-        }
+        # --- Use Frontend-Expected Names and Colors ---
+        sources_to_count = ["SMS", "Email", "Manual Scan"] # Source names to query in DB
         source_styles = {
-             # Match styles to the correct logical source
-            "User Scan": {"color": "#4CAF50", "legendFontColor": "#7F7F7F", "legendFontSize": 15}, # Style for User Scan
-            "SMS": {"color": "#2196F3", "legendFontColor": "#7F7F7F", "legendFontSize": 15},       # Style for SMS
-            "Email": {"color": "#FF9800", "legendFontColor": "#7F7F7F", "legendFontSize": 15}     # Style for Email
+            # Use the correct frontend-expected name as the key
+            # and the correct frontend-expected color
+             # Value 16 color
+            "SMS":         {"color": "#ffde59"}, # Value 8 color
+            "Email":       {"color": "#ff914c"},
+            "Manual Scan": {"color": "#febd59"}  # Value 20 color
+             # Removed legendFontColor/Size as PieGraph doesn't seem to use them
+             # If needed, add them back here and ensure frontend uses them
         }
-        # --- END OF MODIFICATIONS ---
+        # --- End of Configuration ---
 
-        pie_chart_data = []
+        pie_chart_data = [] # Initialize the list to store results
 
-        print(f"DEBUG /api/stats/scan-source-distribution: Counting sources: {sources_to_count}")
+        # print(f"DEBUG: Counting sources: {sources_to_count}") # Keep minimal debug logs if needed
 
         for source in sources_to_count:
-            # >> Start of processing for ONE source <<
-
-            # 10. DEBUG LOG: Indicate which source is currently being processed.
-            print(f"--- Processing source: '{source}' ---")
-
-            # 11. BUILD THE QUERY FILTER: Create the exact filter dictionary
-            #     that will be used to search MongoDB. For the first loop iteration,
-            #     this will be `{"metadata.source": "User Scan"}`.
-            query_filter = {"metadata.source": source}
-
-            # 12. DEBUG LOG: Print the filter being used for clarity.
-            print(f"DEBUG: Built query filter: {query_filter}")
-
-            # 13. *** DEBUGGING STEP 1: TRY FINDING ONE MATCHING DOCUMENT ***
-            #     This attempts to find *any single document* in the 'detection'
-            #     collection that matches the `query_filter`.
-            #     Purpose: To verify if the filter *can* match anything at all.
+            count = 0 # Default count to 0
             try:
-                example_doc = detection.find_one(query_filter)
-                # 14. CHECK find_one RESULT: See if a document was found.
-                if example_doc:
-                    # If find_one succeeded, print confirmation and the document's ID.
-                    # This PROVES that documents matching the filter exist.
-                    print(f"DEBUG: Found at least one example document for '{source}'. ID: {example_doc.get('_id')}")
-                    # Optional: print(f"DEBUG: Example doc metadata: {example_doc.get('metadata')}")
-                else:
-                    # If find_one returned None, print a warning.
-                    # This STRONGLY suggests the filter (e.g., the exact string "User Scan")
-                    # doesn't match any 'metadata.source' value in the database.
-                    print(f"DEBUG: *** find_one returned None for '{source}'. No matching document found with this exact filter. ***")
-            except Exception as find_err:
-                # Catch errors during the find_one operation itself.
-                print(f"ERROR during find_one for '{source}': {find_err}")
+                # Build the query filter for the current source
+                query_filter = {"metadata.source": source}
+                # print(f"DEBUG: Querying count for: {query_filter}") # Optional debug
 
-            # 15. *** DEBUGGING STEP 2: PERFORM THE COUNT ***
-            #     This uses the *same* `query_filter` to ask MongoDB to count
-            #     *all* documents that match.
-            #     Purpose: To get the actual count number that should be used for the pie chart.
-            try:
+                # Perform the count directly - NO NEED for find_one
                 count = detection.count_documents(query_filter)
-                # 16. DEBUG LOG: Print the numerical result of the count operation.
-                #     >> THIS IS THE KEY OUTPUT TO CHECK << Is this 0 when it shouldn't be?
-                print(f"DEBUG: count_documents result for '{source}': {count}")
-            except Exception as count_err:
-                # Catch errors during the count_documents operation.
-                print(f"ERROR during count_documents for '{source}': {count_err}")
-                count = -1 # Use -1 to signal an error occurred during counting.
+                # print(f"DEBUG: Count result for '{source}': {count}") # Optional debug
 
-            # 17. GET DISPLAY LABEL: Look up the user-friendly label (same as before).
-            label = source_labels.get(source, source)
+            except pymongo.errors.PyMongoError as count_err:
+                 # Log the specific database error during count
+                 # current_app.logger.error(f"Database error counting source '{source}': {count_err}")
+                 print(f"ERROR: Database error counting source '{source}': {count_err}")
+                 # Keep count as 0 if error occurs during counting
+                 count = 0
+            except Exception as E:
+                # Catch any other unexpected error during the count for this source
+                print(f"ERROR: Unexpected error counting source '{source}': {E}")
+                count = 0
 
-            # 18. GET STYLE INFO: Look up the style dictionary (same as before).
-            style = source_styles.get(source, {"color": "#cccccc", "legendFontColor": "#7F7F7F", "legendFontSize": 15})
 
-            # 19. PREPARE DATA FOR THIS SOURCE: Create the result dictionary.
-            #     Uses the 'count' obtained in Step 15 (or 0 if count failed).
+            # Get the style dictionary for this source (mainly for color)
+            # Provide a default grey color if source somehow not in styles
+            style = source_styles.get(source, {"color": "#CCCCCC"})
+
+            # Append the data for this source in the format expected by frontend
             pie_chart_data.append({
-                "name": label,
-                "population": count if count != -1 else 0, # Handle potential count error
-                "color": style["color"],
-                "legendFontColor": style["legendFontColor"],
-                "legendFontSize": style["legendFontSize"]
+                "name": source,         # Use the source name directly (e.g., "Manual Scan")
+                "population": count,    # The count obtained from the database
+                "color": style["color"], # The color specified for this source
+                # Add other fields like legendFontColor ONLY if frontend uses them
             })
 
-            # 20. DEBUG LOG: Indicate the end of processing for this source.
-            print(f"--- Finished processing source: '{source}' ---")
-            # >> End of processing for ONE source. Loop continues to the next. <<
+        # print(f"✅ Scan Source Distribution data being sent: {pie_chart_data}") # Final check
+        return jsonify(pie_chart_data), 200 # Return the list as JSON
 
-        # 21. DEBUG LOG: Show the final data list (after loop finishes).
-        print(f"✅ Scan Source Distribution data being sent: {pie_chart_data}")
-
-        # 22. RETURN SUCCESS RESPONSE: Send JSON data to frontend.
-        return jsonify(pie_chart_data), 200
-
-    # 23. DATABASE ERROR HANDLING (PyMongo specific)
     except pymongo.errors.PyMongoError as dbe:
-        print(f"🔥 Database error...") # Simplified
+        # Handle broader database connection/operation errors
+        # current_app.logger.error(f"Database error in get_scan_source_distribution: {dbe}")
+        print(f"ERROR: Database error in get_scan_source_distribution: {dbe}")
         return jsonify({"error": "Database query error"}), 500
 
-    # 24. GENERAL ERROR HANDLING (Catch-all)
     except Exception as e:
-        print(f"🔥 Unexpected error...") # Simplified
+        # Handle any other unexpected errors in the main try block
+        # current_app.logger.error(f"Unexpected error in get_scan_source_distribution: {e}", exc_info=True)
+        print(f"ERROR: Unexpected error in get_scan_source_distribution: {e}")
         import traceback
-        traceback.print_exc()
+        traceback.print_exc() # Print stack trace for unexpected errors
         return jsonify({"error": "An internal server error occurred"}), 500
       
 # ✅ **GET - Fetch Recent Activity**

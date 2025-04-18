@@ -1,26 +1,45 @@
-import React, { useState, useCallback } from "react";
-import { View, Text, Dimensions, ActivityIndicator, StyleSheet } from "react-native"; // Added StyleSheet
+import React, { useState, useCallback, useMemo } from "react";
+import { View, Text, Dimensions, ActivityIndicator, StyleSheet, useColorScheme  } from "react-native"; // Added StyleSheet
 import { LineChart } from "react-native-chart-kit";
 import { useFocusEffect } from "@react-navigation/native";
 import config from "../../config"; // Make sure this path is correct
 
 const screenWidth = Dimensions.get("window").width;
 
-const chartConfig = {
-  backgroundColor: "#000",
-  backgroundGradientFrom: "#000",
-  backgroundGradientTo: "#000",
-  decimalPlaces: 0,
-  color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-  labelColor: (opacity = 1) => `rgba(58, 237, 151, ${opacity})`,
-  propsForBackgroundLines: { stroke: "none" },
-};
+
 
 const LineGraph = () => {
+
+  const colorScheme = useColorScheme(); // Gets 'light', 'dark', or null
+  
   // State variables
   const [chartData, setChartData] = useState(null); // Holds formatted data for the chart
   const [loading, setLoading] = useState(false);   // Tracks if data is being fetched
   const [error, setError] = useState(null);       // Stores error message if fetching fails
+
+  const chartConfig = useMemo(() => {
+    const isDarkMode = colorScheme === 'dark';
+
+    return {
+      // Transparency settings (using opacity is more robust)
+      backgroundGradientFrom: "#000000", // Base color (will be transparent)
+      backgroundGradientTo: "#000000",   // Base color (will be transparent)
+      backgroundGradientFromOpacity: 0,   // Make gradient start transparent
+      backgroundGradientToOpacity: 0,     // Make gradient end transparent
+      backgroundColor: "transparent",     // Make solid background transparent
+
+      decimalPlaces: 0,
+      // Dynamic colors based on the theme
+      color: (opacity = 1) => isDarkMode
+        ? `rgba(255, 255, 255, ${opacity})` // White for dark mode
+        : `rgba(0, 0, 0, ${opacity})`,      // Black for light mode
+      labelColor: (opacity = 1) => isDarkMode
+        ? `rgba(58, 237, 151, ${opacity})` // Green for dark mode
+        : `rgba(0, 100, 0, ${opacity})`,   // Darker Green for light mode (adjust as needed)
+
+      propsForBackgroundLines: { stroke: "none" },
+    };
+  }, [colorScheme]);
 
   // useFocusEffect runs the fetch logic when the screen comes into focus
   useFocusEffect(

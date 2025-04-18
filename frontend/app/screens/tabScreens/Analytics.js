@@ -42,8 +42,6 @@ export default function Analytics() {
       async function fetchAnalyticsData() {
         try {
           setLoading(true);
-
-          
   
           // Fetch all required APIs in parallel
           const [logsRes, urlsScannedRes, threatsBlockedRes, severityCountsRes, pieChartRes, weeklyThreatsRes] =
@@ -52,6 +50,20 @@ export default function Analytics() {
               fetch(`${config.BASE_URL}/urls-scanned`).then((res) => res.json()),
               fetch(`${config.BASE_URL}/threats-blocked`).then((res) => res.json()),
               fetch(`${config.BASE_URL}/severity-counts`).then((res) => res.json()),fetch(`${config.BASE_URL}/api/stats/scan-source-distribution`).then(res => res.ok ? res.json() : []), // Fetch pie data
+              fetch(`${config.BASE_URL}/api/stats/scan-source-distribution`)
+                .then(res => {
+                    if (!res.ok) {
+                        // Log error if fetch failed
+                        console.error(`Error fetching pie chart data: ${res.status} ${res.statusText}`);
+                        return []; // Return empty array on failure
+                    }
+                    return res.json(); // Parse JSON on success
+                })
+                .catch(error => {
+                    // Log error if fetch itself fails (network issue, etc.)
+                    console.error("Fetch error for pie chart data:", error);
+                    return []; // Return empty array on fetch error
+                }),
               fetch(`${config.BASE_URL}/weekly-threats`).then(res => res.ok ? res.json() : { labels: [], data: [] }) // Fetch weekly data
             ]);
 
@@ -67,7 +79,7 @@ export default function Analytics() {
           setTotalUrlsScanned(urlsScannedRes.total_urls_scanned || 0);
           setThreatsBlocked(threatsBlockedRes.threats_blocked || 0);
           setSeverityCounts(severityCountsRes.severity_counts || {});
-          setPieChartData(pieChartRes || []); // <--- Set Pie data state
+          setPieChartData(pieChartRes || []); // Use API result directly
           setWeeklyThreatsData(weeklyThreatsRes || { labels: [], data: [] }); // <--- Set Weekly data state
   
         } catch (error) {
@@ -140,8 +152,7 @@ export default function Analytics() {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#3AED97" />
-        {/* Optional: Add a loading text */}
-        {/* <Text style={{ color: '#FFF', marginTop: 10 }}>Loading Analytics...</Text> */}
+        <Text style={{ color: '#3AED97', marginTop: 12 }}>Loading Analytics...</Text>
       </SafeAreaView>
     );
   }
@@ -264,14 +275,13 @@ const styles = StyleSheet.create({
   container: { // Style for SafeAreaView
       flex: 1,
       padding: 20, // <<< FIXED padding as requested
-      backgroundColor: '#000000', // Match image background
   },
   scrollContentContainer: { // Style for ScrollView's inner container
       // No horizontal/vertical padding here by default
       paddingBottom: 60, // Add padding at the bottom if needed (e.g., for tab bar)
   },
   componentWrapper: { // Simple wrapper for spacing below each main component/section
-      marginBottom: 25, // Adjust spacing as needed
+      marginBottom: 5, // Adjust spacing as needed
   },
   debugTitle: { // Temporary style for section titles (like in image) - adjust as needed
       color: "#3AED97",
@@ -292,6 +302,7 @@ const styles = StyleSheet.create({
       marginBottom: 10, // Creates vertical space between log items
   },
   loadingContainer: { // Applied additionally to container when loading
+      flex: 1,
       justifyContent: "center",
       alignItems: "center",
       padding: 0, // Override padding when only showing loader
