@@ -32,7 +32,6 @@ const ReportItem = ({ item, openReportModal }) => {
     "pending": require("../../../assets/images/pending.png"),
     "in progress": require("../../../assets/images/in progress.png"),
     "resolved": require("../../../assets/images/resolved.png"),
-    "archived": require("../../../assets/images/resolved.png"),
   };
 
   const cardBackgroundColor =
@@ -77,7 +76,6 @@ export default function Reports({ navigation, route }) {
     { id: "pending", label: "Pending" },
     { id: "in progress", label: "In Progress" },
     { id: "resolved", label: "Resolved" },
-    { id: "archived", label: "Archived" },
   ];
 
   const handleFilterChange = (filter) => {

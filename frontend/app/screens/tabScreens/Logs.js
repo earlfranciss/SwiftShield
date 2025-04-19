@@ -37,8 +37,8 @@ export default function Logs({ route }) {
 
   const filterOptions = [
     { id: 'recent', label: 'Recent' },
-    { id: 'whitelisted', label: 'Whitelisted' },
-    { id: 'blacklisted', label: 'Blacklisted' },
+    { id: 'safe', label: 'Safe' },
+    { id: 'phishing', label: 'Phishing' },
     { id: 'low', label: 'Low' },
     { id: 'medium', label: 'Medium' },
     { id: 'high', label: 'High' },
@@ -145,8 +145,8 @@ export default function Logs({ route }) {
     const categoryFilteredLogs = logs.filter(log => {
        switch (activeFilter) {
          case "recent": return true;
-         case "whitelisted": return log.status?.toLowerCase().includes("safe") || log.status?.toLowerCase().includes("whitelist");
-         case "blacklisted": return log.status?.toLowerCase().includes("phishing") || log.status?.toLowerCase().includes("blacklist");
+         case "safe": return log.status?.toLowerCase().includes("safe") || log.status?.toLowerCase().includes("safe");
+         case "phishing": return log.status?.toLowerCase().includes("phishing") || log.status?.toLowerCase().includes("phishing");
          case "low": return log.severity?.toLowerCase() === "low";
          case "medium": return log.severity?.toLowerCase() === "medium";
          case "high": return log.severity?.toLowerCase() === "high";

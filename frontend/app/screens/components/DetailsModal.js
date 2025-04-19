@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Linking } from 'react';
 import {
   Modal,
   View,
@@ -154,16 +154,6 @@ const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, on
           ]}
         >
             
-          {/* Update & Delete Icons */}
-          <View style={styles.headerIcons}>
-            <TouchableOpacity onPress={onUpdatePress} style={styles.iconButton}>
-              <Icon name="edit" size={24} color="#FFC107" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onDeletePress} style={styles.iconButton}>
-              <Icon name="delete" size={24} color="#FF0000" />
-            </TouchableOpacity>
-          </View>
-
           {loading ? (
             <ActivityIndicator size="large" color="#31EE9A" />
           ) : logDetails ? (
@@ -175,8 +165,23 @@ const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, on
               </View>
 
               {/* URL Display */}
-              <Text style={styles.urlText}>{logDetails.url || "Unknown URL"}</Text>
-              <Text style={styles.urlLabel}>URL</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (logDetails.url) {
+                    Linking.canOpenURL(logDetails.url).then((supported) => {
+                      if (supported) {
+                        Linking.openURL(logDetails.url);
+                      } else {
+                        Alert.alert("Invalid URL", "Cannot open the provided URL.");
+                      }
+                    });
+                  }
+                }}
+              >
+                <Text style={[styles.urlText, { color: '#31EE9A', textDecorationLine: 'underline' }]}>
+                  {logDetails.url || "Unknown URL"}
+                </Text>
+              </TouchableOpacity>
 
               {/* Analysis Details Container */}
               <View style={styles.analysisContainer}>
