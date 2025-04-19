@@ -329,40 +329,86 @@ def index():
     # This endpoint can be accessed by anyone (logged in or not)
     try:
         data = request.get_json()
-        if not data: return jsonify({"error": "No data received"}), 400
+        if not data:
+            return jsonify({"error": "No data received"}), 400
 
-        url = data.get("url", "").strip()
-        if not url: return jsonify({"error": "No URL provided"}), 400
+        # Get URL from request and trim whitespace
+        url_input = data.get("url", "").strip() # Use a different variable name initially
 
-        if not url.startswith(('http://', 'https://')):
-            print(f"DEBUG: Adding https:// scheme to URL: {url}")
-            url = 'https://' + url
+        if not url_input:
+            return jsonify({"error": "No URL provided"}), 400
+        
+        # --- START BACKEND URL VALIDATION ---
+        print(f"DEBUG: Validating received URL input: '{url_input}'")
 
-        # --- Get User ID from session if logged in ---
-        user_id = session.get('user_id', None) # Get user_id or None if not logged in
-        source_platform = "User Scan (Authenticated)" if user_id else "User Scan (Anonymous)"
-        print(f"DEBUG: Scan initiated. User ID: {user_id}, Platform: {source_platform}")
-
-        # --- Feature Extraction ---
+        # 1. Check if it's purely numeric
+        if url_input.isdigit():
+            print("DEBUG: Validation failed - Input is purely numeric.")
+            return jsonify({"error": "Invalid input. Please enter a valid URL."}), 400
+        
+        # 2. Use urlparse for structural check
         try:
-            obj = FeatureExtraction(url)
-            features_list = obj.getFeaturesList()
-            if features_list is None or len(features_list) != 30: # Check for 30 features
-                 print(f"FATAL ERROR in app.py: getFeaturesList did not return 30 features for {url}. Got: {features_list}")
-                 # Log the obj state for debugging if possible
-                 # print(f"DEBUG: FeatureExtraction object state: {vars(obj)}") # Might be large
-                 return jsonify({"error": "Internal error during feature extraction."}), 500
-            registered_domain = obj.registered_domain # Get domain for checks
-            print(f"✅ Extracted {len(features_list)} features for {url}.")
-        except Exception as e:
-             print(f"ERROR during Feature Extraction for {url}: {e}")
-             import traceback
-             traceback.print_exc()
-             return jsonify({"error": "Feature extraction failed."}), 500
+            parsed = urlparse(url_input)
+            # A valid URL usually needs at least a domain part (netloc) OR
+            # if no scheme is given, the path might contain the domain initially.
+            # We also check if the domain part contains a dot ('.') to avoid simple words.
+            # And it shouldn't just be a scheme like 'http://'
 
+            # Try to extract the main part that should contain the domain
+            potential_domain = parsed.netloc or (parsed.path.split('/')[0] if parsed.path else None)
 
-        # --- ML Prediction ---
-        x = np.array(features_list).reshape(1, 30)
+            if not potential_domain: # Completely empty or unparsable path/netloc
+                 print("DEBUG: Validation failed - No domain/path part found.")
+                 return jsonify({"error": "Invalid URL format."}), 400
+
+            if '.' not in potential_domain: # Doesn't contain a dot, likely just a word
+                 # Allow 'localhost' explicitly if needed for local testing
+                 if potential_domain.lower() != 'localhost':
+                      print(f"DEBUG: Validation failed - Domain part '{potential_domain}' lacks a dot.")
+                      return jsonify({"error": "Invalid URL. Domain name seems incomplete."}), 400
+
+            if parsed.scheme and not parsed.netloc and not parsed.path: # e.g., just 'http://'
+                 print("DEBUG: Validation failed - Only scheme provided.")
+                 return jsonify({"error": "Invalid URL format."}), 400
+
+            print("DEBUG: Basic URL structure validation passed.")
+
+        except Exception as parse_error:
+            # Catch potential errors during parsing itself, though urlparse is usually robust
+            print(f"ERROR: URL parsing failed during validation: {parse_error}")
+            return jsonify({"error": "Could not parse the provided URL."}), 400
+        # --- END BACKEND URL VALIDATION ---
+        
+        # --- Normalize URL: Add scheme if missing (AFTER validation) ---
+        # Use the validated url_input here
+        if not parsed.scheme: # Check the parsed result from validation
+             print(f"DEBUG: Adding https:// scheme to URL: {url_input}")
+             url = 'https://' + url_input # Assign to the 'url' variable we'll use later
+        else:
+             url = url_input # Use the original input if scheme was present
+
+        # --- Proceed with FeatureExtraction using the potentially normalized 'url' ---
+        print(f"DEBUG: Proceeding with feature extraction for: {url}")
+        obj = FeatureExtraction(url)
+
+        print("--- CALLING obj.getFeaturesList() NOW ---")
+        # 2. Get features for the ML model
+        features_list = obj.getFeaturesList()
+        print(f"--- RETURNED from obj.getFeaturesList(). Type: {type(features_list)}, Length: {len(features_list) if features_list is not None else 'None'} ---")
+
+        # ---> ADD THIS VALIDATION BLOCK <---
+        if features_list is None or len(features_list) != 30:
+            print(f"FATAL ERROR in app.py: getFeaturesList did not return 30 features for {url}. Got length: {len(features_list) if features_list is not None else 'None'}")
+            return jsonify({"error": "Internal error during feature extraction."}), 500
+        # ---> END VALIDATION BLOCK <---
+        
+        # Print the extracted feature count
+        print(f"✅ Extracted features count in app.py: {len(features_list)}")
+        print(f"✅ Extracted features data: {features_list}")
+
+        x = np.array(features_list).reshape(1, 30) # Assuming 30 features
+
+        # 3. Get ML predictions
         y_pred = stacked.predict(x)[0]
         y_pro_phishing = stacked.predict_proba(x)[0, 0] # Probability of class 0 (Phishing)
         y_pro_non_phishing = stacked.predict_proba(x)[0, 1] # Probability of class 1 (Legitimate)
@@ -416,11 +462,7 @@ def index():
             "severity": severity,
             "is_shortener": is_shortener,
             "shortener_domain": shortener_domain,
-            # Include probabilities if needed for later analysis
-            "ml_prob_phishing": y_pro_phishing,
-            "ml_prob_legitimate": y_pro_non_phishing,
-             # Keep metadata consistent with new platform value
-            "metadata": {"source": "User Scan"} # Source type
+            "metadata": {"source": "Manual Scan"} # Set the source correctly!
         }
         detection_collection.insert_one(detection_data)
 
@@ -456,11 +498,10 @@ def index():
          print(f"🔥 Database error during scan: {str(dbe)}")
          return jsonify({"error": "Database operation failed during scan"}), 500
     except Exception as e:
-        print(f"🔥 Unexpected error in scan endpoint '/': {str(e)}")
+        print("Error in index function:", str(e))
         import traceback
-        traceback.print_exc()
-        return jsonify({"error": "An internal server error occurred during the scan."}), 500
-
+        traceback.print_exc() # Print full traceback for easier debugging
+        return jsonify({"error": "An internal server error occurred."}), 500
 
 # --- Authentication Endpoints ---
 
@@ -516,6 +557,7 @@ def Registration():
     except Exception as e:
         print(f"🔥 Error during registration: {str(e)}")
         return jsonify({"error": f"Registration failed: {str(e)}"}), 500
+
 
 
 @app.route("/Login", methods=['POST'])
@@ -575,63 +617,88 @@ def Logout():
 @app.route('/api/stats/scan-source-distribution', methods=['GET'])
 @login_required # Requires login
 def get_scan_source_distribution():
-    user_id = session['user_id']
-    role = session['role']
-    print(f"DEBUG /api/stats/scan-source-distribution: User: {user_id}, Role: {role}")
 
+    """
+    Fetches the count of scans by source (Manual Scan, SMS, Email)
+    for displaying in a pie chart. Uses the 'detection' collection.
+    Returns data with names and colors expected by the frontend PieGraph.
+    """
     try:
-        # Define sources and their presentation details
-        sources_to_count = ["User Scan", "SMS", "Email"] # Keep these consistent
-        source_labels = { "User Scan": "Manual Scans", "SMS": "SMS Scans", "Email": "Email Scans" }
+        # Basic check for database collection
+        if 'detection' not in globals() or detection is None:
+             # Use app logger if configured, otherwise print
+             # current_app.logger.error("Database collection 'detection' not available.")
+             print("ERROR: Database collection 'detection' not available.")
+             return jsonify({"error": "Database collection error."}), 500
+
+        # --- Use Frontend-Expected Names and Colors ---
+        sources_to_count = ["SMS", "Email", "Manual Scan"] # Source names to query in DB
         source_styles = {
-            "User Scan": {"color": "#4CAF50", "legendFontColor": "#7F7F7F", "legendFontSize": 15},
-            "SMS": {"color": "#2196F3", "legendFontColor": "#7F7F7F", "legendFontSize": 15},
-            "Email": {"color": "#FF9800", "legendFontColor": "#7F7F7F", "legendFontSize": 15}
+            # Use the correct frontend-expected name as the key
+            # and the correct frontend-expected color
+             # Value 16 color
+            "SMS":         {"color": "#ffde59"}, # Value 8 color
+            "Email":       {"color": "#ff914c"},
+            "Manual Scan": {"color": "#febd59"}  # Value 20 color
+             # Removed legendFontColor/Size as PieGraph doesn't seem to use them
+             # If needed, add them back here and ensure frontend uses them
         }
+        # --- End of Configuration ---
 
-        pie_chart_data = []
+        pie_chart_data = [] # Initialize the list to store results
 
-        # --- Base Query Filter ---
-        base_query = {}
-        if role == 'user':
-            base_query['user_id'] = user_id # Filter by user ID for 'user' role
-            print(f"DEBUG: Applying user filter: {user_id}")
-        # No user_id filter needed for 'admin'
+        # print(f"DEBUG: Counting sources: {sources_to_count}") # Keep minimal debug logs if needed
 
         for source in sources_to_count:
-            # Combine base filter with source filter
-            query_filter = base_query.copy() # Start with base (empty or user_id)
-            query_filter["metadata.source"] = source # Add the source filter
-            print(f"DEBUG: Counting source '{source}' with filter: {query_filter}")
-
+            count = 0 # Default count to 0
             try:
-                count = detection_collection.count_documents(query_filter)
-                print(f"DEBUG: Count for '{source}': {count}")
-            except Exception as count_err:
-                print(f"ERROR during count_documents for '{source}': {count_err}")
-                count = 0 # Default to 0 on error
+                # Build the query filter for the current source
+                query_filter = {"metadata.source": source}
+                # print(f"DEBUG: Querying count for: {query_filter}") # Optional debug
 
-            label = source_labels.get(source, source)
-            style = source_styles.get(source, {"color": "#cccccc", "legendFontColor": "#7F7F7F", "legendFontSize": 15})
+                # Perform the count directly - NO NEED for find_one
+                count = detection.count_documents(query_filter)
+                # print(f"DEBUG: Count result for '{source}': {count}") # Optional debug
 
+            except pymongo.errors.PyMongoError as count_err:
+                 # Log the specific database error during count
+                 # current_app.logger.error(f"Database error counting source '{source}': {count_err}")
+                 print(f"ERROR: Database error counting source '{source}': {count_err}")
+                 # Keep count as 0 if error occurs during counting
+                 count = 0
+            except Exception as E:
+                # Catch any other unexpected error during the count for this source
+                print(f"ERROR: Unexpected error counting source '{source}': {E}")
+                count = 0
+
+
+            # Get the style dictionary for this source (mainly for color)
+            # Provide a default grey color if source somehow not in styles
+            style = source_styles.get(source, {"color": "#CCCCCC"})
+
+            # Append the data for this source in the format expected by frontend
             pie_chart_data.append({
-                "name": label,
-                "population": count,
-                "color": style["color"],
-                "legendFontColor": style["legendFontColor"],
-                "legendFontSize": style["legendFontSize"]
+                "name": source,         # Use the source name directly (e.g., "Manual Scan")
+                "population": count,    # The count obtained from the database
+                "color": style["color"], # The color specified for this source
+                # Add other fields like legendFontColor ONLY if frontend uses them
             })
 
-        print(f"✅ Scan Source Distribution data (Role: {role}): {pie_chart_data}")
-        return jsonify(pie_chart_data), 200
+        # print(f"✅ Scan Source Distribution data being sent: {pie_chart_data}") # Final check
+        return jsonify(pie_chart_data), 200 # Return the list as JSON
 
     except pymongo.errors.PyMongoError as dbe:
-        print(f"🔥 Database error in /scan-source-distribution: {str(dbe)}")
+        # Handle broader database connection/operation errors
+        # current_app.logger.error(f"Database error in get_scan_source_distribution: {dbe}")
+        print(f"ERROR: Database error in get_scan_source_distribution: {dbe}")
         return jsonify({"error": "Database query error"}), 500
+
     except Exception as e:
-        print(f"🔥 Unexpected error in /scan-source-distribution: {str(e)}")
+        # Handle any other unexpected errors in the main try block
+        # current_app.logger.error(f"Unexpected error in get_scan_source_distribution: {e}", exc_info=True)
+        print(f"ERROR: Unexpected error in get_scan_source_distribution: {e}")
         import traceback
-        traceback.print_exc()
+        traceback.print_exc() # Print stack trace for unexpected errors
         return jsonify({"error": "An internal server error occurred"}), 500
 
 
