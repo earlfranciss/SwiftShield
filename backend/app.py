@@ -33,6 +33,7 @@ app.config["DEBUG"] = True
 # Remove cache config lines from here if you set them above
 # app.config["CACHE_TYPE"] = "SimpleCache"
 # app.config["CACHE_DEFAULT_TIMEOUT"] = 300
+# testing
 
 # ---> Initialize cache WITH the app object using init_app <---
 cache.init_app(app)
