@@ -24,6 +24,7 @@ from flask_caching import Cache
 import requests # Make sure requests is imported
 import json     # Make sure json is imported
 from functools import wraps # Needed for decorators
+from flask_login import login_required, logout_user, current_user
 
 # Import your feature extraction class (ensure filename is correct)
 try:
@@ -549,6 +550,7 @@ def Login():
         {'_id': user['_id']},
         {"$set": {"last_login": datetime.now(PH_TZ)}} # Use PH timezone
     )
+    
 
     print(f"✅ User logged in: {email}, Role: {session['role']}")
     return jsonify({
@@ -562,12 +564,36 @@ def Login():
 
 
 @app.route("/Logout", methods=['POST'])
-@login_required # Ensure user is logged in to log out
+@login_required # Still good practice: only logged-in users can logout
 def Logout():
-    user_email = session.get('email', 'Unknown user')
-    session.clear() # Clear all session data
-    print(f"✅ User logged out: {user_email}")
-    return jsonify({"message": "Logout successful"}), 200
+    # Get user identifier *before* logging out for logging purposes
+    # Uses Flask-Login's current_user proxy if available
+    user_identifier = 'Unknown User'
+    if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+         # Try getting email or id, common user attributes
+         user_identifier = getattr(current_user, 'email', getattr(current_user, 'id', 'Authenticated User'))
+
+    try:
+        # *** 2. Use Flask-Login's logout_user() function ***
+        logout_user()
+        # This function handles clearing the relevant session keys for Flask-Login
+        # (like user_id, _fresh, etc.)
+
+        # session.clear() # Generally redundant if using logout_user() unless you store
+                        # OTHER non-auth related things in the session you also want cleared.
+                        # If only using session for Flask-Login, logout_user() is sufficient.
+
+        print(f"✅ User logged out via backend: {user_identifier}")
+
+        # Important: The backend's main job here is clearing its *own* session state.
+        # The React Native frontend is responsible for clearing its AsyncStorage.
+        return jsonify({"message": "Logout successful"}), 200
+
+    except Exception as e:
+        # Basic error handling for unexpected issues during logout
+        print(f"❌ Error during server-side logout for user {user_identifier}: {e}")
+        # You might want more specific error handling depending on your setup
+        return jsonify({"message": "Server error during logout"}), 500
 
 
 # --- Analytics Endpoints (RBAC Applied) ---
@@ -1176,13 +1202,7 @@ def get_reports():
 
     try:
         query = {}
-
-        # Filter by archive status
-        if report_filter == "archived":
-            query["status"] = "Archived" # Or query["archived_at"] = {"$exists": True}
-        else: # Default to active (not archived)
-            query["status"] = {"$ne": "Archived"} # Or query["archived_at"] = {"$exists": False}
-
+        
         # Apply search query
         if search_query:
             query["$or"] = [
@@ -1209,7 +1229,7 @@ def get_reports():
                  # Format dates for display
                 "created_at": report.get("created_at").isoformat() if report.get("created_at") else None,
                 "updated_at": report.get("updated_at").isoformat() if report.get("updated_at") else None,
-                "archived_at": report.get("archived_at").isoformat() if report.get("archived_at") else None,
+                
             }
             reports_list.append(report_data)
 
