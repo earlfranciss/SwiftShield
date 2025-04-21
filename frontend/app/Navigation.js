@@ -8,14 +8,18 @@ import {
   Switch,
   StyleSheet,
   Image,
-  AppState
+  AppState,
 } from "react-native";
 // **** Import useRef ****
-import React, { useState, useEffect, useRef } from "react"; 
+import React, { useState, useEffect, useRef } from "react";
 import GradientScreen from "./screens/components/GradientScreen";
 import TopBar from "./screens/components/TopBar";
 import NotificationToast from "./screens/components/NotificationToast";
-import { requestNotificationPermissions, setupNotificationListeners, scheduleNotification } from "./services/NotificationService";
+import {
+  requestNotificationPermissions,
+  setupNotificationListeners,
+  scheduleNotification,
+} from "./services/NotificationService";
 import config from "./config";
 
 //Screens
@@ -31,13 +35,13 @@ import Reports from "./screens/reportsPage/Reports";
 import CreateReport from "./screens/reportsPage/CreateReport";
 import EditReport from "./screens/reportsPage/EditReport";
 import EditProfile from "./screens/EditProfile";
+import WebViewScreen from "./screens/WebViewScreen/WebViewScreen";
 
 //Icons
 import { Entypo } from "@expo/vector-icons";
 import Octicons from "@expo/vector-icons/Octicons";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import Ionicons from "@expo/vector-icons/Ionicons";
-
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -54,60 +58,68 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
     globalNavigation = navigation;
   }, [navigation]);
 
-
   // Define the Settings Stack function
-  function SettingsStack({ navigation, route, isDarkMode, onToggleDarkMode, hasUnreadNotifications, onNotificationRead }) {
+  function SettingsStack({
+    navigation,
+    route,
+    isDarkMode,
+    onToggleDarkMode,
+    hasUnreadNotifications,
+    onNotificationRead,
+  }) {
     // navigation here is from the PARENT (Tab Navigator) - USE WITH CAUTION inside stack screens
-  
+
     const commonGradientProps = {
       isDarkMode: isDarkMode,
       onToggleDarkMode: onToggleDarkMode,
       // DO NOT pass parent navigation here unless GradientScreen specifically needs it
       // navigation: navigation,
     };
-  
+
     const commonTopBarProps = {
-        isDarkMode: isDarkMode,
-        onToggleDarkMode: onToggleDarkMode,
-        // Pass the PARENT navigation to TopBar (likely correct for its icons/actions)
-        navigation: navigation,
-        hasUnreadNotifications: hasUnreadNotifications,
-        onNotificationRead: onNotificationRead,
+      isDarkMode: isDarkMode,
+      onToggleDarkMode: onToggleDarkMode,
+      // Pass the PARENT navigation to TopBar (likely correct for its icons/actions)
+      navigation: navigation,
+      hasUnreadNotifications: hasUnreadNotifications,
+      onNotificationRead: onNotificationRead,
     };
 
-  return (
-    <SettingsStackNav.Navigator screenOptions={{ headerShown: false }}>
-      <SettingsStackNav.Screen name="SettingsMain">
-        {/* 'props' here contains the CORRECT navigation for SettingsStackNav */}
-        {props => (
-          <GradientScreen {...commonGradientProps} topBar={<TopBar {...commonTopBarProps}/>}>
-            {/* Pass the STACK's props DOWN, remove explicit override */}
-            <Settings {...props} isDarkMode={isDarkMode}/>
-          </GradientScreen>
-        )}
-      </SettingsStackNav.Screen>
-      <SettingsStackNav.Screen name="PushNotifications">
-                {props => (
-                    <GradientScreen {...commonGradientProps}>
-                        {/* No TopBar needed here */}
-                        <PushNotificationsScreen {...props} />
-                    </GradientScreen>
-                )}
-            </SettingsStackNav.Screen>
-      <SettingsStackNav.Screen name="ConnectedApps">
-         {/* 'props' here contains the CORRECT navigation for SettingsStackNav */}
-         {props => (
-            <GradientScreen {...commonGradientProps}>
-                 {/* Pass the STACK's props DOWN, remove explicit override */}
-                <ConnectedAppsScreen {...props} />
+    return (
+      <SettingsStackNav.Navigator screenOptions={{ headerShown: false }}>
+        <SettingsStackNav.Screen name="SettingsMain">
+          {/* 'props' here contains the CORRECT navigation for SettingsStackNav */}
+          {(props) => (
+            <GradientScreen
+              {...commonGradientProps}
+              topBar={<TopBar {...commonTopBarProps} />}
+            >
+              {/* Pass the STACK's props DOWN, remove explicit override */}
+              <Settings {...props} isDarkMode={isDarkMode} />
             </GradientScreen>
-         )}
-      </SettingsStackNav.Screen>
-       {/* Add other screens that should be nested under Settings tab here */}
-    </SettingsStackNav.Navigator>
-  );
-}
-  
+          )}
+        </SettingsStackNav.Screen>
+        <SettingsStackNav.Screen name="PushNotifications">
+          {(props) => (
+            <GradientScreen {...commonGradientProps}>
+              {/* No TopBar needed here */}
+              <PushNotificationsScreen {...props} />
+            </GradientScreen>
+          )}
+        </SettingsStackNav.Screen>
+        <SettingsStackNav.Screen name="ConnectedApps">
+          {/* 'props' here contains the CORRECT navigation for SettingsStackNav */}
+          {(props) => (
+            <GradientScreen {...commonGradientProps}>
+              {/* Pass the STACK's props DOWN, remove explicit override */}
+              <ConnectedAppsScreen {...props} />
+            </GradientScreen>
+          )}
+        </SettingsStackNav.Screen>
+        {/* Add other screens that should be nested under Settings tab here */}
+      </SettingsStackNav.Navigator>
+    );
+  }
 
   const [isDarkMode, setDarkMode] = useState(false);
 
@@ -166,49 +178,51 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
         })}
       >
         <Tab.Screen name="Home" options={{ headerShown: false }}>
-          {() => (
+          {(props) => (
             <GradientScreen
-              onToggleDarkMode={handleToggleDarkMode}
+              // Pass props relevant to GradientScreen if needed
               isDarkMode={isDarkMode}
-              navigation={navigation}
+              onToggleDarkMode={handleToggleDarkMode}
+              // Pass the correct navigation object to TopBar
               topBar={
                 <TopBar
-                  onToggleDarkMode={handleToggleDarkMode}
                   isDarkMode={isDarkMode}
-                  navigation={navigation}
+                  onToggleDarkMode={handleToggleDarkMode}
+                  // props.navigation is the navigation for the Home screen
+                  navigation={props.navigation}
                   hasUnreadNotifications={hasUnreadNotifications}
                   onNotificationRead={onNotificationRead}
                 />
               }
             >
-              <Home />
+              <Home {...props} />
             </GradientScreen>
           )}
         </Tab.Screen>
 
         <Tab.Screen name="Analytics" options={{ headerShown: false }}>
-          {() => (
+          {(props) => (
             <GradientScreen
-              onToggleDarkMode={handleToggleDarkMode}
               isDarkMode={isDarkMode}
-              navigation={navigation}
+              onToggleDarkMode={handleToggleDarkMode}
               topBar={
                 <TopBar
-                  onToggleDarkMode={handleToggleDarkMode}
                   isDarkMode={isDarkMode}
-                  navigation={navigation}
+                  onToggleDarkMode={handleToggleDarkMode}
+                  // props.navigation is the navigation for the Analytics screen
+                  navigation={props.navigation}
                   hasUnreadNotifications={hasUnreadNotifications}
                   onNotificationRead={onNotificationRead}
                 />
               }
             >
-              <Analytics />
+              <Analytics {...props} />
             </GradientScreen>
           )}
         </Tab.Screen>
 
         <Tab.Screen name="Logs" options={{ headerShown: false }}>
-          {() => (
+          {(props) => (
             <GradientScreen
               onToggleDarkMode={handleToggleDarkMode}
               isDarkMode={isDarkMode}
@@ -229,8 +243,9 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
         </Tab.Screen>
 
         <Tab.Screen name="Settings" options={{ headerShown: false }}>
-          {/* Render SettingsStack, passing down necessary props */}
-          {props => ( // props here includes navigation and route from the Tab navigator
+          {(
+            props // props here includes navigation and route from the Tab navigator
+          ) => (
             <SettingsStack
               {...props} // Pass down tab's navigation/route
               isDarkMode={isDarkMode}
@@ -254,7 +269,7 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
       <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
       <Stack.Screen name="EditProfile" component={EditProfile} />
       <Stack.Screen name="Tabs">
-        {props => (
+        {(props) => (
           <TabGroup
             {...props}
             hasUnreadNotifications={hasUnreadNotifications}
@@ -262,7 +277,7 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
           />
         )}
       </Stack.Screen>
-      
+
       <Stack.Screen name="Reports" component={Reports} />
       <Stack.Screen name="CreateReport" component={CreateReport} />
       <Stack.Screen name="EditReport" component={EditReport} />
@@ -270,6 +285,16 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
         name="Notifications"
         component={Notifications}
         options={{ animation: "slide_from_right" }}
+      />
+
+      <Stack.Screen
+        name="WebViewScreen" // Name used in navigation.navigate('WebViewScreen', ...)
+        component={WebViewScreen}
+        options={{
+          headerShown: false, // Use the custom header inside WebViewScreen
+          presentation: "modal", // Optional: Makes it slide up like a modal
+          animation: "slide_from_bottom", // Explicitly define modal animation
+        }}
       />
     </Stack.Navigator>
   );
@@ -280,7 +305,7 @@ export default function Navigation() {
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const appState = useRef(AppState.currentState);
   // **** Add useRef to track the last notified ID ****
-  const lastNotifiedIdRef = useRef(null); 
+  const lastNotifiedIdRef = useRef(null);
 
   // Set up notifications on app start
   useEffect(() => {
@@ -291,7 +316,7 @@ export default function Navigation() {
     const cleanupListeners = setupNotificationListeners(
       (notification) => {
         // Handle received notification
-        console.log('Notification received', notification);
+        console.log("Notification received", notification);
       },
       (response) => {
         // Handle notification response (user tap)
@@ -313,7 +338,7 @@ export default function Navigation() {
 
   // Monitor app state to determine notification type
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
       appState.current = nextAppState;
     });
 
@@ -327,16 +352,18 @@ export default function Navigation() {
     try {
       // Check if config and BASE_URL exist
       if (!config || !config.BASE_URL) {
-        console.error('BASE_URL is not defined in config');
+        console.error("BASE_URL is not defined in config");
         return;
       }
 
       const response = await fetch(`${config.BASE_URL}/logs`);
       // **** Added error handling for non-ok responses ****
       if (!response.ok) {
-          console.error(`Error fetching logs: ${response.status} ${response.statusText}`);
-          // Optionally handle specific statuses like 404, 500 etc.
-          return; 
+        console.error(
+          `Error fetching logs: ${response.status} ${response.statusText}`
+        );
+        // Optionally handle specific statuses like 404, 500 etc.
+        return;
       }
       const data = await response.json();
 
@@ -350,7 +377,7 @@ export default function Navigation() {
         // console.log("[Check] No logs found or invalid data format from API."); // Optional debug log
       }
     } catch (error) {
-      console.error('Error during checkForNewNotifications fetch:', error);
+      console.error("Error during checkForNewNotifications fetch:", error);
     }
   };
 
@@ -358,15 +385,18 @@ export default function Navigation() {
   const handleNewNotification = (notification) => {
     // **** Ensure notification and its ID exist ****
     if (!notification || !notification.id) {
-        console.warn("handleNewNotification received invalid notification data:", notification);
-        return;
+      console.warn(
+        "handleNewNotification received invalid notification data:",
+        notification
+      );
+      return;
     }
 
     // Determine if link is malicious based on icon or other property
     const isMalicious = notification.icon === "suspicious-icon";
-    const title = isMalicious ?
-      "Warning: Malicious Link Detected" :
-      "Safe Link Verified";
+    const title = isMalicious
+      ? "Warning: Malicious Link Detected"
+      : "Safe Link Verified";
     const body = notification.link || ""; // Use link as body
 
     // Set unread notifications flag (might need refinement later if you track read status globally)
@@ -374,42 +404,50 @@ export default function Navigation() {
 
     // **** Core Logic: Check if the ID is new ****
     if (notification.id !== lastNotifiedIdRef.current) {
-      console.log(`[New Notification] ID ${notification.id} is different from last notified ID ${lastNotifiedIdRef.current}. Showing toast.`); // Debug log
-      if (appState.current === 'active') {
+      console.log(
+        `[New Notification] ID ${notification.id} is different from last notified ID ${lastNotifiedIdRef.current}. Showing toast.`
+      ); // Debug log
+      if (appState.current === "active") {
         // App is in foreground, show in-app notification
         setInAppNotification({
           id: notification.id, // Use the actual ID from the log
           link: notification.link, // Use link from log data
-          icon: notification.icon || (isMalicious ? "suspicious-icon" : "safe-icon"),
+          icon:
+            notification.icon ||
+            (isMalicious ? "suspicious-icon" : "safe-icon"),
           // Add any other properties your NotificationToast needs from the notification object
         });
         // **** Update the last notified ID ****
         lastNotifiedIdRef.current = notification.id;
       } else {
         // App is in background, show system notification
-        console.log(`[New Notification] App not active. Scheduling system notification for ID ${notification.id}.`); // Debug log
+        console.log(
+          `[New Notification] App not active. Scheduling system notification for ID ${notification.id}.`
+        ); // Debug log
         scheduleNotification(title, body, notification);
         // **** Update the last notified ID even for background notifications ****
         // This prevents showing an in-app toast for the same item when the app returns to foreground
-        lastNotifiedIdRef.current = notification.id; 
+        lastNotifiedIdRef.current = notification.id;
       }
     } else {
-       console.log(`[New Notification] ID ${notification.id} is the SAME as last notified ID ${lastNotifiedIdRef.current}. Skipping toast.`); // Debug log
+      console.log(
+        `[New Notification] ID ${notification.id} is the SAME as last notified ID ${lastNotifiedIdRef.current}. Skipping toast.`
+      ); // Debug log
     }
   };
 
   // Function to navigate to notifications screen using the global navigation variable
   const navigateToNotificationsScreen = (data) => {
     if (globalNavigation) {
-      globalNavigation.navigate('Notifications', {
+      globalNavigation.navigate("Notifications", {
         isDarkMode: false, // Pass relevant props if needed
         onToggleDarkMode: () => {},
-        ...data // Pass any data needed by the Notifications screen
+        ...data, // Pass any data needed by the Notifications screen
       });
       // Clear unread notifications when navigating to the Notifications screen
       setHasUnreadNotifications(false);
     } else {
-        console.warn("Cannot navigate: globalNavigation is not set.");
+      console.warn("Cannot navigate: globalNavigation is not set.");
     }
   };
 
@@ -425,18 +463,24 @@ export default function Navigation() {
       {inAppNotification && (
         <NotificationToast
           notification={inAppNotification}
-          onPress={(notificationData) => { // Renamed param for clarity
-            console.log("Toast pressed. Navigating with data:", notificationData); // Debug log
+          onPress={(notificationData) => {
+            // Renamed param for clarity
+            console.log(
+              "Toast pressed. Navigating with data:",
+              notificationData
+            ); // Debug log
             if (globalNavigation) {
               // Pass the specific notification data needed by the screen
-              globalNavigation.navigate('Notifications', { 
+              globalNavigation.navigate("Notifications", {
                 notificationIdToHighlight: notificationData.id, // Example: pass ID to highlight
                 // Pass other relevant props if Notifications screen needs them
               });
               setInAppNotification(null); // Dismiss toast after navigation
               setHasUnreadNotifications(false); // Mark as read
             } else {
-                console.warn("Cannot navigate from toast press: globalNavigation not set.");
+              console.warn(
+                "Cannot navigate from toast press: globalNavigation not set."
+              );
             }
           }}
           onDismiss={() => {
