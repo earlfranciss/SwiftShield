@@ -15,18 +15,17 @@ if not app.config["SECRET_KEY"]:
     raise ValueError("FLASK_SECRET_KEY is not set in .env")
 
 # --- Flask-Session Configuration ---
-# Choose a session type. 'filesystem' is simple for development.
 # Use 'redis', 'mongodb', or 'sqlalchemy' for production.
-app.config["SESSION_TYPE"] = "filesystem" # Or "mongodb" if preferred
-app.config["SESSION_PERMANENT"] = False # Usually false for OAuth flows
-app.config["SESSION_USE_SIGNER"] = True # Encrypt session cookie
+app.config["SESSION_TYPE"] = "mongodb" 
+app.config["SESSION_PERMANENT"] = False 
+app.config["SESSION_USE_SIGNER"] = True 
 # If using mongodb session type:
-# app.config["SESSION_MONGODB_DB"] = 'your_session_db_name'
-# app.config["SESSION_MONGODB_COLLECT"] = 'sessions'
-# app.config["SESSION_MONGODB"] = pymongo.MongoClient(os.getenv("DB_CONNECTION_STRING"))
+app.config["SESSION_MONGODB_DB"] = 'SwiftShield_Session'
+app.config["SESSION_MONGODB_COLLECT"] = 'sessions'
+app.config["SESSION_MONGODB"] = pymongo.MongoClient(os.getenv("DB_CONNECTION_STRING"))
 
-Session(app) # Initialize Flask-Session AFTER setting config
-# --- End Session Config ---
+# Initialize Flask-Session AFTER setting config
+Session(app) 
 
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 bcrypt = Bcrypt(app)

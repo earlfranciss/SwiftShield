@@ -23,8 +23,8 @@ const DUMMY_ICON_GMAIL = require('../../../assets/images/gmail_icon.png'); // Re
 
 const ConnectedAppsScreen = ({ navigation }) => { // Assuming you use react-navigation
   const [apps, setApps] = useState([
-    { id: 'msg', name: 'Messages', icon: DUMMY_ICON_MSG, enabled: true },
-    { id: 'gmail', name: 'Gmail', icon: DUMMY_ICON_GMAIL, enabled: true },
+    { id: 'msg', name: 'Messages', icon: DUMMY_ICON_MSG, enabled: false },
+    { id: 'gmail', name: 'Gmail', icon: DUMMY_ICON_GMAIL, enabled: false },
     // Add more apps here if needed
   ]);
 
@@ -52,6 +52,23 @@ const ConnectedAppsScreen = ({ navigation }) => { // Assuming you use react-navi
     }
   };
 
+
+  const handleConnectGmail = () => {
+      // Construct the backend login URL
+      // Optionally pass the desired deep link redirect as a query param
+      const finalRedirect = encodeURIComponent('swiftshield://google/auth/success'); // Your app's deep link scheme
+      const googleLoginUrl = `${config.BASE_URL}/google/login?final_redirect=${finalRedirect}`;
+  
+      console.log("Opening Google Login URL:", googleLoginUrl);
+  
+      // Open the URL in the system browser or an in-app browser
+      Linking.openURL(googleLoginUrl).catch(err => {
+         console.error("Failed to open URL", err);
+         Alert.alert("Error", "Could not open the connection page.");
+      });
+    };
+
+    
 
   return (
     <View style={styles.screenContainer}>

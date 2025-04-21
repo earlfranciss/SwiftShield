@@ -39,10 +39,10 @@ export default function CreateReport({ navigation, route }) {
           text: "Submit",
           onPress: async () => {
             try {
-              console.log("Submitting report to:", `${config.BASE_URL}/reports/create-report`);
+              console.log("Submitting report to:", `${config.BASE_URL}/reports`);
               console.log("Payload:", { title: trimmedTitle, description: trimmedDescription });
 
-              const response = await fetch(`${config.BASE_URL}/reports/create-report`, {
+              const response = await fetch(`${config.BASE_URL}/reports`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",

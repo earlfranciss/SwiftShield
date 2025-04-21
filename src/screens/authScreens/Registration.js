@@ -61,7 +61,7 @@ export default function Registration({ navigation }) {
     console.log("Sending registration data:", { firstName, lastName, email, contactNumber, password });
   
     try {
-      const response = await fetch(`${config.BASE_URL}/auth/Registration`, {
+      const response = await fetch(`${config.BASE_URL}/Registration`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

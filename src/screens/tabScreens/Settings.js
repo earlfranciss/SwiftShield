@@ -13,43 +13,35 @@ import config from '../../config/config';
 
 
 export default function Settings({ navigation, isDarkMode }) {
-  const handleConnectGmail = () => {
-    // Construct the backend login URL
-    // Optionally pass the desired deep link redirect as a query param
-    const finalRedirect = encodeURIComponent('swiftshield://google/auth/success'); // Your app's deep link scheme
-    const googleLoginUrl = `${config.BASE_URL}/google/login?final_redirect=${finalRedirect}`;
-
-    console.log("Opening Google Login URL:", googleLoginUrl);
-
-    // Open the URL in the system browser or an in-app browser
-    Linking.openURL(googleLoginUrl).catch(err => {
-       console.error("Failed to open URL", err);
-       Alert.alert("Error", "Could not open the connection page.");
-    });
-  };
-
-
   const handleSignOut = () => {
     // Navigate to the Login screen when the user clicks "Sign-out"
-    navigation.replace("Login"); // navigation will be passed correctly now
+    navigation.replace("Login");
+  };
+
+  // --- Handler for Profile Section Press ---
+  const handleProfilePress = () => {
+    console.log("Profile section pressed!");
+    // Navigate to a new screen, e.g., 'ProfileDetails'
+    // Make sure you have a 'ProfileDetails' screen defined in your navigator
+    navigation.navigate("EditProfile");
+
   };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Profile Section */}
-      <View style={styles.profileSection}>
+      {/* Profile Section - NOW CLICKABLE */}
+      <TouchableOpacity
+        style={styles.profileSection} // Apply the style directly to TouchableOpacity
+        onPress={handleProfilePress}   // Add the onPress handler
+        activeOpacity={0.7} // Optional: control the feedback intensity
+      >
+        {/* Inner content remains the same */}
         <View style={styles.avatar}></View>
         <View>
           <Text style={styles.name}>John Doe</Text>
           <Text style={styles.email}>johndoe@email.com</Text>
         </View>
-      </View>
-      
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Button title="Connect Gmail Account" onPress={handleConnectGmail} />
-        {/* Other settings */}
-      </View>
-    
+      </TouchableOpacity>
 
       {/* Options Section */}
       <TouchableOpacity
@@ -73,13 +65,13 @@ export default function Settings({ navigation, isDarkMode }) {
           <Text style={styles.optionText}>Privacy Policy</Text>
         </TouchableOpacity>
 
-       {/* Help & Support to Reports */} 
+       {/* Help & Support to Reports */}
         <TouchableOpacity
           style={styles.optionButton}
           onPress={() =>
             navigation.navigate("Reports", {
               isDarkMode: isDarkMode,
-              onToggleDarkMode: handleSignOut, // Pass any function if needed
+              // onToggleDarkMode: handleSignOut, // Pass only if Reports screen needs this specific function
             })
           }
         >
@@ -102,21 +94,28 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
 
+  // Style applied to the TouchableOpacity now
   profileSection: {
     backgroundColor: "#3AED97",
     width: "90%",
     borderRadius: 10,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: "row", // Keep for layout
+    alignItems: "center",  // Keep for layout
     padding: 20,
     marginBottom: 20,
+    // Add shadow for consistency if desired (optional)
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
 
   avatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "#000",
+    backgroundColor: "#000", // Placeholder color
     marginRight: 15,
   },
 
@@ -136,7 +135,7 @@ const styles = StyleSheet.create({
     width: "90%",
     borderRadius: 10,
     padding: 15,
-    alignItems: "flex-start",
+    alignItems: "flex-start", // Text aligned left
     marginVertical: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -152,7 +151,7 @@ const styles = StyleSheet.create({
   },
 
   footer: {
-    marginTop: 120,
+    marginTop: 120, // Adjust spacing as needed
     paddingVertical: 20,
     alignItems: "center",
     width: "100%",
@@ -163,7 +162,7 @@ const styles = StyleSheet.create({
     width: "90%",
     borderRadius: 10,
     padding: 15,
-    alignItems: "center",
+    alignItems: "center", // Center text inside button
     marginTop: 10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },

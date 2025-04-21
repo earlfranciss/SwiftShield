@@ -56,7 +56,7 @@ export default function EditReport({ navigation, route }) {
             console.log("Updating report:", { reportId, status, remarks });
 
             try {
-              const response = await fetch(`${config.BASE_URL}/reports/edit-report/${reportId}`, {
+              const response = await fetch(`${config.BASE_URL}/reports/${reportId}`, {
                 method: "PUT",
                 headers: {
                   "Content-Type": "application/json",

@@ -1,14 +1,39 @@
 import pymongo
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, session
 from app import db
 from app.utils.helpers import time_ago
 from datetime import datetime, timedelta
 from bson.objectid import ObjectId
+from functools import wraps
 
 bp = Blueprint("logs", __name__, url_prefix="/logs")
 
 detection = db.get_collection("Detection")
 logs = db.get_collection("Logs")
+users = db.get_collection("Users")
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # First, check if logged in
+        if 'user_id' not in session:
+            print("DEBUG: Admin access denied. User not logged in.")
+            return jsonify({"error": "Authentication required"}), 401
+
+        # Then, check the role
+        if session.get('role') != 'admin':
+            print(f"DEBUG: Admin access denied. User {session.get('user_id')} has role '{session.get('role')}'")
+            return jsonify({"error": "Admin privileges required"}), 403 # 403 Forbidden
+
+        # Optionally: Check if user_id still exists in DB and role is still admin
+        user = users.find_one({"_id": session['user_id'], "role": "admin"})
+        if not user:
+            session.clear() # Clear invalid session
+            print("DEBUG: Admin access denied. User ID from session not found in DB or role changed.")
+            return jsonify({"error": "Invalid session or insufficient privileges, please log in again"}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
 
 @bp.route("/display-logs", methods=["GET"])
 def get_logs():
@@ -249,6 +274,48 @@ def get_log_details(log_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# DELETE Log Entry - Requires Admin Role
+@bp.route("/delete-logs/<detection_id>", methods=["DELETE"]) # Use detection_id
+@admin_required # Only Admins can delete logs
+def delete_log(detection_id):
+    admin_user_id = session['user_id']
+    print(f"DEBUG /logs/<id> DELETE: Admin: {admin_user_id}, Attempting to delete Detection ID: {detection_id}")
+
+    try:
+        if not ObjectId.is_valid(detection_id):
+            return jsonify({"error": "Invalid ID format"}), 400
+
+        # Find the detection entry to get the detect_id
+        detection_entry = detection.find_one({"_id": ObjectId(detection_id)})
+        if not detection_entry:
+            return jsonify({"error": "Detection entry not found"}), 404
+
+        detect_id_to_delete = detection_entry['detect_id']
+
+        # Delete from Detection collection
+        delete_detection_result = detection.delete_one({"_id": ObjectId(detection_id)})
+
+        # Delete corresponding entry/entries from Logs collection
+        delete_log_result = logs.delete_many({"detect_id": detect_id_to_delete})
+
+        deleted_count = delete_detection_result.deleted_count + delete_log_result.deleted_count
+
+        if deleted_count > 0:
+             print(f"✅ Admin {admin_user_id} deleted Detection ID {detection_id} and associated logs ({delete_log_result.deleted_count}).")
+             return jsonify({"message": f"Log entry (Detection ID: {detection_id}) and associated records deleted successfully"}), 200
+        else:
+             print(f"WARN: Admin {admin_user_id} tried to delete Detection ID {detection_id}, but no documents were deleted.")
+             return jsonify({"error": "Log entry not found or already deleted"}), 404 # Or 200 if deletion is idempotent
+
+    except pymongo.errors.PyMongoError as dbe:
+        print(f"🔥 Database error during log deletion: {str(dbe)}")
+        return jsonify({"error": "Database operation failed during deletion"}), 500
+    except Exception as e:
+        print(f"🔥 Unexpected error during log deletion: {str(e)}")
+        return jsonify({"error": "An internal server error occurred during deletion."}), 500
+
 
 
 

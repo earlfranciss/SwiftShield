@@ -11,6 +11,7 @@ import {
   Platform,
   Alert,
   Linking,
+  ActivityIndicator,
 } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import config from "../../config/config";
@@ -47,7 +48,10 @@ export default function Home() {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
   const [fontsLoaded, setFontsLoaded] = useState(false);
-  const { handleNewScanResult } = useNotifications(); // Get handler from context
+  const [inputError, setInputError] = useState(""); 
+  const [isProtectionEnabled, setIsProtectionEnabled] = useState(false); // Assume starts enabled
+  const [isTogglingProtection, setIsTogglingProtection] = useState(false);
+  const {handleNewScanResult } = useNotifications(); // Get handler from context
   const [isSmsListening, setIsSmsListening] = useState(false);
   // This state tracks if CORE SMS permissions are granted
   const [smsPermissionGranted, setSmsPermissionGranted] = useState(false);
@@ -243,27 +247,40 @@ export default function Home() {
   };
 
   // --- Toggle Function for the Button ---
-  const handleProtectionToggle = async () => { // Make async
-    if (isSmsListening) {
-      // If listener is on, turn it off
-      stopSmsListening();
-    } else {
-      // If listener is off, ensure permissions and then start
-      let permissionsOk = smsPermissionGranted; // Check current state first
-      if (!permissionsOk) {
-         // If permissions weren't granted on mount, request them NOW
-         console.log("SMS permissions not granted, requesting via button...");
-         const result = await requestAllPermissions(); // Try requesting ALL again
-         permissionsOk = result.smsGranted; // Update based on SMS result
+  const handleProtectionToggle = async () => { 
+    if (isTogglingProtection) return;
+    setIsTogglingProtection(true);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    try {
+      if (isSmsListening) {
+        stopSmsListening();
+      } else {
+        let permissionsOk = smsPermissionGranted; 
+        if (!permissionsOk) {
+          console.log("SMS permissions not granted, requesting via button...");
+
+          const result = await requestAllPermissions(); 
+          permissionsOk = result.smsGranted;
+        }
+
+        // Proceed if Permission are now OK
+        if (permissionsOk) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          startSmsListening(); 
+        } else {
+          Alert.alert('Permissions Required', 'SMS read/receive permissions are needed to enable protection. Please grant them when prompted or check App Settings.');
+        }
       }
 
-      // Only proceed to start if CORE SMS permissions are now OK
-      if (permissionsOk) {
-        startSmsListening(); // Start the listener
-      } else {
-         // If still not granted after trying again, inform the user
-         Alert.alert('Permissions Required', 'SMS read/receive permissions are needed to enable protection. Please grant them when prompted or check App Settings.');
-      }
+      setIsProtectionEnabled(prevState => !prevState);
+
+    } catch (error) {
+      console.error("Error toggling protection:", error);
+      // Optionally show an error message to the user
+      // setInputError("Failed to toggle protection state."); // Example using existing error state
+    } finally {
+      setIsTogglingProtection(false); // Stop loading indicator regardless of success/error
     }
   };
 
@@ -272,69 +289,130 @@ export default function Home() {
 
   // Function for manual URL scan input
   const handleUrlScan = async () => {
-    if (!url) {
-        Alert.alert('Input Needed', 'Please enter a URL to scan.');
-        return;
+    setInputError(""); 
+    const trimmedUrl = url.trim();
+  
+    // --- Frontend Validation ---
+    if (!trimmedUrl) {
+      setInputError("Please enter a URL to scan.");
+      return;
     }
-    console.log(`Scanning explicit URL: ${url}`);
-    // Call the unified scan endpoint directly with the URL payload
-    await unifiedScan({ url: url }); // Pass object with 'url' key
+    const urlPattern = /^(https?:\/\/)?(?!localhost)(?!.*:\d{2,5})([\w.-]+\.[a-zA-Z]{2,})(\/[^\s#]*)?$/;
+    if (!urlPattern.test(trimmedUrl)) {
+      setInputError("Please enter a valid URL format (e.g., example.com or https://example.com).");
+      return;
+    }
+
+    // --- Proceed with Fetch ---
+    try {
+      console.log(`Scanning explicit URL: ${trimmedUrl}`);
+      const response = await fetch(`${config.BASE_URL}/scan`, {
+        method: 'POST',
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url: trimmedUrl }),
+      });
+
+      // --- Check Backend Response Status ---
+      if (!response.ok) {
+        let backendErrorMsg = `Backend error: ${response.status}`; 
+        try {
+           const errorData = await response.json();
+           if (errorData && errorData.error) {
+               backendErrorMsg = errorData.error;
+           }
+        } catch (jsonError) {
+          setInputError(jsonError.message || "An error occurred while scanning for phishing.");
+        }
+        setInputError(backendErrorMsg);
+        return;
+      }
+
+      // --- Process Successful Response ---
+      const data = await response.json();
+
+      // Check for error field even in success response (less likely now)
+      if (data.error) {
+        setInputError(`Scan failed: ${data.error}`);
+        return;
+      }
+
+      // Success
+      console.log("Scan Result:", data);
+      // Add sender info back if it came from an SMS payload for notification context
+      const resultDataForNotification = { ...data };
+      if (payload.sender) {
+          resultDataForNotification.sender = payload.sender;
+      }
+
+      // Call the context handler with the backend result (and added sender if applicable)
+      handleNewScanResult(resultDataForNotification);
+      // setUrl("");
+      //showModal(data.log_details);
+
+    } catch (error) { 
+      setInputError(error.message || "An error occurred. Check connection or URL.");
+    }
   };
+  
 
   // Function called ONLY by the SMS listener callback
   const sendSmsToBackendForProcessing = async (smsData) => {
     const extractionEndpoint = `${config.BASE_URL}/sms/classify_content`;
     const payload = { // Payload for extraction endpoint
-        body: smsData.body,
-        sender: smsData.sender
+        url: smsData.body,
+        //sender: smsData.sender
     };
 
     console.log(`Requesting URL extraction from ${extractionEndpoint}`);
 
-    try {
-        // --- Call backend to extract URLs ---
-        const extractionResponse = await fetch(extractionEndpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
+    await unifiedScan({ url: smsData.body }); 
 
-        if (!extractionResponse.ok) {
-            const errorText = await extractionResponse.text();
-            console.error(`URL Extraction Error (${extractionResponse.status}):`, errorText);
-            throw new Error(`URL Extraction failed: ${extractionResponse.status}`);
-        }
+    // try {
+    //     // --- Call backend to extract URLs ---
+    //     const extractionResponse = await fetch(`${config.BASE_URL}/predict/scan`, { //extractionEndpoint, {
+    //         method: 'POST',
+    //         headers: { 'Content-Type': 'application/json' },
+    //         body: JSON.stringify(payload),
+    //     });
 
-        const extractionData = await extractionResponse.json();
-        const extractedUrls = extractionData.extracted_urls || [];
-        const remainingText = extractionData.remaining_text || '';
-        console.log("Extracted URLs from backend:", extractedUrls);
-        console.log("Remaining Text from backend:", remainingText);
+    //     if (!extractionResponse.ok) {
+    //         const errorText = await extractionResponse.text();
+    //         console.error(`URL Extraction Error (${extractionResponse.status}):`, errorText);
+    //         throw new Error(`URL Extraction failed: ${extractionResponse.status}`);
+    //     }
+
+        // const extractionData = await extractionResponse.json();
+        // const extractedUrls = extractionData.extracted_urls || [];
+        // const remainingText = extractionData.remaining_text || '';
+        // console.log("Extracted URLs from backend:", extractedUrls);
+        // console.log("Remaining Text from backend:", remainingText);
 
 
-        // --- URLs exist, scan them individually ---
-        if (extractedUrls.length > 0) {
-            console.log(`Found ${extractedUrls.length} URL(s) to scan.`);
-            // Loop through all extracted URLs and scan them
-            for (const urlToScan of extractedUrls) {
-               console.log(`Scanning extracted URL: ${urlToScan}`);
-               await unifiedScan({ url: urlToScan, sender: smsData.sender }); 
-            }
-        } else {
-            console.log("No URLs found in SMS body by backend.");
-            // Handle non-URL SMS: Pass data indicating no URL was scanned
-            handleNewScanResult({
-                classification: "safe", // Assume safe if no URL
-                text: smsData.body, // Pass original text
-                sender: smsData.sender,
-                reason: "No URL found for scanning",
-                prediction: 1 // Assuming 1 = Safe
-            });
-        }
+        // // --- URLs exist, scan them individually ---
+        // if (extractedUrls.length > 0) {
+        //     console.log(`Found ${extractedUrls.length} URL(s) to scan.`);
+        //     // Loop through all extracted URLs and scan them
+        //     for (const urlToScan of extractedUrls) {
+        //        console.log(`Scanning extracted URL: ${urlToScan}`);
+        //        await unifiedScan({ url: urlToScan, sender: smsData.sender }); 
+        //     }
+        // } else {
+        //     console.log("No URLs found in SMS body by backend.");
+        //     // Handle non-URL SMS: Pass data indicating no URL was scanned
+        //     handleNewScanResult({
+        //         classification: "safe", // Assume safe if no URL
+        //         text: smsData.body, // Pass original text
+        //         sender: smsData.sender,
+        //         reason: "No URL found for scanning",
+        //         prediction: 1 // Assuming 1 = Safe
+        //     });
+        // }
 
-    } catch (error) {
-        console.error("Error during SMS processing pipeline:", error.message);
-    }
+    // } catch (error) {
+    //     console.error("Error during SMS processing pipeline:", error.message);
+    // }
   };
 
 
@@ -342,7 +420,7 @@ export default function Home() {
   const unifiedScan = async (payload) => {
     // 'payload' will be either { url: "..." }
     // OR { url: "...", sender: "..." } <- from extracted SMS URL
-    const endpoint = `${config.BASE_URL}/predict/scan`;
+    const endpoint = `${config.BASE_URL}/scan`;
     console.log(`Sending to ${endpoint} for scanning:`, JSON.stringify({ url: payload.url }));
 
     try {
@@ -403,33 +481,73 @@ export default function Home() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Power Icon and Protection Status - Make Icon Touchable */}
-      <TouchableOpacity onPress={handleProtectionToggle} style={styles.iconContainer}>
-        <Image
-          source={require("../../assets/images/enableButton.png")}
-          style={styles.powerIcon}
-        />
-        <Text style={styles.protectionText}>SMS Protection</Text>
-        <Text style={[styles.statusText, { color: isSmsListening ? '#31EE9A' : '#AAAAAA' }]}>
-          {isSmsListening ? 'Enabled' : 'Disabled'}
-        </Text>
-        {/* Update warning text based ONLY on SMS permission state */}
-        {!smsPermissionGranted && Platform.OS === 'android' && (
-             <Text style={styles.warningText}>Tap to grant SMS permissions</Text>
-         )}
-      </TouchableOpacity>
+      <View style={styles.iconContainer}>
+        {isTogglingProtection ? (
+          <View style={styles.imagePlaceholder}>
+            <ActivityIndicator
+              size="large"
+              color="#3AED97"
+              style={{ transform: [{ scale: 2.5 }] }}
+            />
+          </View>
+        ) : (
+          <TouchableOpacity
+            onPress={handleProtectionToggle}
+            style={styles.iconContainer}
+            disabled={isTogglingProtection}
+          >
+            <Image
+              source={
+                isProtectionEnabled
+                  ? require("../../assets/images/enableButton.png")
+                  : require("../../assets/images/disableButton.png")
+              }
+              style={styles.powerIcon}
+            />
+            <Text style={styles.protectionText}>SMS Protection</Text>
+            <Text
+              style={[
+                styles.statusText,
+                { color: isSmsListening ? "#31EE9A" : "#AAAAAA" },
+              ]}
+            >
+              {isSmsListening ? "Enabled" : "Disabled"}
+            </Text>
+
+            {!smsPermissionGranted && Platform.OS === "android" && (
+              <Text style={styles.warningText}>Tap to grant SMS permissions</Text>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
+
 
       {/* Input and Scan Button */}
       <View style={styles.inputContainer}>
         <Text style={styles.scanLabel}>Scan URL:</Text>
         <TextInput
-          style={styles.textInput}
+          style={[
+              styles.textInput, 
+              inputError ? styles.inputErrorBorder : null, 
+              inputError ? styles.inputTextError : null 
+          ]}
           placeholder="www.malicious.link"
           placeholderTextColor="#6c757d"
-          onChangeText={(text) => setUrl(text)}
+          onChangeText={(text) => {
+              setUrl(text);
+              if (inputError) { 
+                  setInputError("");
+              }
+          }}
           value={url}
           autoCapitalize="none"
           keyboardType="url"
         />
+        {/* --- Display Error Message Below Input --- */}
+        {inputError ? (
+          <Text style={styles.errorText}>{inputError}</Text>
+        ) : null}
+
         <TouchableOpacity style={styles.scanButton} onPress={handleUrlScan}>
           <LinearGradient
             colors={["#3AED97", "#BCE26E", "#FCDE58"]}
@@ -437,7 +555,7 @@ export default function Home() {
             end={{ x: 1, y: 1 }}
             style={styles.gradientButton}
           >
-            <Text style={styles.scanButtonText}>SCAN URL</Text>
+            <Text style={styles.scanButtonText}>SCAN</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -457,7 +575,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    //backgroundColor: '#0d1117', // Example background color
   },
   iconContainer: {
     alignItems: "center",
@@ -468,15 +585,22 @@ const styles = StyleSheet.create({
     height: 140,
     resizeMode: "contain",
   },
-  protectionText: {
+  imagePlaceholder: {
+    width: 130,
+    height: 140, 
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  protectionText: {                         
     color: "#31EE9A",
-    // fontFamily: "Poppins-ExtraBold", // Make sure font is linked
+    // fontFamily: "Poppins-ExtraBold", 
     fontSize: 20,
     fontWeight: "600",
     marginTop: 10,
   },
   statusText: {
-    // fontFamily: "Poppins-ExtraBold", // Make sure font is linked
+    color: "#31EE9A",
+    // fontFamily: "Poppins-ExtraBold", 
     fontSize: 16,
     fontWeight: "400",
     marginTop: 5,
@@ -487,10 +611,10 @@ const styles = StyleSheet.create({
   },
   scanLabel: {
     color: "#31EE9A",
-    fontSize: 16,
+    fontSize: 14,
     marginBottom: 10,
     marginLeft: 5,
-    fontWeight: 'bold',
+    fontWeight: 'semibold',
   },
   textInput: {
     width: "100%",
@@ -500,8 +624,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 10,
     color: "#ffffff",
-    //backgroundColor: "rgba(0, 43, 54, 0.8)", // Darker background
+    //backgroundColor: "rgba(0, 43, 54, 0.8)", 
     marginBottom: 20,
+  },
+  inputErrorBorder: {
+    borderColor: '#FF0000',
+  },
+  inputTextError: {
+    color: '#FF0000', 
+  },
+  errorText: {
+    color: '#FF0000', 
+    fontSize: 12,
+    marginBottom: 15,
+    marginLeft: 5,
   },
   scanButton: {
     width: "100%",

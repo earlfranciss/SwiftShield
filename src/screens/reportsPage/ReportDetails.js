@@ -23,44 +23,6 @@ const ReportDetails = ({ visible, report, onClose, navigation, refreshReports })
     hour12: true,
   });
 
-  // Handle report archiving
-  const handleArchive = async () => {
-    Alert.alert(
-      "Confirm Archive",
-      "Are you sure you want to archive this report?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Archive",
-          onPress: async () => {
-            try {
-              const response = await fetch(
-                `${config.BASE_URL}/reports/archive-report/${report.id}/archive`,
-                {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ remarks: "Report archived" }),
-                }
-              );
-
-              const result = await response.json();
-              if (response.ok) {
-                Alert.alert("Success", "Report archived successfully!");
-                refreshReports(); // Refresh the reports list
-                onClose(); // Close the modal
-              } else {
-                Alert.alert("Error", result.message || "Failed to archive report.");
-              }
-            } catch (error) {
-              console.error("Error archiving report:", error);
-              Alert.alert("Error", "Error archiving report. Please try again.");
-            }
-          },
-        },
-      ]
-    );
-  };
-
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
@@ -85,10 +47,6 @@ const ReportDetails = ({ visible, report, onClose, navigation, refreshReports })
               }}
             >
               <Text style={styles.buttonText}>Edit Report</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.archiveButton} onPress={handleArchive}>
-              <Text style={styles.buttonText}>Archive Report</Text>
             </TouchableOpacity>
           </View>
 
@@ -122,7 +80,6 @@ const styles = StyleSheet.create({
   modalText: { fontSize: 16, marginBottom: 5, color: "#FFFFFF", },
   buttonContainer: { flexDirection: "row", justifyContent: "space-between", marginTop: 15 },
   button: { backgroundColor: "#3AED97", padding: 10, borderRadius: 5, flex: 1, marginRight: 5 },
-  archiveButton: { backgroundColor: "#FF5733", padding: 10, borderRadius: 5, flex: 1, marginLeft: 5 },
   buttonText: { color: "#fff", fontSize: 16, textAlign: "center", fontWeight: "bold" },
   closeButton: { marginTop: 20, alignItems: "center" },
   closeButtonText: { fontSize: 16, color: "#FF5733", fontWeight: "bold" },

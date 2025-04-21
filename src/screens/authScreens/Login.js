@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Image,
 } from "react-native";
 // Replace Expo vector icons with React Native vector icons
 import Ionicons from "react-native-vector-icons/Ionicons";
@@ -13,8 +14,11 @@ import GradientScreen from "../../components/GradientScreen";
 // Replace expo-linear-gradient with react-native-linear-gradient
 import LinearGradient from "react-native-linear-gradient";
 import config from "../../config/config";
+const logoPath = require("../../assets/images/logo.png");
 
 export default function Login({ navigation }) {
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -41,7 +45,7 @@ export default function Login({ navigation }) {
   
   const handleLogin = async () => {
     try {
-      const response = await fetch(`${config.BASE_URL}/auth/Login`, {
+      const response = await fetch(`${config.BASE_URL}/Login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -80,12 +84,17 @@ export default function Login({ navigation }) {
     <GradientScreen>
       <View style={styles.container}>
         {/* Title */}
-        <Text style={styles.title}>SWIFTSHIELD</Text>
+        <Image
+          source={logoPath}
+          style={styles.logo} 
+          resizeMode="contain" 
+        />
 
         {/* Input Fields */}
         <View style={styles.inputContainer}>
           <Ionicons name="person-outline" size={20} color="#3AED97" />
           <TextInput
+            ref={emailRef}
             style={styles.input}
             placeholder="Email"
             placeholderTextColor="rgba(49, 238, 154, 0.66)"
@@ -96,9 +105,11 @@ export default function Login({ navigation }) {
           />
         </View>
 
+        
         <View style={styles.inputContainer}>
           <MaterialIcons name="lock-outline" size={20} color="#3AED97" />
           <TextInput
+            ref={passwordRef}
             style={styles.input}
             placeholder="Password"
             placeholderTextColor="rgba(49, 238, 154, 0.66)"
@@ -165,12 +176,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 30,
   },
-  title: {
-    fontSize: 40,
-    fontFamily: "Poppins-ExtraBold", // Apply the Poppins ExtraBold font
-    color: "#3AED97",
-    marginBottom: 40, // Adjust spacing from top
-    alignItems: "center",
+  logo: {
+    width: 280, // Adjust width as needed
+    height: 200, // Adjust height as needed
+    marginBottom: 25, // Space below the logo (adjust as needed)
+    // No need for alignItems: 'center' here as the container already does that
   },
   inputContainer: {
     flexDirection: "row",

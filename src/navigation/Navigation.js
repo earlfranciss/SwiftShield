@@ -30,6 +30,7 @@ import Notifications from "../screens/stackScreens/Notifications";
 import Login from "../screens/authScreens/Login";
 import Registration from "../screens/authScreens/Registration";
 import ForgotPassword from "../screens/authScreens/ForgotPassword";
+import EditProfile from "../screens/authScreens/EditProfile";
 //Reports Page 
 import Reports from "../screens/reportsPage/Reports";
 import CreateReport from "../screens/reportsPage/CreateReport";
@@ -114,6 +115,7 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
   }, [navigation]);
   
   const [isDarkMode, setDarkMode] = useState(false);
+
   const handleToggleDarkMode = () => {
     setDarkMode((prevMode) => !prevMode);
   };
@@ -325,6 +327,11 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
         component={typeof Notifications === 'function' ? Notifications : ErrorScreen}
         options={{ animation: "slide_from_right" }}
       />
+      <Stack.Screen 
+        name="EditProfile" 
+        component={typeof EditProfile === 'function' ? EditProfile : ErrorScreen} 
+      />
+
     </Stack.Navigator>
   );
 }
@@ -401,7 +408,7 @@ export default function Navigation() {
         return;
       }
       
-      const response = await fetch(`${config.BASE_URL}/logs/display-logs`);
+      const response = await fetch(`${config.BASE_URL}/display-logs`);
       const data = await response.json();
       
       if (data && Array.isArray(data) && data.length > 0) {

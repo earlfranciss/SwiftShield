@@ -28,6 +28,7 @@
     "react-native-chart-kit": "^6.12.0",
     "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "2.14.0",
+    "react-native-image-picker": "^8.2.0",
     "react-native-linear-gradient": "^2.8.3",
     "react-native-paper": "^5.13.1",
     "react-native-push-notification": "^8.1.1",

@@ -1,5 +1,6 @@
 import ipaddress
 import re
+import tldextract
 import urllib.request
 from bs4 import BeautifulSoup
 import socket
@@ -23,6 +24,15 @@ class FeatureExtraction:
         self.response = ""
         self.soup = ""
 
+        try:
+            # Store the tldextract result for reuse
+            self.tld_extract_result = tldextract.extract(url)
+            # Get the effectively registered domain (e.g., google.com from www.google.com)
+            self.registered_domain = self.tld_extract_result.registered_domain
+        except Exception as e:
+            print(f"Warning: tldextract failed for {url}: {e}")
+            self.tld_extract_result = None
+            self.registered_domain = self.domain # Fallback, might be inaccurate
         try:
             self.response = requests.get(url)
             self.soup = BeautifulSoup(self.response.text, 'html.parser')
@@ -71,7 +81,7 @@ class FeatureExtraction:
         self.features.append(self.WebsiteTraffic())
         self.features.append(self.PageRank())
         self.features.append(self.GoogleIndex())
-        # self.features.append(self.LinksPointingToPage())
+        self.features.append(self.LinksPointingToPage())
         self.features.append(self.StatsReport())
 
     # 1. Using IP
@@ -402,5 +412,62 @@ class FeatureExtraction:
         except:
             return 1
 
+        # ... (other methods like GoogleIndex) ...
+
+    # 29. Links Pointing To Page (Heuristic based on internal vs external links)
+    def LinksPointingToPage(self):
+        try:
+            # Check if soup object is available
+            if not self.soup:
+                print(f"Warning: No HTML soup available for {self.url}, cannot check LinksPointingToPage.")
+                return 0 # Neutral or unknown score if page couldn't be fetched/parsed
+
+            number_of_links = 0
+            number_of_internal_links = 0 # Links pointing to the same registered domain
+            for a_tag in self.soup.find_all('a', href=True):
+                href = a_tag['href']
+                # Skip empty, anchor-only, or javascript links
+                if not href or href.startswith('#') or href.startswith('javascript:'):
+                    continue
+
+                number_of_links += 1
+                try:
+                    # Extract the domain from the link's href
+                    link_tld_extract = tldextract.extract(href)
+                    link_registered_domain = link_tld_extract.registered_domain
+
+                    # Check if the link's domain matches the page's domain
+                    # Requires self.registered_domain to be set correctly in __init__
+                    if self.registered_domain and link_registered_domain == self.registered_domain:
+                        number_of_internal_links += 1
+                    # Also consider links that are relative paths (start with / or just filename) as internal
+                    elif href.startswith('/') or ('://' not in href and '.' not in href.split('/')[0]):
+                         number_of_internal_links += 1
+
+                except Exception as e:
+                    # Ignore errors parsing individual links
+                    # print(f"Warning: Could not parse domain from link {href}: {e}")
+                    continue # Treat unparseable links as potentially external for safety? Or ignore? Let's ignore for now.
+
+            if number_of_links == 0:
+                return 1 # No links found, potentially suspicious or very simple page? Return 1 as per some datasets.
+
+            # Calculate percentage of internal links
+            internal_link_percentage = (number_of_internal_links / number_of_links) * 100
+
+            # Define thresholds based on common phishing characteristics
+            # Phishing sites might have fewer internal links compared to legitimate complex sites
+            if internal_link_percentage < 30: # Arbitrary threshold: Less than 30% internal links
+                return -1 # Suspicious (many external links)
+            elif internal_link_percentage <= 60: # Arbitrary threshold: 30% to 60% internal links
+                return 0 # Suspicious / Neutral
+            else: # More than 60% internal links
+                return 1 # Likely Legitimate / Safe
+
+        except Exception as e:
+            print(f"Error checking LinksPointingToPage for {self.url}: {e}")
+            return 0 # Return neutral score on error
+        
+        
     def getFeaturesList(self):
         return self.features

@@ -12,7 +12,7 @@ const ListItem = ({ item, viewableItems }) => {
         { scale: withTiming(isVisible ? 1 : 0.8, { duration: 500 }) },
       ],
     };
-  }, [viewableItems.value]); // Add dependency
+  }, [viewableItems.value]); 
 
   return (
     <Animated.View style={[styles.card, rStyle]}>
@@ -20,7 +20,7 @@ const ListItem = ({ item, viewableItems }) => {
         <Image source={item.icon} style={styles.icon} />
         <View style={styles.textContainer}>
           <Text style={styles.title}>{item.title}</Text>
-          <Text style={styles.link}>{item.link}</Text>
+          <Text style={styles.link} numberOfLines={1}>{item.link}</Text>
         </View>
       </View>
       <Text style={styles.time}>{item.time}</Text>
