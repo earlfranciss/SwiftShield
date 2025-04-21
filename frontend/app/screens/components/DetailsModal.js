@@ -1,276 +1,314 @@
-import React, { useEffect, useState, Linking } from 'react';
+import React from "react";
 import {
   Modal,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
-  ActivityIndicator,
   Image,
-  Alert
-} from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons'; // Ensure you have react-native-vector-icons installed
+  Alert,
+  ActivityIndicator, // <-- Add ActivityIndicator back if needed
+} from "react-native";
+import * as WebBrowser from "expo-web-browser"; // <-- Use this
 
+// --- Icon Assets ---
 const iconMap = {
-  "suspicious": require("../../../assets/images/suspicious-icon.png"),
-  "safe": require("../../../assets/images/safe-icon.png"),
+  suspicious: require("../../../assets/images/suspicious-icon.png"), // Your red icon
+  safe: require("../../../assets/images/safe-icon.png"), // Your safe icon
 };
 
-const severityColors = {
-  "low": "#31EE9A", 
-  "medium": "#FFC107", 
-  "high": "#FF8C00", 
-  "critical": "#FF0000" 
+// --- Severity Colors (Text Color) ---
+// Define colors based on your requirements
+const severityTextColors = {
+  safe: "#000000", // White for Safe text
+  low: "#3AED97", // Your specified Low color
+  medium: "#EED531", // Your specified Medium color
+  high: "#EE8931", // Your specified High color
+  critical: "#ED3A3A", // Your specified Critical color
+  unknown: "#AAAAAA", // Fallback color
 };
 
-
-const handleUpdate = async () => {
-  if (!logDetails?.log_id) return;
-
-  try {
-    const response = await fetch(`${config.BASE_URL}/logs/${logDetails.log_id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        severity: "High",
-        probability: 90,
-        platform: "Web",
-        recommended_action: "Review URL",
-      }),
-    });
-
-    const data = await response.json();
-    if (data.error) {
-      console.error("Error updating log:", data.error);
-    } else {
-      console.log("Log updated successfully:", data);
-      onClose();
+// --- Component Definition ---
+// Changed prop name from logDetails to scanResult
+// Added 'loading' prop in case parent wants to show loading state *within* the modal
+const DetailsModal = ({
+  visible,
+  onClose,
+  onDeletePress,
+  scanResult,
+  loading,
+  navigation,
+}) => {
+  // --- Add Log to see received severity ---
+  // --- ADD LOG HERE ---
+  React.useEffect(() => {
+    // Log only when visible and data is likely present
+    if (visible && scanResult) {
+      console.log(
+        `>>> DetailsModal Color Check: Input Severity='${severityInput}', Lowercase Key='${severityKey}', Calculated Color='${severityColor}'`
+      );
     }
-  } catch (error) {
-    console.error("Error updating log:", error);
+  }, [visible, scanResult, severityInput, severityKey, severityColor]); // Dependencies for the effect
+
+  // --- Data Derivation from Props ---
+  // Use optional chaining (?.) for safety in case scanResult is null/undefined briefly
+  const urlToDisplay = scanResult?.url || "Loading...";
+  const platform = scanResult?.platform || "Unknown";
+
+  // Date Formatting (Month Day, Year)
+  let dateScanned = "Unknown";
+  if (scanResult?.date_scanned) {
+    try {
+      // Use toLocaleDateString with options for "Month Day, Year" format
+      dateScanned = new Date(scanResult.date_scanned).toLocaleDateString(
+        undefined,
+        {
+          // <-- Use toLocaleDateString
+          year: "numeric", // e.g., 2025
+          month: "long", // e.g., April
+          day: "numeric", // e.g., 21
+        }
+      );
+    } catch (e) {
+      console.error("Error formatting date:", e);
+      dateScanned = "Invalid Date"; // Keep error handling
+    }
   }
-};
 
-const handleDelete = async () => {
-  if (!logDetails?.log_id) return;
+  // Severity and Color
+  console.log("Checking Severity: scanResult.severity =", scanResult?.severity);
+  const severity = scanResult?.severity?.toLowerCase() || "unknown";
+  // const severity = scanResult?.severity; // Ensure lowercase for matching keys
+  const severityInput = scanResult?.severity; // Get the raw severity from prop
+  const severityKey = String(severityInput || "unknown").toLowerCase(); // Get lowercase key, default to 'unknown'
+  const severityDisplay = scanResult?.severity || "Unknown"; // Keep original case for display
+  const severityColor =
+    severityTextColors[severity] || severityTextColors.unknown;
 
-  try {
-    const response = await fetch(`${config.BASE_URL}/logs/${logDetails.log_id}`, {
-      method: "DELETE",
-    });
+  // Probability
+  const probabilityPercentage =
+    typeof scanResult?.phishing_percentage === "number"
+      ? `${scanResult.phishing_percentage}%`
+      : "N/A";
 
-    const data = await response.json();
-    if (data.error) {
-      console.error("Error deleting log:", data.error);
-    } else {
-      console.log("Log deleted successfully:", data);
-      onClose();
-    }
-  } catch (error) {
-    console.error("Error deleting log:", error);
-  }
-};
+  // Recommended Action
+  const recommendedAction = scanResult?.recommended_action || "N/A";
 
+  // Determine Icon
+  const isSuspicious = ["critical", "high", "medium"].includes(severity); // Adjust logic as needed
+  const iconSource = isSuspicious ? iconMap.suspicious : iconMap.safe;
 
-const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, onDeletePress }) => {
-  const [screenDimensions, setScreenDimensions] = useState(Dimensions.get('window'));
-  const [editedLog, setEditedLog] = useState({});
-
-  useEffect(() => {
-    if (logDetails) {
-      setEditedLog(logDetails);
-    }
-  }, [logDetails]);
-
-  useEffect(() => {
-    const updateDimensions = () => {
-      setScreenDimensions(Dimensions.get('window'));
-    };
-
-    Dimensions.addEventListener('change', updateDimensions);
-
-    return () => {
-      if (Dimensions.removeEventListener) {
-        Dimensions.removeEventListener('change', updateDimensions);
-      }
-    };
-  }, []);
-
-  const modalWidth = Math.min(screenDimensions.width * 0.85, 350);
-  const modalLeft = (screenDimensions.width - modalWidth) / 2;
-
-  if (!visible) return null;
-
-  // Handle Close Press
+  // --- Handlers ---
   const handleClosePress = () => {
     if (onClose) {
       onClose();
     }
   };
 
-  // Handle Delete Press with confirmation
-  const handleDeletePress = () => {
-    Alert.alert("Confirm Delete", "Are you sure you want to delete this log?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          if (onDelete && editedLog?.id) {
-            onDelete(editedLog.id); // Trigger the delete function
-            handleClosePress(); // Optionally close the modal after deletion
-          }
+  const handleDeleteConfirmation = () => {
+    if (!scanResult?.log_id || !onDeletePress) {
+      console.warn("Cannot delete: Missing log_id or onDeletePress handler.");
+      Alert.alert("Info", "Delete functionality requires log ID and handler.");
+      return;
+    }
+    Alert.alert(
+      "Confirm Delete",
+      "Are you sure you want to delete this scan log?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            onDeletePress(scanResult.log_id); // Use log_id from scanResult
+            handleClosePress();
+          },
         },
-      },
-    ]);
+      ],
+      { cancelable: true }
+    );
   };
 
+  /// --- URL Press Handler (Navigates using the passed prop) ---
+  const handleOpenUrl = () => {
+    const urlString = scanResult?.url;
+    // --- Add Log to see severity being passed ---
+    const severityToPass = scanResult?.severity; // Read it again for clarity
+    console.log(
+      `>>> DetailsModal handleOpenUrl - Passing severity: '${severityToPass}'`
+    );
+    // --- End Log ---
 
-  const isSafe = editedLog?.recommended_action === "Allow URL";
-  const iconSource = isSafe ? iconMap.safe : iconMap.suspicious;
+    if (!urlString) {
+      /* ... alert ... */ return;
+    }
+    const urlToOpen = urlString.startsWith("http")
+      ? urlString
+      : `https://${urlString}`;
 
-  const probability = editedLog?.probability ? Math.round(editedLog.probability) : "N/A";
-  const severity = editedLog?.severity ? editedLog.severity.toLowerCase() : "unknown";
-  const severityColor = severityColors[severity] || "#FFFFFF";
+    if (!navigation) {
+      /* ... error handling ... */ return;
+    }
 
+    try {
+      navigation.navigate("WebViewScreen", {
+        url: urlToOpen,
+        // Ensure we pass the severity string
+        severity: String(severityToPass || "UNKNOWN"), // Force to string
+      });
+      if (onClose) {
+        onClose();
+      }
+    } catch (error) {
+      /* ... error handling ... */
+    }
+  };
+
+  if (!visible) return null;
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClosePress}
     >
       <TouchableOpacity
         style={styles.overlay}
         activeOpacity={1}
         onPress={handleClosePress}
       >
-        <View
-          style={[
-            styles.modalContainer,
-            { width: modalWidth, left: modalLeft, top: screenDimensions.height / 2 - 200 }
-          ]}
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={(e) => e.stopPropagation()}
         >
-            
-          {loading ? (
-            <ActivityIndicator size="large" color="#31EE9A" />
-          ) : logDetails ? (
-            <>
-
-              {/* Dynamic Icon */}
-              <View style={styles.iconContainer}>
-                <Image source={iconSource} style={styles.icon} />
-              </View>
-
-              {/* URL Display */}
-              <TouchableOpacity
-                onPress={() => {
-                  if (logDetails.url) {
-                    Linking.canOpenURL(logDetails.url).then((supported) => {
-                      if (supported) {
-                        Linking.openURL(logDetails.url);
-                      } else {
-                        Alert.alert("Invalid URL", "Cannot open the provided URL.");
-                      }
-                    });
-                  }
-                }}
-              >
-                <Text style={[styles.urlText, { color: '#31EE9A', textDecorationLine: 'underline' }]}>
-                  {logDetails.url || "Unknown URL"}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Analysis Details Container */}
-              <View style={styles.analysisContainer}>
-                <View style={styles.analysisRow}>
-                  <Text style={styles.labelText}>Platform:</Text>
-                  <Text style={styles.valueText}>{logDetails.platform || "Unknown"}</Text>
+          <View style={styles.modalContainer}>
+            {loading ? (
+              <ActivityIndicator
+                size="large"
+                color="#31EE9A"
+                style={{ marginVertical: 50 }}
+              />
+            ) : scanResult ? ( // Check if scanResult data is available
+              <>
+                {/* Icon */}
+                <View style={styles.iconContainer}>
+                  <Image
+                    source={iconSource}
+                    style={styles.icon}
+                    resizeMode="contain"
+                  />
                 </View>
 
-                <View style={styles.analysisRow}>
-                  <Text style={styles.labelText}>Date Scanned:</Text>
-                  <Text style={styles.valueText}>
-                    {logDetails.date_scanned ? new Date(logDetails.date_scanned).toDateString() : "Unknown"}
-                  </Text>
-                </View>
-
-                <View style={styles.analysisRow}>
-                  <Text style={styles.labelText}>Severity Level:</Text>
-                  <Text style={[styles.valueText, { color: severityColor, fontWeight: "bold" }]}>
-                    {logDetails.severity || "Unknown"}
-                  </Text>
-                </View>
-
-                <View style={styles.analysisRow}>
-                  <Text style={styles.labelText}>Probability Percentage:</Text>
-                  <Text style={styles.valueText}>{probability}%</Text>
-                </View>
-
-                <View style={styles.analysisRow}>
-                  <Text style={styles.labelText}>Recommended Action:</Text>
-                  <Text style={styles.valueText}>{logDetails.recommended_action || "Unknown"}</Text>
-                </View>
-              </View>
-
-              {/* Buttons Row (Delete before Close) */}
-              <View style={styles.buttonRow}>
-                {/* Delete Button */}
-                <TouchableOpacity 
-                  style={[styles.sideButton, { backgroundColor: '#FF4C4C' }]} 
-                  onPress={handleDeletePress}  // Trigger the delete when pressed
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.actionButtonText}>Delete</Text>
+                {/* URL Display */}
+                <TouchableOpacity onPress={handleOpenUrl}>
+                  <Text style={[styles.urlText]}>{urlToDisplay}</Text>
                 </TouchableOpacity>
+                <Text style={styles.urlLabel}>URL</Text>
 
-                {/* Close Button */}
-                <TouchableOpacity 
-                  style={styles.sideButton} 
-                  onPress={handleClosePress}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.actionButtonText}>Close</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            <Text style={styles.errorText}>Error loading details.</Text>
-          )}
-        </View>
+                {/* Analysis Details Container */}
+                <View style={styles.analysisContainer}>
+                  {/* Platform Row */}
+                  <View style={styles.analysisRow}>
+                    <Text style={styles.labelText}>Platform:</Text>
+                    <Text style={styles.valueText}>{platform}</Text>
+                  </View>
+
+                  {/* Date Scanned Row */}
+                  <View style={styles.analysisRow}>
+                    <Text style={styles.labelText}>Date Scanned:</Text>
+                    <Text style={styles.valueText}>{dateScanned}</Text>
+                  </View>
+
+                  {/* Severity Level Row */}
+                  <View style={styles.analysisRow}>
+                    <Text style={styles.labelText}>Severity Level:</Text>
+                    {/* Apply dynamic color based on severity */}
+                    <Text
+                      style={[
+                        styles.valueText,
+                        { color: severityColor, fontWeight: "bold" },
+                      ]}
+                    >
+                      {severityDisplay}
+                    </Text>
+                  </View>
+
+                  {/* Probability Percentage Row */}
+                  <View style={styles.analysisRow}>
+                    <Text style={styles.labelText}>
+                      Probability Percentage:
+                    </Text>
+                    <Text style={styles.valueText}>
+                      {probabilityPercentage}
+                    </Text>
+                  </View>
+
+                  {/* Recommended Action Row */}
+                  <View style={[styles.analysisRow, styles.lastRow]}>
+                    <Text style={styles.labelText}>Recommended Action</Text>
+                    <Text style={styles.valueText}>{recommendedAction}</Text>
+                  </View>
+                </View>
+
+                {/* Buttons Row */}
+                <View style={styles.buttonRow}>
+                  {/* Delete Button - Conditionally render if handler exists */}
+                  {onDeletePress && (
+                    <TouchableOpacity
+                      style={[styles.buttonBase, styles.deleteButton]}
+                      onPress={handleDeleteConfirmation}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[styles.buttonText, styles.deleteButtonText]}
+                      >
+                        Delete
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Close Button */}
+                  <TouchableOpacity
+                    style={[styles.buttonBase, styles.closeButton]}
+                    onPress={handleClosePress}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.buttonText}>Close</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              // Fallback if not loading but scanResult is missing
+              <Text style={styles.errorText}>Could not load scan details.</Text>
+            )}
+          </View>
+        </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
   );
 };
 
+// --- Styles --- (Keep your existing styles, maybe add errorText style)
 const styles = StyleSheet.create({
+  // ... (Keep all your existing styles from the previous version) ...
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
   },
   modalContainer: {
-    position: 'absolute',
-    backgroundColor: '#121212',
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-  },
-  headerIcons: {
-    flexDirection: 'row',
-    position: 'absolute',
-    right: 15,
-    top: 15,
-  },
-  iconButton: {
-    marginLeft: 10,
+    backgroundColor: "#1C1C1C",
+    borderRadius: 10,
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    maxWidth: 350,
   },
   iconContainer: {
-    marginBottom: 15,
-    alignItems: 'center',
+    marginBottom: 10,
   },
   icon: {
     width: 70,
@@ -278,75 +316,80 @@ const styles = StyleSheet.create({
   },
   urlText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textAlign: 'center',
+    fontWeight: "600",
+    color: "#FFFFFF",
+    textAlign: "center",
+    marginVertical: 10,
   },
   urlLabel: {
     fontSize: 14,
-    color: '#AAAAAA',
-    marginBottom: 20,
+    color: "#AAAAAA",
+    textAlign: "center",
+    marginBottom: 25,
   },
   analysisContainer: {
-    width: '100%',
-    backgroundColor: '#31EE9A',
-    borderRadius: 15,
+    width: "100%",
+    backgroundColor: "#31EE9A",
+    borderRadius: 12,
     padding: 15,
+    marginBottom: 20,
   },
   analysisRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  lastRow: {
+    paddingBottom: 0,
   },
   labelText: {
-    fontSize: 14,
-    color: '#121212',
-    fontWeight: '500',
+    fontSize: 15,
+    color: "#000000",
+    fontWeight: "500",
   },
   valueText: {
-    fontSize: 14,
-    color: '#121212',
-    fontWeight: '500',
-    textAlign: 'right',
-  },
-  actionButton: {
-    backgroundColor: '#31EE9A',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 15,
-    marginTop: 10,
-    width: '100%',
-    alignItems: 'center',
-  },
-  actionButtonText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  errorText: {
-    color: 'red',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontSize: 15,
+    color: "#000000",
+    fontWeight: "500",
+    textAlign: "right",
+    flexShrink: 1, // Allow text to wrap if needed
+    paddingLeft: 5, // Add small gap
   },
   buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginTop: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
   },
-  
-  sideButton: {
+  buttonBase: {
     flex: 1,
-    backgroundColor: '#31EE9A',
-    paddingVertical: 12,
-    marginHorizontal: 5,
-    borderRadius: 15,
-    alignItems: 'center',
-  },        
+    paddingVertical: 14,
+    marginHorizontal: 8,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteButton: {
+    backgroundColor: "#FF3B30",
+  },
+  closeButton: {
+    backgroundColor: "#31EE9A",
+  },
+  buttonText: {
+    color: "#000000",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  deleteButtonText: {
+    color: "#FFFFFF",
+  },
+  errorText: {
+    // Style for error message display
+    color: "#FF6B6B",
+    fontSize: 16,
+    textAlign: "center",
+    marginVertical: 40,
+  },
 });
 
 export default DetailsModal;
-  

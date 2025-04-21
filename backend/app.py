@@ -660,19 +660,30 @@ def index():
 
         logs.insert_one(log_data) 
         log_data["_id"] = str(logs.inserted_id)
+
+        timestamp_iso = detection_data.get("timestamp").isoformat() if detection_data.get("timestamp") else None
+
+        # Determine Recommended Action based on severity for the modal display
+        recommended_action = "Allow URL" # Default safe action
+        if severity == "CRITICAL" or severity == "HIGH":
+            recommended_action = "Block URL"
+        elif severity == "MEDIUM":
+            recommended_action = "Review URL Carefully"
+        elif severity == "LOW":
+             recommended_action = "Proceed with Caution"
         
         # Response
         response = {
-            "url": url,
-            "prediction": int(y_pred),
-            "safe_percentage": y_pro_non_phishing * 100,
-            "phishing_percentage": phishing_percentage,
-            "severity": severity,  # ✅ Return severity in API response
-            "is_shortener": is_shortener,
-            "shortener_domain": shortener_domain,
-            "detect_id": detect_id,
+            "url": url, # Needed for display and opening link
+            "phishing_percentage": round(phishing_percentage, 2), # For "Probability Percentage"
+            "severity": severity, # For "Severity Level" and color styling
+            "platform": log_data.get("platform", "User Scan"), # For "Platform"
+            "date_scanned": timestamp_iso, # For "Date Scanned" (as ISO string)
+            "recommended_action": recommended_action, # For "Recommended Action"
             "log_details": log_data
         }
+
+        print(f"✅ Sending response to frontend: {response}")
         
         return jsonify(response)
     
@@ -812,20 +823,25 @@ def get_recent_activity():
             # Print debug info
             print(f"Debug - ID: {activity.get('_id')}, Probability: {probability}, Type: {type(probability)}")
             
+            # --- Ensure fields match modal needs ---
+            timestamp_obj = activity.get("timestamp") # Get the timestamp object from the 'activity' dictionary
             formatted_activity.append({
                 "id": str(activity["_id"]),
                 "detect_id": activity.get("detect_id", "N/A"),
+                "log_id": str(log_info["_id"]) if log_info and log_info.get("_id") else None,
                 "title": "Phishing Detected" if is_phishing else "Safe Link Verified",
                 "link": f"{activity.get('url', 'Unknown URL')} - {activity.get('metadata', {}).get('source', 'Scan')}",
-                "time": formatted_time,
+                # "time": formatted_time, # We don't need 'time ago' for the modal
                 "icon": "suspicious-icon" if is_phishing else "safe-icon",
-                "severity": activity.get("severity", "Medium"),
-                "probability": probability,  # Now guaranteed to be a float
-                "platform": log_info.get("platform", "Web"),
-                "recommended_action": "Block URL" if is_phishing else "Allow URL",
-                # Additional fields needed for modal
+                "severity": activity.get("severity", "Unknown"),
+                "phishing_probability_score": float(log_info.get("probability", 0.0))/100 if log_info else float(activity.get("svm_score", 0.0)),
+                "platform": log_info.get("platform", "Unknown"),
+                "recommended_action": "Block URL" if activity.get("severity", "Unknown") in ["CRITICAL", "HIGH", "MEDIUM"] else "Allow URL",
                 "url": activity.get("url", "Unknown URL"),
-                "date_scanned": timestamp
+                # --- CORRECTED LINE BELOW ---
+                # Get timestamp from 'activity', check if it's a datetime object, then format
+                "date_scanned": timestamp_obj.isoformat() if isinstance(timestamp_obj, datetime) else None,
+                 # --- END CORRECTED LINE ---
             })
 
         return jsonify({"recent_activity": formatted_activity})

@@ -335,7 +335,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 0,
-    backgroundColor: '#121212', // Example background color
   },
   searchSection: {
     marginBottom: 15,
