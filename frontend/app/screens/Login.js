@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useFonts } from "expo-font"; // Import the font hook
+import { useFonts } from "expo-font";
 import {
   View,
   Text,
@@ -7,55 +7,128 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  // *** 1. Import Alert and ActivityIndicator ***
+  Alert,
+  ActivityIndicator
 } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import GradientScreen from "./components/GradientScreen";
 import { LinearGradient } from "expo-linear-gradient";
 import config from "../config";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const logoPath = require("../../assets/images/logo.png");
+const logoPath = require("../../assets/images/logo.png"); // Ensure path is correct
+
 export default function Login({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  // *** 2. Add isLoading state back ***
+  const [isLoading, setIsLoading] = useState(false);
 
   // Load the font
   const [fontsLoaded] = useFonts({
-    "Poppins-ExtraBold": require("../../assets/fonts/Poppins-ExtraBold.ttf"),
+    "Poppins-ExtraBold": require("../../assets/fonts/Poppins-ExtraBold.ttf"), // Ensure path is correct
   });
-   
+
   if (!fontsLoaded) {
-    return null; // Wait until the font is loaded
+    // Show basic loading while fonts load
+    return (
+        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+            <ActivityIndicator size="large" color="#3AED97" />
+        </View>
+    );
   }
-  
+
   const handleLogin = async () => {
+    // Basic validation
+    if (!email || !password) {
+      Alert.alert("Missing Information", "Please enter both email and password.");
+      return;
+    }
+
+    console.log(`LOGIN: Attempting login for email: ${email}`);
+    setIsLoading(true); // Start loading indicator
+
     try {
-      const response = await fetch(`${config.BASE_URL}/Login`, {
+      // *** 3. CRITICAL: Verify this URL path '/Login' matches your backend route EXACTLY ***
+      const response = await fetch(`${config.BASE_URL}/Login`, { // Case-sensitive! Is it /login or /Login? Or /api/login?
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json",
         },
         body: JSON.stringify({ email, password }),
       });
-  
-      const text = await response.text(); // Log raw response
-      console.log("Raw response:", text);
-  
-      const data = JSON.parse(text); // Try parsing JSON
-      if (response.ok) {
-        console.log("Login successful:", data);
-        navigation.replace("Tabs");
-      } else {
-        console.log("Login failed:", data.error);
-        alert(data.error || "Login failed");
+
+      const responseBodyText = await response.text();
+      console.log(`LOGIN API Response: Status=${response.status}, Body=${responseBodyText}`);
+
+      let responseData;
+      try {
+        responseData = JSON.parse(responseBodyText);
+      } catch (parseError) {
+        console.error("LOGIN PARSE ERROR: Failed to parse API response JSON.", parseError);
+        console.error("LOGIN PARSE ERROR: Raw response text was:", responseBodyText);
+        if (response.ok) {
+             Alert.alert("API Error", "Received an unexpected response format from the server.");
+        } else {
+             Alert.alert("Login Failed", `Server returned an error: ${responseBodyText || response.statusText}`);
+        }
+        setIsLoading(false);
+        return;
       }
-    } catch (error) {
-      console.error("Error during login:", error);
-      alert("Network error. Please try again.");
+
+      if (response.ok) {
+        console.log("LOGIN API SUCCESS: Parsed data:", JSON.stringify(responseData, null, 2));
+      
+        // Use responseData directly, not responseData.user
+        const userObject = responseData; // The response IS the user object data
+      
+        // Validation: Check if the main response object exists and has the role property
+        if (!userObject || typeof userObject.role === 'undefined') {
+            console.error("LOGIN ERROR: 'role' property not found directly in the successful API response.", responseData);
+            Alert.alert("Login Error", "User role information was not found in the server response.");
+            setIsLoading(false);
+            return; // Stop the process
+        }
+      
+        // Store the validated user data in AsyncStorage
+        try {
+            // Make sure we're storing the role properly
+            const userDataToStore = {
+                _id: userObject.userId || userObject._id, // Use whatever ID field your backend provides
+                email: userObject.email,
+                firstName: userObject.firstName,
+                lastName: userObject.lastName,
+                role: userObject.role // This is crucial - make sure it's stored
+            };
+      
+            console.log("LOGIN STORAGE: Attempting to store this in AsyncStorage:", JSON.stringify(userDataToStore, null, 2));
+            await AsyncStorage.setItem('userData', JSON.stringify(userDataToStore));
+            console.log("LOGIN STORAGE: Successfully stored data.");
+      
+            const storedDataCheck = await AsyncStorage.getItem('userData');
+            console.log("LOGIN STORAGE CHECK: Read back immediately after storing:", storedDataCheck);
+      
+            setIsLoading(false); // Stop loading *before* navigating
+            navigation.replace('Tabs'); // Go to the main app screen
+      
+        } catch (storageError) {
+            console.error("LOGIN ASYNC STORAGE ERROR: Failed during storage process:", storageError);
+            Alert.alert("Storage Error", "Failed to save login information. Please try again.");
+            setIsLoading(false);
+        }
+      }
+
+    } catch (networkError) {
+      console.error("LOGIN FETCH ERROR:", networkError);
+      Alert.alert("Network Error", "Could not connect to the server. Please check your connection and try again.");
+      setIsLoading(false);
     }
   };
-  
+
   const togglePasswordVisibility = () => {
     setIsPasswordVisible(!isPasswordVisible);
   };
@@ -72,33 +145,36 @@ export default function Login({ navigation }) {
 
         {/* Input Fields */}
         <View style={styles.inputContainer}>
-          <Ionicons name="person-outline" size={20} color="#3AED97" />
+          {/* Original person icon */}
+          <Ionicons name="person-outline" size={20} color="#3AED97" style={styles.icon} />
           <TextInput
             style={styles.input}
             placeholder="Email"
-            placeholderTextColor="rgba(49, 238, 154, 0.66)"
+            placeholderTextColor="rgba(58, 237, 151, 0.7)"
             value={email}
-            onChangeText={(text) => setEmail(text)}
+            onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
+            editable={!isLoading} // Disable while loading
           />
         </View>
 
         <View style={styles.inputContainer}>
-          <MaterialIcons name="lock-outline" size={20} color="#3AED97" />
+          <MaterialIcons name="lock-outline" size={20} color="#3AED97" style={styles.icon}/>
           <TextInput
             style={styles.input}
             placeholder="Password"
-            placeholderTextColor="rgba(49, 238, 154, 0.66)"
+            placeholderTextColor="rgba(58, 237, 151, 0.7)"
             secureTextEntry={!isPasswordVisible}
             value={password}
-            onChangeText={(text) => setPassword(text)}
+            onChangeText={setPassword}
+            editable={!isLoading} // Disable while loading
           />
-          <TouchableOpacity onPress={togglePasswordVisibility} style={styles.eyeIcon}>
-            <Ionicons 
-              name={isPasswordVisible ? "eye-off-outline" : "eye-outline"} 
-              size={20} 
-              color="#3AED97" 
+          <TouchableOpacity onPress={togglePasswordVisibility} style={styles.eyeIcon} disabled={isLoading}>
+            <Ionicons
+              name={isPasswordVisible ? "eye-off-outline" : "eye-outline"}
+              size={22}
+              color="#3AED97"
             />
           </TouchableOpacity>
         </View>
@@ -119,26 +195,31 @@ export default function Login({ navigation }) {
         <View style={styles.optionsRow}>
           <TouchableOpacity
             style={styles.rememberMe}
-            onPress={() => setRememberMe(!rememberMe)}
+            onPress={() => !isLoading && setRememberMe(!rememberMe)} // Disable interaction while loading
+            disabled={isLoading}
           >
-            <View
-              style={[styles.checkbox, rememberMe && styles.checkboxSelected]}
-            />
+            <View style={[styles.checkbox, rememberMe && styles.checkboxSelected]} >
+                 {rememberMe && <Ionicons name="checkmark" size={12} color="#000"/>}
+            </View>
             <Text style={styles.optionText}>Remember me</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => navigation.navigate("ForgotPassword")}
+            onPress={() => !isLoading && navigation.navigate("ForgotPassword")} // Disable interaction while loading
+            disabled={isLoading}
           >
-            <Text style={styles.optionText}>Forgot Password</Text>
+            <Text style={[styles.optionText, isLoading && styles.disabledText]}>Forgot Password?</Text>
           </TouchableOpacity>
         </View>
 
         {/* Register Row */}
         <View style={styles.registerRow}>
           <Text style={styles.optionText1}>Don't have an account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-            <Text style={styles.registerText}>Register</Text>
+          <TouchableOpacity
+             onPress={() => !isLoading && navigation.navigate("Register")} // Disable interaction while loading
+             disabled={isLoading}
+           >
+            <Text style={[styles.registerText, isLoading && styles.disabledText]}>Register</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -146,6 +227,7 @@ export default function Login({ navigation }) {
   );
 }
 
+// --- Styles (Combined and slightly refined) ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -153,93 +235,106 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 30,
   },
-  logo: {
-    width: 280, // Adjust width as needed
-    height: 200, // Adjust height as needed
-    marginBottom: 25, // Space below the logo (adjust as needed)
-    // No need for alignItems: 'center' here as the container already does that
+  title: {
+    fontSize: 40,
+    fontFamily: "Poppins-ExtraBold", // Apply the Poppins ExtraBold font
+    color: "#3AED97",
+    marginBottom: 40, // Adjust spacing from top
+    // Removed alignItems: 'center' as container handles centering
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderColor: "#3AED97",
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    borderRadius: 12, // More rounded
+    paddingHorizontal: 15, // More padding
+    backgroundColor: "rgba(0, 0, 0, 0.4)", // Slightly darker background
     width: "100%",
-    height: 50,
-    marginBottom: 20,
+    height: 55, // Slightly taller
+    marginBottom: 25, // Increased spacing
+  },
+  icon: {
+      marginRight: 10, // Add space between icon and text input
   },
   input: {
     flex: 1,
-    marginLeft: 10,
-    color: "#fff",
+    color: "#ffffff", // White text
     fontSize: 16,
+    // fontFamily: 'Inter', // Use Inter font if loaded and desired
   },
   eyeIcon: {
-    padding: 5,
+    paddingLeft: 10, // Space before the eye icon
   },
-  loginButton: {
+   loginButtonWrapper: {
     width: "100%",
-    height: 40,
-    borderRadius: 8,
-    overflow: "hidden", // Ensures gradient stays rounded
-    marginTop: 10,
-    marginBottom: 20,
+    height: 50, // Taller button
+    borderRadius: 12, // Match input fields
+    overflow: "hidden",
+    marginTop: 15, // Space above button
+    marginBottom: 25, // Space below button
   },
   gradientButton: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    borderRadius: 12, // Ensure gradient also has radius
   },
-  loginButtonText: {
+  loginButtonText: { // Specific style for LOGIN button text
     fontSize: 16,
-    fontFamily: "Inter",
-    fontWeight: "800",
-    color: "#000", // Adjust this for the text color as per your preference
-    textAlign: "center", // Ensures the text is centered inside the button
-    letterSpacing: 5,
+    // fontFamily: "Inter", // Use a specific button font if desired
+    fontWeight: "800", // Bold login text
+    color: "#000000",
+    letterSpacing: 5, // Adjust spacing
   },
   optionsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: 'center',
     width: "100%",
-    marginBottom: 150,
+    marginBottom: 100, // Adjusted spacing, might need further tweaking
   },
   rememberMe: {
     flexDirection: "row",
     alignItems: "center",
   },
   checkbox: {
-    width: 16,
-    height: 16,
-    borderWidth: 1,
+    width: 18,
+    height: 18,
+    borderWidth: 1.5,
     borderColor: "#3AED97",
-    marginRight: 8,
     borderRadius: 5,
+    marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   checkboxSelected: {
     backgroundColor: "#3AED97",
     borderColor: "#3AED97",
   },
-  optionText: {
+  optionText: { // Style for "Remember me" and "Forgot Password"
     color: "#3AED97",
     fontSize: 14,
+    // fontFamily: 'Inter',
     fontWeight: "500",
   },
-  optionText1: {
+  optionText1: { // Style for "Don't have an account?"
     color: "#fff",
     fontSize: 14,
     fontWeight: "500",
+    marginRight: 5,
   },
   registerRow: {
     flexDirection: "row",
     alignItems: "center",
+    marginTop: 20,
   },
-  registerText: {
+  registerText: { // Style for "Register" link
     color: "#3AED97",
     fontSize: 14,
     fontWeight: "bold",
   },
+   disabledText: {
+     opacity: 0.5, // Style for disabled text links
+   }
 });

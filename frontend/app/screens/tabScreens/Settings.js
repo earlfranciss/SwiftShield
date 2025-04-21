@@ -1,178 +1,237 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
-    StyleSheet,
-    Text,
-    View,
-    TouchableOpacity,
-    ScrollView,
-    Alert // Import Alert for feedback (optional)
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+  // Consider adding Alert for placeholder action if ProfileDetails doesn't exist yet
+  // Alert
 } from "react-native";
 // *** 1. Import AsyncStorage ***
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function Settings({ navigation, isDarkMode, isAdmin }) {
-    // Log received isAdmin prop for debugging
-    console.log(">>> Settings Component RENDER: Received isAdmin Prop:", isAdmin, "(Type:", typeof isAdmin + ")");
-
-    // --- Handlers ---
-
-    // *** 2. Modify handleSignOut ***
-    const handleSignOut = async () => { // Make the function async
-        console.log("LOGOUT: handleSignOut function initiated.");
-        try {
-            console.log("LOGOUT: Attempting to remove 'userData' from AsyncStorage...");
-            await AsyncStorage.removeItem('userData'); // Remove the user data key
-            console.log("LOGOUT: Successfully removed 'userData'. Navigating to Login.");
-            // Navigate to Login screen AFTER successfully removing data
-            // Replace ensures the user can't press 'back' to get into the settings again
-            navigation.replace("Login");
-        } catch (error) {
-            console.error("LOGOUT ERROR: Failed to remove 'userData' from AsyncStorage:", error);
-            // Show an error message to the user (optional but good practice)
-            Alert.alert("Logout Error", "Could not clear session data. Please try again.");
-            // Still attempt to navigate to Login even if clearing failed,
-            // but the stale data might still be there on next launch.
-            navigation.replace("Login");
-        }
-    };
-
-    // Other handlers remain the same
-    const handleProfilePress = () => navigation.navigate("EditProfile");
-    const handleManageUsersPress = () => navigation.navigate("ManageUsers"); // Ensure this screen exists in SettingsStackNav
-    const handlePushNotificationsPress = () => navigation.navigate('PushNotifications'); // Ensure this screen exists
-    const handleConnectedAppsPress = () => navigation.navigate('ConnectedApps'); // Ensure this screen exists
-    const handleHowToUsePress = () => console.log("How to use pressed (Implement navigation if needed)");
-    const handleHelpSupportPress = () => navigation.navigate("Reports", { isDarkMode }); // Ensure Reports screen exists
-    const handlePrivacyPolicyPress = () => console.log("Privacy Policy pressed (Implement navigation if needed)");
-    // --- End Handlers ---
-
-
-    // --- Conditional Rendering Logic ---
-    // Keep the explicit check for debugging purposes for now
-    let showManageUsersButton = false;
-    if (isAdmin === true) {
-         console.log(">>> Settings Component RENDER: Condition (isAdmin === true) MET. Rendering 'Manage Users' button.");
-         showManageUsersButton = true;
-    } else {
-         // Log why the button isn't showing if isAdmin is not strictly true
-         console.log(">>> Settings Component RENDER: Condition (isAdmin === true) NOT MET. 'Manage Users' button will be hidden.");
+export default function Settings({ navigation, isDarkMode }) {
+  // Add state to check if user is admin
+  const [isAdmin, setIsAdmin] = useState(false);
+  
+  // Simulate checking if user is admin on component mount
+  useEffect(() => {
+    // This would typically be a fetch from your API or local storage
+    // For now we'll simulate with dummy data - replace with your actual auth logic
+    checkIfUserIsAdmin();
+  }, []);
+  
+  const checkIfUserIsAdmin = async () => {
+    try {
+      // Get user data from AsyncStorage
+      const userData = await AsyncStorage.getItem('userData');
+      if (userData) {
+        const userObj = JSON.parse(userData);
+        // Check if user role is admin
+        setIsAdmin(userObj.role === 'admin');
+        console.log(`User role: ${userObj.role}, isAdmin: ${userObj.role === 'admin'}`);
+      } else {
+        setIsAdmin(false);
+        console.log('No user data found, setting isAdmin to false');
+      }
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
     }
-    // --- End Conditional Rendering Logic ---
+  };
 
+  const handleSignOut = async () => { // Make the function async
+    console.log("LOGOUT: handleSignOut function initiated.");
+    try {
+        console.log("LOGOUT: Attempting to remove 'userData' from AsyncStorage...");
+        await AsyncStorage.removeItem('userData'); // Remove the user data key
+        console.log("LOGOUT: Successfully removed 'userData'. Navigating to Login.");
+        // Navigate to Login screen AFTER successfully removing data
+        // Replace ensures the user can't press 'back' to get into the settings again
+        navigation.replace("Login");
+    } catch (error) {
+        console.error("LOGOUT ERROR: Failed to remove 'userData' from AsyncStorage:", error);
+        // Show an error message to the user (optional but good practice)
+        Alert.alert("Logout Error", "Could not clear session data. Please try again.");
+        // Still attempt to navigate to Login even if clearing failed,
+        // but the stale data might still be there on next launch.
+        navigation.replace("Login");
+    }
+};
 
-    // --- JSX Structure ---
-    return (
-        <ScrollView contentContainerStyle={styles.container}>
-            {/* Profile Section */}
-            <TouchableOpacity style={styles.profileSection} onPress={handleProfilePress} activeOpacity={0.7}>
-                 <View style={styles.avatar}><Text style={styles.avatarIcon}>👤</Text></View>
-                 <View>
-                    {/* TODO: Replace placeholders with actual user data from state/context */}
-                    <Text style={styles.name}>John Doe</Text>
-                    <Text style={styles.email}>johndoe@email.com</Text>
-                 </View>
-            </TouchableOpacity>
+  // --- Handler for Profile Section Press ---
+  const handleProfilePress = () => {
+    console.log("Profile section pressed!");
+    // Navigate to a new screen, e.g., 'ProfileDetails'
+    // Make sure you have a 'ProfileDetails' screen defined in your navigator
+    navigation.navigate("EditProfile");
+  };
+  
+  // --- Handler for Manage Users Press ---
+  const handleManageUsersPress = () => {
+    console.log("Manage Users section pressed!");
+    // Navigate to the ManageUsers screen
+    navigation.navigate("ManageUsers");
+  };
 
-            {/* Top Options Section */}
-            <View style={styles.optionsGroup}>
-                <TouchableOpacity style={styles.optionButton} onPress={handlePushNotificationsPress}>
-                    <Text style={styles.optionText}>Push Notifications</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.optionButton} onPress={handleConnectedAppsPress}>
-                    <Text style={styles.optionText}>Connected Apps</Text>
-                </TouchableOpacity>
-            </View>
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      {/* Profile Section - NOW CLICKABLE */}
+      <TouchableOpacity
+        style={styles.profileSection} // Apply the style directly to TouchableOpacity
+        onPress={handleProfilePress}   // Add the onPress handler
+        activeOpacity={0.7} // Optional: control the feedback intensity
+      >
+        {/* Inner content remains the same */}
+        <View style={styles.avatar}></View>
+        <View>
+          <Text style={styles.name}>John Doe</Text>
+          <Text style={styles.email}>johndoe@email.com</Text>
+        </View>
+      </TouchableOpacity>
 
-            {/* Footer Options Section */}
-            <View style={styles.footerOptionsGroup}>
+      {/* Options Section */}
+      <TouchableOpacity
+        style={styles.optionButton}
+        // Add the onPress handler to navigate
+        onPress={() => navigation.navigate('PushNotifications')} // Use the screen name from SettingsStackNav
+      >
+        <Text style={styles.optionText}>Push Notifications</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.optionButton}
+        // Add the onPress handler to navigate
+        onPress={() => navigation.navigate('ConnectedApps')} // Use the screen name from your navigator
+      >
+        <Text style={styles.optionText}>Connected Apps</Text>
+      </TouchableOpacity>
+      
+      {/* Manage Users Button - ONLY VISIBLE TO ADMINS */}
+      {isAdmin && (
+        <TouchableOpacity
+          style={styles.optionButton}
+          onPress={handleManageUsersPress}
+        >
+          <Text style={styles.optionText}>Manage Users</Text>
+        </TouchableOpacity>
+      )}
 
-                {/* Conditionally Render Manage Users Button */}
-                {showManageUsersButton && (
-                    <TouchableOpacity
-                        style={styles.optionButton}
-                        onPress={handleManageUsersPress}
-                    >
-                        <Text style={styles.optionText}>Manage Users</Text>
-                    </TouchableOpacity>
-                )}
-                {/* End Manage Users Button */}
+      {/* Options Footer Section */}
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.optionButton}>
+          <Text style={styles.optionText}>Privacy Policy</Text>
+        </TouchableOpacity>
 
+       {/* Help & Support to Reports */}
+        <TouchableOpacity
+          style={styles.optionButton}
+          onPress={() =>
+            navigation.navigate("Reports", {
+              isDarkMode: isDarkMode,
+              // onToggleDarkMode: handleSignOut, // Pass only if Reports screen needs this specific function
+            })
+          }
+        >
+          <Text style={styles.optionText}>Help and Support</Text>
+        </TouchableOpacity>
 
-                <TouchableOpacity style={styles.optionButton} onPress={handleHowToUsePress}>
-                    <Text style={styles.optionText}>How to use the app</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.optionButton} onPress={handleHelpSupportPress}>
-                    <Text style={styles.optionText}>Help and Support</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.optionButton} onPress={handlePrivacyPolicyPress}>
-                    <Text style={styles.optionText}>Privacy Policy</Text>
-                </TouchableOpacity>
-
-                {/* Log out Button */}
-                {/* Ensure the onPress points to the modified handleSignOut */}
-                <TouchableOpacity style={styles.logOutButton} onPress={handleSignOut}>
-                    <Text style={styles.logOutText}>Log out</Text>
-                </TouchableOpacity>
-            </View>
-        </ScrollView>
-    );
+        {/* Sign-out Section */}
+        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+          <Text style={styles.signOutText}>Sign-out</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
 }
 
-// --- Styles ---
 const styles = StyleSheet.create({
-    container: {
-        flexGrow: 1,
-        alignItems: "center",
-        paddingVertical: 20,
-        paddingHorizontal: '5%',
-        backgroundColor: '#000', // Match your theme
-    },
-    profileSection: {
-        backgroundColor: "#3AED97",
-        width: "100%",
-        borderRadius: 15,
-        flexDirection: "row",
-        alignItems: "center",
-        padding: 20,
-        marginBottom: 20,
-    },
-    avatar: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: "#000",
-        marginRight: 15,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-     avatarIcon: { fontSize: 28, color: '#3AED97' },
-    name: { fontSize: 16, fontWeight: "bold", color: "#000" },
-    email: { fontSize: 13, color: "#000" },
-    optionsGroup: { width: '100%', marginBottom: 20, },
-    footerOptionsGroup: {
-        width: '100%',
-        marginTop: 'auto', // Pushes this group towards the bottom
-        paddingTop: 80, // Adjusted spacing
-        alignItems: 'center',
-        paddingBottom: 20, // Add padding at the bottom
-    },
-    optionButton: {
-        backgroundColor: "#3AED97",
-        width: "100%",
-        borderRadius: 15,
-        paddingVertical: 18,
-        paddingHorizontal: 20,
-        alignItems: "flex-start",
-        marginVertical: 8,
-    },
-    optionText: { color: "#000", fontSize: 14, fontWeight: "500" },
-    logOutButton: {
-        backgroundColor: "#FF0000", // Red for logout
-        width: "100%",
-        borderRadius: 15,
-        paddingVertical: 18,
-        alignItems: "center", // Center text
-        marginTop: 15, // More space above logout
-    },
-    logOutText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  container: {
+    flexGrow: 1,
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+
+  // Style applied to the TouchableOpacity now
+  profileSection: {
+    backgroundColor: "#3AED97",
+    width: "90%",
+    borderRadius: 10,
+    flexDirection: "row", // Keep for layout
+    alignItems: "center",  // Keep for layout
+    padding: 20,
+    marginBottom: 20,
+    // Add shadow for consistency if desired (optional)
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#000", // Placeholder color
+    marginRight: 15,
+  },
+
+  name: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#000",
+  },
+
+  email: {
+    fontSize: 14,
+    color: "#000",
+  },
+
+  optionButton: {
+    backgroundColor: "#3AED97",
+    width: "90%",
+    borderRadius: 10,
+    padding: 15,
+    alignItems: "flex-start", // Text aligned left
+    marginVertical: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+
+  optionText: {
+    color: "#000",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+
+  footer: {
+    marginTop: 120, // Adjust spacing as needed
+    paddingVertical: 20,
+    alignItems: "center",
+    width: "100%",
+  },
+
+  signOutButton: {
+    backgroundColor: "#FF0000",
+    width: "90%",
+    borderRadius: 10,
+    padding: 15,
+    alignItems: "center", // Center text inside button
+    marginTop: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+
+  signOutText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
 });
