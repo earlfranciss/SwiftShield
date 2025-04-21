@@ -235,12 +235,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 30,
   },
-  title: {
-    fontSize: 40,
-    fontFamily: "Poppins-ExtraBold", // Apply the Poppins ExtraBold font
-    color: "#3AED97",
-    marginBottom: 40, // Adjust spacing from top
-    // Removed alignItems: 'center' as container handles centering
+  logo: {
+    width: 280, // Adjust width as needed
+    height: 200, // Adjust height as needed
+    marginBottom: 25, // Space below the logo (adjust as needed)
+    // No need for alignItems: 'center' here as the container already does that
   },
   inputContainer: {
     flexDirection: "row",
@@ -266,13 +265,13 @@ const styles = StyleSheet.create({
   eyeIcon: {
     paddingLeft: 10, // Space before the eye icon
   },
-   loginButtonWrapper: {
+  loginButton: {
     width: "100%",
-    height: 50, // Taller button
-    borderRadius: 12, // Match input fields
-    overflow: "hidden",
-    marginTop: 15, // Space above button
-    marginBottom: 25, // Space below button
+    height: 40,
+    borderRadius: 8,
+    overflow: "hidden", // Ensures gradient stays rounded
+    marginTop: 10,
+    marginBottom: 20,
   },
   gradientButton: {
     flex: 1,
@@ -280,12 +279,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 12, // Ensure gradient also has radius
   },
-  loginButtonText: { // Specific style for LOGIN button text
+  loginButtonText: {
     fontSize: 16,
-    // fontFamily: "Inter", // Use a specific button font if desired
-    fontWeight: "800", // Bold login text
-    color: "#000000",
-    letterSpacing: 5, // Adjust spacing
+    fontFamily: "Inter",
+    fontWeight: "800",
+    color: "#000", // Adjust this for the text color as per your preference
+    textAlign: "center", // Ensures the text is centered inside the button
+    letterSpacing: 5,
   },
   optionsRow: {
     flexDirection: "row",
