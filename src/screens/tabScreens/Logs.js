@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useSharedValue } from "react-native-reanimated";
 import Icon from "react-native-vector-icons/MaterialIcons";
@@ -25,13 +26,13 @@ const iconMap = {
 export default function Logs({ route }) {
   const [url, setUrl] = useState("");
   const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true); // For initial/filter fetch
-  const [searching, setSearching] = useState(false); // For search input delay feedback
+  const [loading, setLoading] = useState(true); 
+  const [searching, setSearching] = useState(false); 
   const viewableItems = useSharedValue([]);
   const [activeFilter, setActiveFilter] = useState("recent");
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
-  const [logLoading, setLogLoading] = useState(false); // For modal details fetch
+  const [logLoading, setLogLoading] = useState(false); 
 
   const filterOptions = [
     { id: 'recent', label: 'Recent' },
@@ -66,6 +67,7 @@ export default function Logs({ route }) {
         setSelectedLog(null);
       } else {
         console.log("[Logs.js] Fetch successful. Setting selected log and making modal visible.");
+        //setModalData(data);
         setSelectedLog(data);
         console.log("[Logs.js] Calling setModalVisible(true)");
         setModalVisible(true); // Make visible *after* data is ready
@@ -320,6 +322,7 @@ export default function Logs({ route }) {
         onClose={closeModal} // Pass the closeModal function directly
         logDetails={selectedLog}
         loading={logLoading} // Pass the specific loading state for the modal content
+        scanResult={selectedLog}
         onDelete={handleDeleteLog} // Pass the delete handler
       />
     </SafeAreaView>
@@ -333,7 +336,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 0,
-    //backgroundColor: '#121212', // Example background color
   },
   searchSection: {
     marginBottom: 15,

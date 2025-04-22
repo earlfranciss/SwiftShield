@@ -1,6 +1,26 @@
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, flash, Blueprint, current_app
+from difflib import SequenceMatcher
+from pytz import timezone
+from pymongo import MongoClient
+from dotenv import load_dotenv
+from datetime import datetime, timedelta, date
+from flask_cors import CORS
+from flask_bcrypt import Bcrypt
+from flask_pymongo import PyMongo
+from bson.objectid import ObjectId
+from urllib.parse import urlparse
+from flask_caching import Cache
+from flask_session import Session
+from functools import wraps 
+from google_auth_oauthlib.flow import Flow 
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build 
+from google.auth.transport.requests import Request 
+import email as email_parser
 import numpy as np
 import pandas as pd
 import warnings
+import base64
 import pickle
 import uuid
 import os
@@ -12,19 +32,7 @@ import ipaddress
 import tldextract
 import whois
 import re
-from difflib import SequenceMatcher
-from pytz import timezone
-from pymongo import MongoClient
-from dotenv import load_dotenv
-from datetime import datetime, timedelta, date
-from flask_cors import CORS
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, flash
-from flask_bcrypt import Bcrypt
-from flask_pymongo import PyMongo
-from bson.objectid import ObjectId
-from urllib.parse import urlparse
-from flask_caching import Cache
-from functools import wraps 
+import traceback
 
 # Import your feature extraction class
 try:
@@ -33,27 +41,43 @@ except ImportError:
     print("ERROR: Could not import FeatureExtraction from PhishingFeatureExtraction.py. Please ensure the file exists and the class is defined correctly.")
     exit() 
 
-cache = Cache(config={"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300})
-
-app = Flask(__name__) 
-app.config["DEBUG"] = True
-
-# ---> Initialize cache with the app object using init_app <---
-cache.init_app(app)
-
-CORS(app, resources={r"/*": {"origins": "*"}}) 
-bcrypt = Bcrypt(app)
-
-warnings.filterwarnings('ignore')
-
-# ---> Load .env file <---
+# Load .env file 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 # print(f"DEBUG: Attempting to load .env file from: {dotenv_path}")
 load_dotenv(dotenv_path=dotenv_path)
 
+
+# --- Flask App Configuration ---
+app = Flask(__name__) 
+
+# --- App Configuration ---
+app.config["DEBUG"] = os.getenv("FLASK_DEBUG", "False").lower() == "true"
+secret_key = os.getenv("SECRET_KEY") 
+app.config["SECRET_KEY"] = secret_key
+if not app.config["SECRET_KEY"]:
+    raise ValueError("FLASK_SECRET_KEY is not set in .env")
+
+# --- Flask-Session Configuration ---
+app.config["SESSION_TYPE"] = "mongodb" 
+app.config["SESSION_PERMANENT"] = True
+app.config["SESSION_USE_SIGNER"] = True 
+# If using mongodb session type:
+app.config["SESSION_MONGODB_DB"] = 'SwiftShield'
+app.config["SESSION_MONGODB_COLLECT"] = 'sessions'
+app.config["SESSION_MONGODB"] = pymongo.MongoClient(os.getenv("DB_CONNECTION_STRING"))
+# Google configs
+app.config["GOOGLE_CLIENT_ID"] = os.getenv("GOOGLE_CLIENT_ID") # Load as string
+app.config["GOOGLE_CLIENT_SECRET"] = os.getenv("GOOGLE_CLIENT_SECRET") # Load as string
+app.config["GOOGLE_REDIRECT_URI"] = os.getenv("GOOGLE_REDIRECT_URI")
+app.config['GOOGLE_SCOPES'] = [
+    'openid',
+    'https://www.googleapis.com/auth/userinfo.email', 
+    'https://www.googleapis.com/auth/userinfo.profile', 
+    'https://www.googleapis.com/auth/gmail.readonly'
+]
+
 # --- Environment Variables ---
 db_connection_string = os.getenv("DB_CONNECTION_STRING")
-secret_key = os.getenv("SECRET_KEY") 
 GOOGLE_API_KEY = os.getenv("GOOGLE_SAFE_BROWSING_API_KEY")
 
 if not db_connection_string:
@@ -64,8 +88,15 @@ if not secret_key:
 # if not GOOGLE_API_KEY:
 #     print("WARN: GOOGLE_SAFE_BROWSING_API_KEY is not set. Safe Browsing checks will be skipped.")
 
-# --- Flask App Configuration ---
-app.config["SECRET_KEY"] = secret_key
+# Initialize Flask-Session AFTER setting config
+Session(app) 
+# Initialize cache with the app object using init_app 
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True) 
+bcrypt = Bcrypt(app)
+cache = Cache(config={"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300})
+cache.init_app(app)
+
+warnings.filterwarnings('ignore')
 
 # --- Load ML Model ---
 model_path = os.path.join(os.path.dirname(__file__), "../ai-models/pickle/stackmodel.pkl")
@@ -87,7 +118,7 @@ try:
     with open(classifier_model, 'rb') as file:
         model = pickle.load(file)
     loaded_pipeline = model['model']
-    feature_names_ordered = model['feature_names'] # <<< LOAD THE ORDERED LIST
+    feature_names_ordered = model['feature_names']
     print(f"Pipeline loaded from {classifier_model}")
     print(f"Expecting {len(feature_names_ordered)} features in this order.")
 except FileNotFoundError:
@@ -575,18 +606,144 @@ def check_url_structure(url):
 
     return "SAFE"
 
+# --- Google Services ---
 
-# --- Endpoint Definitions ---
+def get_google_credentials(app_user_id):
+    """Gets Google credentials using a stored refresh token."""
+    user_data = users_collection.find_one({'_id': app_user_id})
+    if not user_data or 'google_refresh_token' not in user_data:
+        print(f"No Google refresh token found for user {app_user_id}")
+        return None
+
+    try:
+        credentials = Credentials(
+            token=None, # Access token will be refreshed
+            refresh_token=user_data['google_refresh_token'],
+            token_uri='https://oauth2.googleapis.com/token',
+            client_id=os.getenv('GOOGLE_CLIENT_ID'),
+            client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
+            scopes=[ 'https://www.googleapis.com/auth/gmail.readonly' ] # Or load from config
+        )
+        # Check if token needs refreshing (it always will if token=None)
+        if not credentials.valid:
+             if credentials.expired and credentials.refresh_token:
+                  print(f"Refreshing Google token for user {app_user_id}")
+                  credentials.refresh(Request()) # Requires google.auth.transport.requests.Request
+                  # Optionally save the new access token and expiry back to DB
+                  # users_collection.update_one(...)
+             else:
+                  print(f"Credentials invalid and no refresh token for user {app_user_id}")
+                  return None # Cannot proceed
+        return credentials
+    except Exception as e:
+         print(f"Error getting/refreshing Google credentials for user {app_user_id}: {e}")
+         return None
+
+
+def get_gmail_service(app_user_id):
+    """Builds the Gmail API service object."""
+    credentials = get_google_credentials(app_user_id)
+    if not credentials:
+        return None
+    try:
+        service = build('gmail', 'v1', credentials=credentials, cache_discovery=False)
+        return service
+    except Exception as e:
+        print(f"Error building Gmail service for user {app_user_id}: {e}")
+        return None
+
+def list_new_messages(app_user_id, query='is:unread in:inbox'):
+    """Lists new/unread messages for the user."""
+    service = get_gmail_service(app_user_id)
+    if not service:
+        return None
+    try:
+        results = service.users().messages().list(userId='me', q=query).execute()
+        messages = results.get('messages', [])
+        return messages 
+    except Exception as e:
+        print(f"Error listing messages for user {app_user_id}: {e}")
+        return None
+
+def get_email_details(app_user_id, message_id):
+    """Gets the content of a specific email."""
+    service = get_gmail_service(app_user_id)
+    if not service:
+        return None
+    try:
+        # Get raw message to handle different content types
+        message = service.users().messages().get(userId='me', id=message_id, format='raw').execute()
+        if 'raw' in message:
+            # Decode base64url raw message
+            msg_str = base64.urlsafe_b64decode(message['raw'].encode('ASCII'))
+            # Parse the raw email content
+            mime_msg = email_parser.message_from_bytes(msg_str)
+
+            email_data = {
+                'id': message_id,
+                'subject': mime_msg['subject'],
+                'from': mime_msg['from'],
+                'to': mime_msg['to'],
+                'date': mime_msg['date'],
+                'body_plain': None,
+                'body_html': None
+            }
+
+            # Extract body (handle multipart emails)
+            if mime_msg.is_multipart():
+                for part in mime_msg.walk():
+                    content_type = part.get_content_type()
+                    content_disposition = str(part.get("Content-Disposition"))
+                    try:
+                        body = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='replace')
+                    except Exception:
+                        continue 
+
+                    if "attachment" not in content_disposition:
+                        if content_type == "text/plain" and not email_data['body_plain']:
+                            email_data['body_plain'] = body
+                        elif content_type == "text/html" and not email_data['body_html']:
+                            email_data['body_html'] = body
+            else:
+                # Not multipart, payload is the body
+                content_type = mime_msg.get_content_type()
+                try:
+                     body = mime_msg.get_payload(decode=True).decode(mime_msg.get_content_charset() or 'utf-8', errors='replace')
+                     if content_type == "text/plain":
+                          email_data['body_plain'] = body
+                     elif content_type == "text/html":
+                          email_data['body_html'] = body
+                except Exception as e:
+                     print(f"Error decoding non-multipart body: {e}")
+
+
+            # Prefer plain text body if available
+            email_data['body'] = email_data['body_plain'] or email_data['body_html'] or ''
+
+            return email_data
+        else:
+            print(f"Could not find raw content for message {message_id}")
+            return None
+
+    except Exception as e:
+        print(f"Error getting message {message_id} for user {app_user_id}: {e}")
+        return None
+
+
+
+
+
+
+# --- ENDPOINT DEFINITIONS  ---
 
 @app.route("/scan", methods=["POST"])
 def index():
-    global loaded_pipeline, feature_names_ordered, obj # Ensure obj is accessible for rule checks
+    global loaded_pipeline, feature_names_ordered, obj 
 
     if not loaded_pipeline or not feature_names_ordered:
         return jsonify({"error": "Model not loaded. Please ensure the server is initialized correctly."}), 500
     if client is None or db is None:
         return jsonify({"error": "Database not connected."}), 500
-
 
     try:
         data = request.get_json()
@@ -634,7 +791,7 @@ def index():
 
         # --- Get User ID and Platform ---
         user_id = session.get('user_id', None)
-        source_platform = "User Scan (Authenticated)" if user_id else "User Scan (Anonymous)"
+        source_platform = "User Scan" if user_id else "User Scan"
         print(f"DEBUG: Scan initiated. User ID: {user_id}, Platform: {source_platform}")
 
         # --- Create FeatureExtraction object (Needed for rule checks and ML features) ---
@@ -644,6 +801,7 @@ def index():
         # --- RULE 1: Check if domain is in Known Legitimate List (Short-circuit) ---
         if obj.registered_domain and obj.registered_domain.lower() in LEGIT_DOMAINS:
             print(f"✅ RULE: Registered domain '{obj.registered_domain}' found in known legitimate list. Classifying as SAFE.")
+             
             # Prepare response for SAFE
             response = {
                 "url": url,
@@ -788,6 +946,17 @@ def index():
         detect_id = str(uuid.uuid4())
         current_time_ph = datetime.now(pytz.timezone('Asia/Manila')) # Use timezone from your notebook
 
+        timestamp_iso = detection_data.get("timestamp").isoformat() if detection_data.get("timestamp") else None
+
+        # Determine Recommended Action based on severity for the modal display
+        recommended_action = "Allow URL" # Default safe action
+        if severity == "CRITICAL" or severity == "HIGH":
+            recommended_action = "Block URL"
+        elif severity == "MEDIUM":
+            recommended_action = "Review URL Carefully"
+        elif severity == "LOW":
+             recommended_action = "Proceed with Caution"
+             
         detection_data = {
             "detect_id": detect_id,
             "user_id": user_id,
@@ -801,33 +970,38 @@ def index():
         }
         detection_collection.insert_one(detection_data)
 
-        # --- Prepare Response ---
-        response = {
-            "url": url,
-            "prediction": int(y_pred),
-            "safe_percentage": prob_class_1 * 100,
-            "phishing_percentage": phishing_percentage,
-            "severity": severity,
-            "is_shortener": is_shortener,
-            "shortener_domain": shortener_domain,
-            "detect_id": detect_id,
-            "log_details": {} # Will populate with log ID below
-        }
 
         # --- Log Result (Happens after determining final severity) ---
         log_data = {
             "log_id": str(uuid.uuid4()),
             "detect_id": detect_id,
             "user_id": user_id,
-            "probability": phishing_percentage,
+            "probability":  round(phishing_percentage, 2),
             "severity": severity,
             "platform": source_platform,
             "verdict": "Phishing" if severity in ["HIGH", "CRITICAL"] else "Suspicious" if severity == "MEDIUM" else "Low Risk" if severity == "LOW" else "Safe",
             "timestamp": current_time_ph,
         }
+        
+        
         log_result = logs_collection.insert_one(log_data)
         log_data["_id"] = str(log_result.inserted_id)
-        response["log_details"] = log_data # Add log details to the response
+        response["log_details"] = log_data 
+        
+        # --- Prepare Response ---
+        response = {
+            "url": url,
+            "prediction": int(y_pred),
+            "safe_percentage": prob_class_1 * 100,
+            "phishing_percentage":  round(phishing_percentage, 2),
+            "severity": severity,
+            "is_shortener": is_shortener,
+            "shortener_domain": shortener_domain,
+            "detect_id": detect_id,
+            "date_scanned": timestamp_iso,
+            "recommended_action": recommended_action, 
+            "log_details": log_data,
+        }
 
         return jsonify(response), 200
 
@@ -956,88 +1130,63 @@ def Logout():
 @app.route('/api/stats/scan-source-distribution', methods=['GET'])
 @login_required # Requires login
 def get_scan_source_distribution():
+    user_id = session['user_id']
+    role = session['role']
+    print(f"DEBUG /api/stats/scan-source-distribution: User: {user_id}, Role: {role}")
 
-    """
-    Fetches the count of scans by source (Manual Scan, SMS, Email)
-    for displaying in a pie chart. Uses the 'detection' collection.
-    Returns data with names and colors expected by the frontend PieGraph.
-    """
     try:
-        # Basic check for database collection
-        if 'detection' not in globals() or detection_collection is None:
-             # Use app logger if configured, otherwise print
-             # current_app.logger.error("Database collection 'detection' not available.")
-             print("ERROR: Database collection 'detection' not available.")
-             return jsonify({"error": "Database collection error."}), 500
-
-        # --- Use Frontend-Expected Names and Colors ---
-        sources_to_count = ["SMS", "Email", "Manual Scan"] # Source names to query in DB
+        # Define sources and their presentation details
+        sources_to_count = ["User Scan", "SMS", "Email"] # Keep these consistent
+        source_labels = { "User Scan": "Manual Scans", "SMS": "SMS Scans", "Email": "Email Scans" }
         source_styles = {
-            # Use the correct frontend-expected name as the key
-            # and the correct frontend-expected color
-             # Value 16 color
-            "SMS":         {"color": "#ffde59"}, # Value 8 color
-            "Email":       {"color": "#ff914c"},
-            "Manual Scan": {"color": "#febd59"}  # Value 20 color
-             # Removed legendFontColor/Size as PieGraph doesn't seem to use them
-             # If needed, add them back here and ensure frontend uses them
+            "User Scan": {"color": "#4CAF50", "legendFontColor": "#7F7F7F", "legendFontSize": 15},
+            "SMS": {"color": "#2196F3", "legendFontColor": "#7F7F7F", "legendFontSize": 15},
+            "Email": {"color": "#FF9800", "legendFontColor": "#7F7F7F", "legendFontSize": 15}
         }
-        # --- End of Configuration ---
 
-        pie_chart_data = [] # Initialize the list to store results
+        pie_chart_data = []
 
-        # print(f"DEBUG: Counting sources: {sources_to_count}") # Keep minimal debug logs if needed
+        # --- Base Query Filter ---
+        base_query = {}
+        if role == 'user':
+            base_query['user_id'] = user_id # Filter by user ID for 'user' role
+            print(f"DEBUG: Applying user filter: {user_id}")
+        # No user_id filter needed for 'admin'
 
         for source in sources_to_count:
-            count = 0 # Default count to 0
+            # Combine base filter with source filter
+            query_filter = base_query.copy() # Start with base (empty or user_id)
+            query_filter["metadata.source"] = source # Add the source filter
+            print(f"DEBUG: Counting source '{source}' with filter: {query_filter}")
+
             try:
-                # Build the query filter for the current source
-                query_filter = {"metadata.source": source}
-                # print(f"DEBUG: Querying count for: {query_filter}") # Optional debug
-
-                # Perform the count directly - NO NEED for find_one
                 count = detection_collection.count_documents(query_filter)
-                # print(f"DEBUG: Count result for '{source}': {count}") # Optional debug
+                print(f"DEBUG: Count for '{source}': {count}")
+            except Exception as count_err:
+                print(f"ERROR during count_documents for '{source}': {count_err}")
+                count = 0 # Default to 0 on error
 
-            except pymongo.errors.PyMongoError as count_err:
-                 # Log the specific database error during count
-                 # current_app.logger.error(f"Database error counting source '{source}': {count_err}")
-                 print(f"ERROR: Database error counting source '{source}': {count_err}")
-                 # Keep count as 0 if error occurs during counting
-                 count = 0
-            except Exception as E:
-                # Catch any other unexpected error during the count for this source
-                print(f"ERROR: Unexpected error counting source '{source}': {E}")
-                count = 0
+            label = source_labels.get(source, source)
+            style = source_styles.get(source, {"color": "#cccccc", "legendFontColor": "#7F7F7F", "legendFontSize": 15})
 
-
-            # Get the style dictionary for this source (mainly for color)
-            # Provide a default grey color if source somehow not in styles
-            style = source_styles.get(source, {"color": "#CCCCCC"})
-
-            # Append the data for this source in the format expected by frontend
             pie_chart_data.append({
-                "name": source,         # Use the source name directly (e.g., "Manual Scan")
-                "population": count,    # The count obtained from the database
-                "color": style["color"], # The color specified for this source
-                # Add other fields like legendFontColor ONLY if frontend uses them
+                "name": label,
+                "population": count,
+                "color": style["color"],
+                "legendFontColor": style["legendFontColor"],
+                "legendFontSize": style["legendFontSize"]
             })
 
-        # print(f"✅ Scan Source Distribution data being sent: {pie_chart_data}") # Final check
-        return jsonify(pie_chart_data), 200 # Return the list as JSON
+        print(f"✅ Scan Source Distribution data (Role: {role}): {pie_chart_data}")
+        return jsonify(pie_chart_data), 200
 
     except pymongo.errors.PyMongoError as dbe:
-        # Handle broader database connection/operation errors
-        # current_app.logger.error(f"Database error in get_scan_source_distribution: {dbe}")
-        print(f"ERROR: Database error in get_scan_source_distribution: {dbe}")
+        print(f"🔥 Database error in /scan-source-distribution: {str(dbe)}")
         return jsonify({"error": "Database query error"}), 500
-
     except Exception as e:
-        # Handle any other unexpected errors in the main try block
-        # current_app.logger.error(f"Unexpected error in get_scan_source_distribution: {e}", exc_info=True)
-        print(f"ERROR: Unexpected error in get_scan_source_distribution: {e}")
+        print(f"🔥 Unexpected error in /scan-source-distribution: {str(e)}")
         import traceback
-        traceback.print_exc() # Print stack trace for unexpected errors
+        traceback.print_exc()
         return jsonify({"error": "An internal server error occurred"}), 500
 
 
@@ -1298,16 +1447,16 @@ def fetch_logs_rb(user_id=None, role='user', limit=None, search_query=None):
             "id": str(entry["_id"]), # Use Detection's _id as the main ID for the row
             "log_id": str(log_info["_id"]) if log_info and "_id" in log_info else None, # ID from Logs collection if available
             "detect_id": entry.get("detect_id", "N/A"),
-            "title": "Threat Detected" if is_threat else "Safe Link Verified",
-            "link": f"{entry.get('url', 'Unknown URL')} - {source}",
+            "title": "Phishing Detected" if is_threat else "Safe Link Verified",
+            "link": f"{entry.get('url', 'Unknown URL')} - {entry.get('metadata', {}).get('source', 'Scan')}",
             "time": formatted_time,
             "icon": "suspicious-icon" if is_threat else "safe-icon",
             "severity": severity,
-            "probability": log_info.get("probability", 0.0), # Get probability from log
+            "probability": float(log_info.get("probability", 0.0))/100 if log_info else float(entry.get("svm_score", 0.0)),
             "platform": platform,
-            "recommended_action": "Review/Block" if is_threat else "Allow", # Simplified action
+            "recommended_action": "Block URL" if entry.get("severity", "Unknown") in ["CRITICAL", "HIGH", "MEDIUM"] else "Allow URL",
             "url": entry.get("url", "Unknown URL"),
-            "date_scanned": timestamp # Use the detection timestamp
+            "date_scanned": timestamp.isoformat() if isinstance(timestamp, datetime) else None,
         })
 
     return formatted_logs
@@ -1401,13 +1550,13 @@ def get_log_details(detection_id):
             "date_scanned": timestamp.isoformat() if timestamp else None, # Use ISO format for detail views
             "severity": severity,
             "probability": log_entry.get("probability", 0.0) if log_entry else 0.0,
-            "recommended_action": "Review/Block" if is_threat else "Allow",
+            "recommended_action": "Block URL" if is_threat else "Allow URL",
             # Add more fields if needed for the detail modal
             #"features": detection_entry.get("features"),
             "ml_prob_phishing": detection_entry.get("ml_prob_phishing"),
-             "ml_prob_legitimate": detection_entry.get("ml_prob_legitimate"),
-             "is_shortener": detection_entry.get("is_shortener"),
-             "shortener_domain": detection_entry.get("shortener_domain"),
+            "ml_prob_legitimate": detection_entry.get("ml_prob_legitimate"),
+            "is_shortener": detection_entry.get("is_shortener"),
+            "shortener_domain": detection_entry.get("shortener_domain"),
         }
         print(f"✅ Fetched details for Detection ID: {detection_id}")
         return jsonify(log_details)
@@ -1786,10 +1935,206 @@ def extract_content_from_sms():
         print(traceback.format_exc())
         return jsonify({"error": "Internal server error during content extraction"}), 500
     
+# --- Google Login/Authorization ---
+@app.route("/google-login")
+def google_login():
+    try:
+        """
+        Initiates the Google OAuth 2.0 flow.
+        Redirects the user to Google's consent screen.
+        """
+        # Retrieve Google client config and scopes from Flask app config
+        # These should have been set in your app/__init__.py from .env
+        client_id = current_app.config.get('GOOGLE_CLIENT_ID')
+        client_secret = current_app.config.get('GOOGLE_CLIENT_SECRET')
+        redirect_uri = current_app.config.get('GOOGLE_REDIRECT_URI')
+        scopes = current_app.config.get('GOOGLE_SCOPES')
+
+        if not client_id or not client_secret or not redirect_uri or not scopes:
+            print("ERROR: Google OAuth configuration missing in Flask app config.")
+            # Redirect to an error page or return an error response
+            return "Server configuration error for Google OAuth.", 500
+
+        # Create the OAuth Flow instance using configuration loaded into Flask app
+        # This avoids needing a separate client_secrets.json file if config is set
+        flow = Flow.from_client_config(
+            client_config={ # Construct the structure Google library expects
+                "web": {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [redirect_uri], # Must be a list
+                }
+            },
+            scopes=scopes,
+            redirect_uri=redirect_uri
+        )
+        
+        # Generate the URL the user needs to visit to grant permission
+        # access_type='offline' is crucial to get a refresh_token
+        # prompt='consent' ensures the user sees the consent screen even if previously granted,
+        # which is often needed to guarantee a refresh token is returned on subsequent links.
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            prompt='consent',
+            include_granted_scopes='true'
+        )
+
+        # Store the 'state' value in the user's session.
+        # This is a security measure to prevent Cross-Site Request Forgery (CSRF).
+        # The same state value must be returned by Google in the callback.
+        session['oauth_state'] = state
+
+        # Optional: Store the final redirect URL for the frontend app
+        # This allows redirecting back to different app screens based on where the user started
+        # Get it from query param, default to a success deep link
+        final_redirect_from_frontend = request.args.get('final_redirect', 'swiftshield://google/auth/success')
+        session['final_redirect_uri'] = final_redirect_from_frontend
+
+        print(f"DEBUG: /google/login - Redirecting user to Google. State: {state}, Final Redirect: {final_redirect_from_frontend}")
+
+        # Send the user to the Google Authorization URL
+        return redirect(authorization_url)
     
+    except Exception as e:
+        import traceback
+        print(f"Error in /google-login: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"error": "Server configuration error for Google OAuth."}), 500
+
+
+# --- Route to Handle the Callback from Google ---
+@app.route("/google-callback")
+def google_callback():
+    """
+    Handles the redirect back from Google after user authorization.
+    Exchanges the authorization code for tokens and stores the refresh token.
+    """
+    # 1. --- Verify the State Parameter ---
+    received_state = request.args.get('state')
+    expected_state = session.get('oauth_state') # Retrieve state stored in /login route
+
+    print(f"DEBUG: /google/callback - Received state: {received_state}")
+    print(f"DEBUG: /google/callback - Expected state: {expected_state}")
+
+    # Security check: If states don't match, it could be a CSRF attack. Abort.
+    if not received_state or received_state != expected_state:
+        print("ERROR: /google/callback - State mismatch error.")
+        # Pop the redirect URI if it exists, default to an error deep link
+        final_redirect = session.pop('final_redirect_uri', 'swiftshield://google/auth/error?reason=state_mismatch')
+        # Redirect back to the React Native app with an error indicator
+        return redirect(final_redirect)
+
+    # State is valid, clear it from session now that it's used
+    session.pop('oauth_state', None)
+
+    # 2. --- Initialize the Flow Again ---
+    # The flow object is needed again to exchange the code for tokens.
+    # Use the same configuration as in the /login route.
+    client_id = current_app.config.get('GOOGLE_CLIENT_ID')
+    client_secret = current_app.config.get('GOOGLE_CLIENT_SECRET')
+    redirect_uri = current_app.config.get('GOOGLE_REDIRECT_URI')
+    scopes = current_app.config.get('GOOGLE_SCOPES')
+
+    if not client_id or not client_secret or not redirect_uri or not scopes:
+        print("ERROR: /google/callback - Google OAuth configuration missing.")
+        final_redirect = session.pop('final_redirect_uri', 'swiftshield://google/auth/error?reason=config_error')
+        return redirect(final_redirect)
+
+        
+    flow = Flow.from_client_config(
+        client_config={ # Construct the structure Google library expects
+                "web": {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [redirect_uri], # Must be a list
+                }
+            },
+        scopes=scopes,
+        redirect_uri=redirect_uri,
+        state=received_state # IMPORTANT: Pass the received state back for validation
+    )
+
+    try:
+        # 3. --- Exchange Authorization Code for Tokens ---
+        # The full callback URL contains the authorization code from Google.
+        # The library uses this URL to extract the code.
+        flow.fetch_token(authorization_response=request.url)
+
+        # 4. --- Get Credentials and Refresh Token ---
+        credentials = flow.credentials # This object holds access_token, refresh_token, expiry, etc.
+        refresh_token = credentials.refresh_token # Extract the crucial refresh token
+
+        if not refresh_token:
+            # This can happen if the user has previously authorized and Google doesn't issue a new one,
+            # OR if access_type='offline' or prompt='consent' wasn't used correctly.
+             print("WARNING: /google-callback - No refresh token received from Google.")
+             # Decide how to handle this: maybe retrieve existing token, or show error?
+             # For simplicity now, we'll error out if no refresh token is obtained on first link.
+
+        # 5. --- Get User Info from Google (to link accounts) ---
+        # Use the obtained credentials to make an API call to get the user's Google email
+        user_info_service = build('oauth2', 'v2', credentials=credentials, cache_discovery=False)
+        user_info = user_info_service.userinfo().get().execute()
+        google_user_email = user_info.get('email')
+        print(f"DEBUG: /google-callback - Fetched Google user info for: {google_user_email}")
+
+        if not google_user_email:
+             raise ValueError("Could not retrieve user email from Google API.")
+
+        # 6. --- Retrieve *Your* Application's User ID from Flask Session ---
+        # This is the user who was logged into SwiftShield when they clicked "Connect Gmail"
+        app_user_id = session.get('user_id') # Reads the 'user_id' stored by your /auth/Login route
+
+        if not app_user_id:
+            # If the user's SwiftShield session expired or is missing
+            print("ERROR: /google-callback - SwiftShield user_id not found in Flask session.")
+            raise ValueError("Your application session seems to have expired. Please log in again.")
+
+        print(f"DEBUG: /google/callback - Found SwiftShield user ID in session: {app_user_id}")
+
+        # 7. --- Store Refresh Token in Your Database ---
+        # Update the specific SwiftShield user's record in MongoDB
+        update_result = users_collection.update_one(
+            {'_id': app_user_id}, # Find the user by their SwiftShield ID
+            {'$set': { # Update these fields
+                'google_refresh_token': refresh_token, # Store the permanent refresh token
+                'google_email': google_user_email, # Link the Google email address
+                'google_auth_linked_on': datetime.now() # Record when linked
+                # You could also store credentials.token and credentials.expiry if needed temporarily
+             }},
+            upsert=False # Important: Don't create a new user if the app_user_id doesn't exist
+        )
+
+        if update_result.matched_count == 0:
+             print(f"ERROR: /google/callback - Could not find SwiftShield user with ID {app_user_id} to store token.")
+             raise ValueError("Could not find your user account to link Google.")
+
+        print(f"SUCCESS: Stored Google refresh token for SwiftShield user: {app_user_id} ({google_user_email})")
+
+        # 8. --- Redirect Back to Frontend App (Success) ---
+        final_redirect = session.pop('final_redirect_uri', 'swiftshield://google/auth/success') # Get success URL
+        return redirect(final_redirect)
+
+    except Exception as e:
+        # Catch any errors during token exchange, user info fetch, or DB update
+        print(f"ERROR: /google-callback - Exception occurred: {str(e)}")
+        print(traceback.format_exc()) # Print detailed error stack trace to console
+        # Redirect back to the Frontend App (Error)
+        error_reason = "token_exchange_failed" if 'flow.fetch_token' in str(e) else "internal_error"
+        final_redirect = session.pop('final_redirect_uri', f'swiftshield://google/auth/error?reason={error_reason}')
+        return redirect(final_redirect)
+
+
+        
 # --- Main Execution ---
 if __name__ == "__main__":
-    # Consider removing debug=True for production
-    # Use waitress or gunicorn for production deployment instead of Flask's built-in server
-    print("Starting Flask development server...")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Use waitress or gunicorn for production, not app.run(debug=True)
+    host = os.getenv("FLASK_RUN_HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", 5000)) # Use PORT env var for Render/deployment compatibility
+    debug_mode = app.config["DEBUG"]
+    print(f"Starting Flask server on {host}:{port} (Debug: {debug_mode})...")
+    app.run(host=host, port=port, debug=debug_mode)

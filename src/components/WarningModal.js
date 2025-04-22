@@ -1,23 +1,27 @@
-import React from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import Ionicons from "react-native-vector-icons/Ionicons";
+// frontend/app/screens/components/WarningModal.js
+import React from "react";
+import {
+  Modal,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+} from "react-native";
 
-// Placeholder require for the top fishing hook icon - replace with your actual asset path
-const emailIcon = require('../assets/images/icon.png'); 
+const headerPhishingIcon = require("../assets/images/email-phishing-hook.png");
+const warningTriangleIcon = require("../assets/images/warning-triangle-icon.png");
+
 
 const WarningModal = ({ visible, onClose, onProceed, url }) => {
+  // Don't render anything if not visible
   if (!visible) return null;
 
-  // Function to safely shorten the URL for display if it's too long
-  const formatUrl = (urlToFormat) => {
-      if (!urlToFormat) return 'this site';
-      const maxLength = 30; // Adjust max length as needed
-      if (urlToFormat.length > maxLength) {
-          // Remove http(s):// first for better shortening
-          const noSchemeUrl = urlToFormat.replace(/^https?:\/\//, '');
-          return noSchemeUrl.substring(0, maxLength - 3) + '...';
-      }
-      return urlToFormat.replace(/^https?:\/\//, ''); // Remove scheme for shorter display
+  // Function to format the URL (just removes scheme for display)
+  const formatUrlForDisplay = (urlToFormat) => {
+    if (!urlToFormat) return "this site";
+    // Remove http(s):// for cleaner display in the warning message
+    return urlToFormat.replace(/^https?:\/\//, "");
   };
 
   return (
@@ -25,139 +29,166 @@ const WarningModal = ({ visible, onClose, onProceed, url }) => {
       visible={visible}
       transparent={true}
       animationType="fade"
-      onRequestClose={onClose} // Android back button
+      onRequestClose={onClose} // Handle Android back button
     >
       {/* Semi-transparent overlay */}
       <View style={styles.overlay}>
-         {/* Prevent touches inside the modal closing it via the overlay */}
-         <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-            {/* White Content Box */}
-            <View style={styles.modalView}>
-                {/* Red Header */}
-                <View style={styles.header}>
-                    <Image source={emailIcon} style={styles.headerIcon} resizeMode="contain"/>
-                </View>
-
-                {/* Warning Content */}
-                <View style={styles.content}>
-                    <View style={styles.warningRow}>
-                        <Ionicons name="warning" size={30} color="#FF0000" style={styles.warningIcon} />
-                        <Text style={styles.title}>Warning!</Text>
-                    </View>
-                    <Text style={styles.subtitle}>
-                        SwiftShield has detected this URL as phishing!
-                    </Text>
-                    <Text style={styles.bodyText}>
-                        Attackers on <Text style={styles.boldUrl}>{formatUrl(url)}</Text> might try to trick you to steal your information (for example: passwords, emails, messages, and/or payment information)
-                    </Text>
-
-                    {/* Buttons */}
-                    <TouchableOpacity onPress={onProceed} style={styles.proceedButton}>
-                        <Text style={styles.proceedText}>Proceed to site</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                        <Text style={styles.closeText}>Close</Text>
-                    </TouchableOpacity>
-                </View>
+        {/* Prevent touches inside the modal closing it via the overlay */}
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={(e) => e.stopPropagation()}
+        >
+          {/* Main Modal Box */}
+          <View style={styles.modalView}>
+            {/* Red Header Section */}
+            <View style={styles.header}>
+              <Image
+                source={headerPhishingIcon}
+                style={styles.headerIcon}
+                resizeMode="contain"
+              />
             </View>
-         </TouchableOpacity>
-         {/* End Content Wrapper */}
+
+            {/* White Content Section */}
+            <View style={styles.content}>
+              {/* Warning Triangle Icon */}
+              <Image
+                source={warningTriangleIcon}
+                style={styles.warningIcon}
+                resizeMode="contain"
+              />
+
+              {/* Warning Title */}
+              <Text style={styles.title}>Warning!</Text>
+
+              {/* Subtitle */}
+              <Text style={styles.subtitle}>
+                SwiftShield has detected this URL as phishing!
+              </Text>
+
+              {/* Body Description */}
+              <Text style={styles.bodyText}>
+                Attackers on{" "}
+                <Text style={styles.boldUrl}>{formatUrlForDisplay(url)}</Text>{" "}
+                might try to trick you to steal your information (for example:
+                passwords, emails, messages, and/or payment information)
+              </Text>
+
+              {/* --- Add Proceed Button --- */}
+              <TouchableOpacity
+                onPress={onProceed} // <-- Use onProceed prop
+                style={styles.proceedButton}
+                activeOpacity={0.7} // Add feedback on press
+              >
+                <Text style={styles.proceedText}>Proceed to site</Text>
+              </TouchableOpacity>
+              {/* --- End Proceed Button --- */}
+
+              {/* Close Button */}
+              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                <Text style={styles.closeText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            {/* End Content Section */}
+          </View>
+          {/* End Main Modal Box */}
+        </TouchableOpacity>
+        {/* End Content Wrapper */}
       </View>
       {/* End Overlay */}
     </Modal>
   );
 };
 
+// --- Styles matching the image ---
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)', // Darker overlay
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20, // Add padding to prevent modal touching edges
+    backgroundColor: "rgba(0, 0, 0, 0.6)", // Semi-transparent dark overlay
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20, // Provides margin around the modal
   },
   modalView: {
-    width: '100%', // Use full width within padding
-    maxWidth: 380, // Max width for larger screens
-    backgroundColor: '#FFFFFF', // White background for the main box
-    borderRadius: 15,
-    overflow: 'hidden', // Clip the header's corners
-    // Add shadows (optional)
-    shadowColor: '#000',
+    width: "100%",
+    maxWidth: 360, // Max width for the modal box
+    backgroundColor: "#FFFFFF", // White background
+    borderRadius: 16, // Rounded corners for the whole box
+    overflow: "hidden", // Important to clip the header corners
+    elevation: 5,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
-    elevation: 5,
   },
   header: {
-    backgroundColor: '#FF4D4D', // Red header background
-    paddingVertical: 15, // Adjust padding as needed
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderTopLeftRadius: 15, // Match container border radius
-    borderTopRightRadius: 15,
+    backgroundColor: "#D9534F", // Red header background (#d9534f is a common bootstrap danger red)
+    paddingVertical: 5, // Vertical padding in the header
+    alignItems: "center", // Center the icon horizontally
   },
   headerIcon: {
-    width: 45, // Adjust size
-    height: 45,
-    tintColor: '#FFFFFF', // Make the icon white
+    width: 100, // Adjust size as needed
+    height: 100,
+    // Removed tintColor if your icon is already yellow/colored correctly
   },
   content: {
-    padding: 25, // Padding for the white content area
-    alignItems: 'center',
-  },
-  warningRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 5,
+    paddingTop: 20, // Padding above the warning icon
+    paddingBottom: 25, // Padding below the close button
+    paddingHorizontal: 25, // Horizontal padding for text content
+    alignItems: "center", // Center all content items horizontally
   },
   warningIcon: {
-    marginRight: 8,
+    width: 60, // Adjust size
+    height: 60,
+    marginBottom: 15, // Space below the icon
   },
   title: {
-    fontSize: 24, // Larger title
-    fontWeight: 'bold',
-    color: '#FF0000', // Red title text
+    fontSize: 26, // Larger title
+    fontWeight: "bold",
+    color: "#D9534F", // Red title text
+    textAlign: "center", // Center align
+    marginBottom: 8, // Space below title
   },
   subtitle: {
-    fontSize: 14,
-    color: '#333333', // Dark grey subtitle
-    textAlign: 'center',
-    marginBottom: 15,
+    fontSize: 15, // Slightly larger subtitle
+    fontWeight: "600", // Bolder subtitle
+    color: "#333333", // Dark text
+    textAlign: "center",
+    marginBottom: 15, // Space below subtitle
   },
   bodyText: {
     fontSize: 14,
-    color: '#444444', // Slightly lighter grey body text
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 25,
+    color: "#555555", // Medium grey text
+    textAlign: "center",
+    lineHeight: 21, // Improve readability
+    marginBottom: 30, // More space below description
   },
   boldUrl: {
-    fontWeight: 'bold',
-    color: '#FF0000', // Make URL red and bold
+    fontWeight: "bold",
+    color: "#D9534F", // Red, bold URL
   },
   proceedButton: {
-    paddingVertical: 10, // Just padding, no background
-    marginBottom: 10, // Space between buttons
+    paddingVertical: 8, // Add some padding for easier tapping
+    marginBottom: 15, // Space between proceed and close buttons
   },
   proceedText: {
     fontSize: 14,
-    color: '#AAAAAA', // Faded grey color
-    textDecorationLine: 'underline', // Underline
+    color: "#F17878", // <-- Specific color requested
   },
+  // Removed proceedButton styles
   closeButton: {
-    backgroundColor: '#FF0000', // Bright red background
-    borderRadius: 10, // Rounded corners
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    width: '100%', // Make button full width
-    alignItems: 'center',
-    elevation: 2, // Slight shadow effect
+    backgroundColor: "#D9534F", // Matching red button
+    borderRadius: 8, // Slightly less rounded corners for button
+    paddingVertical: 13, // Vertical padding inside button
+    paddingHorizontal: 20, // Horizontal padding
+    width: "90%", // Make button slightly less than full width
+    alignItems: "center", // Center text inside button
+    elevation: 2,
   },
   closeText: {
-    color: '#FFFFFF', // White text
+    color: "#FFFFFF", // White button text
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold", // Bold button text
   },
 });
 

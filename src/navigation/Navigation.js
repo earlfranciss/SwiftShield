@@ -17,6 +17,7 @@ import NotificationToast from "../components/NotificationToast";
 //Services - Import with error handling
 import * as NotificationService from "../services/NotificationService";
 const { requestNotificationPermissions, setupNotificationListeners, scheduleNotification } = NotificationService;
+import WebViewScreen from "../screens/WarningScreen/WebViewScreen";
 //Config
 import config from "../config/config";
 //Tab Screens
@@ -330,6 +331,16 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
       <Stack.Screen 
         name="EditProfile" 
         component={typeof EditProfile === 'function' ? EditProfile : ErrorScreen} 
+      />
+
+      <Stack.Screen
+        name="WebViewScreen" // Name used in navigation.navigate('WebViewScreen', ...)
+        component={WebViewScreen}
+        options={{
+          headerShown: false, // Use the custom header inside WebViewScreen
+          presentation: "modal", // Optional: Makes it slide up like a modal
+          animation: "slide_from_bottom", // Explicitly define modal animation
+        }}
       />
 
     </Stack.Navigator>

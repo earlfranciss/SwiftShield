@@ -17,7 +17,7 @@ import LinearGradient from "react-native-linear-gradient";
 import config from "../../config/config";
 import DetailsModal from '../../components/DetailsModal';
 import SmsListener from 'react-native-android-sms-listener';
-import { useNotifications } from "../../utils/NotificationContext"; // Correct path? Ensure it exists
+import { useNotifications } from "../../utils/NotificationContext"; 
 
 // Instead of importing RNFS directly, create a wrapper with safety checks
 const SafeRNFS = {
@@ -43,13 +43,15 @@ const SafeRNFS = {
 };
 
 // --- Component ---
-export default function Home() {
+export default function Home({ navigation }) {
   const [url, setUrl] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [inputError, setInputError] = useState(""); 
-  const [isProtectionEnabled, setIsProtectionEnabled] = useState(false); // Assume starts enabled
+  const [scanResultForModal, setScanResultForModal] = useState(null);
+  const [isLoadingScan, setIsLoadingScan] = useState(false); 
+  const [isProtectionEnabled, setIsProtectionEnabled] = useState(false); 
   const [isTogglingProtection, setIsTogglingProtection] = useState(false);
   const {handleNewScanResult } = useNotifications(); // Get handler from context
   const [isSmsListening, setIsSmsListening] = useState(false);
@@ -473,6 +475,37 @@ export default function Home() {
     setSelectedLog(null);
   };
 
+  // Example Delete Handler (copied from previous example, ensure it's needed/correct)
+  const handleDeleteLog = async (logId) => {
+    if (!logId) {
+      console.error("Delete failed: No log ID provided.");
+      Alert.alert("Error", "Cannot delete log without an ID.");
+      return;
+    }
+    console.log("Attempting to delete log:", logId);
+    setIsLoadingScan(true); // Optional: show loading while deleting
+    try {
+      const deleteUrl = `${config.BASE_URL}/logs/${logId}`;
+      const response = await fetch(deleteUrl, { method: "DELETE" });
+      const result = await response.json(); // Try to parse response
+
+      if (!response.ok || result.error) {
+        throw new Error(
+          result.error || `Failed to delete (Status: ${response.status})`
+        );
+      }
+
+      Alert.alert("Success", "Log deleted successfully.");
+      closeModal(); // Close modal after successful deletion
+      // Optionally: Refresh any log lists displayed elsewhere in the app
+    } catch (err) {
+      console.error("Delete failed:", err);
+      Alert.alert("Error", `Could not delete log: ${err.message}`);
+    } finally {
+      setIsLoadingScan(false);
+    }
+  };
+
   // --- Render Logic ---
   if (!fontsLoaded) {
     return <SafeAreaView style={styles.container}><Text>Loading...</Text></SafeAreaView>;
@@ -544,26 +577,34 @@ export default function Home() {
           keyboardType="url"
         />
         {/* --- Display Error Message Below Input --- */}
-        {inputError ? (
-          <Text style={styles.errorText}>{inputError}</Text>
-        ) : null}
+         {inputError ? <Text style={styles.errorText}>{inputError}</Text> : null}
 
-        <TouchableOpacity style={styles.scanButton} onPress={handleUrlScan}>
-          <LinearGradient
-            colors={["#3AED97", "#BCE26E", "#FCDE58"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.gradientButton}
-          >
-            <Text style={styles.scanButtonText}>SCAN</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+        {/* Show ActivityIndicator instead of button while loading */}
+        {isLoadingScan ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#3AED97" />
+            <Text style={styles.loadingText}>Scanning...</Text>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.scanButton} onPress={handleUrlScan}>
+            <LinearGradient
+              colors={["#3AED97", "#BCE26E", "#FCDE58"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.gradientButton}
+            >
+              <Text style={styles.scanButtonText}>SCAN</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
       </View>
 
       <DetailsModal
+        navigation={navigation}
         visible={modalVisible}
         onClose={closeModal}
-        logDetails={selectedLog}
+        scanResult={scanResultForModal}
+        onDeletePress={handleDeleteLog}
       />
     </SafeAreaView>
   );
@@ -658,6 +699,13 @@ const styles = StyleSheet.create({
     fontSize: 16, // Slightly smaller
     fontWeight: "800",
     letterSpacing: 3, // Less spacing
+  },
+  loadingContainer: {
+    // Applied additionally to container when loading
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 0, // Override padding when only showing loader
   },
    warningText: { // Added style
      marginTop: 10,

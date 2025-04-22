@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
   highlightedText: {
     color: "#3AED97",
     fontSize: 14,
-    fontWeight: "semi-bold",
+    fontWeight: "600",
   },
 });
 

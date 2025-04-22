@@ -1,21 +1,22 @@
 import React from 'react';
 import { View, Text, Image, Switch, StyleSheet, Pressable } from 'react-native';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 // Define your green color constant
-const APP_GREEN_COLOR = '#31EE9A'; // Example green, adjust as needed
+const APP_GREEN_COLOR = '#31EE9A'; 
 
-const PRESS_FEEDBACK_COLOR = 'rgba(255, 255, 255, 0.1)'; // Subtle white overlay
+const PRESS_FEEDBACK_COLOR = 'rgba(255, 255, 255, 0.1)'; 
 
-const ConnectedAppItem = ({ iconSource, appName, isEnabled, onToggle }) => {
+const ConnectedAppItem = ({ iconSource, appName, isEnabled, onToggle}) => {
     return (
       // Modify the style prop of Pressable
       <Pressable
         onPress={onToggle}
         // Use the function form for the style prop
         style={({ pressed }) => [
-          styles.pressableContainer, // Apply the base styles first
+          styles.pressableContainer, 
           pressed // Check if the component is currently being pressed
-            ? { backgroundColor: PRESS_FEEDBACK_COLOR } // Apply feedback color if pressed
+            ? { backgroundColor: PRESS_FEEDBACK_COLOR } 
             : null, // Otherwise, apply no additional background color
         ]}
       >
@@ -27,15 +28,17 @@ const ConnectedAppItem = ({ iconSource, appName, isEnabled, onToggle }) => {
             <Text style={styles.appNameText}>{appName}</Text>
           </View>
 
-          {/* Right side: Switch */}
-          <Switch
-            trackColor={{ false: '#767577', true: '#81b0ff' }}
-            thumbColor={isEnabled ? '#f4f3f4' : '#f4f3f4'}
-            ios_backgroundColor="#3e3e3e"
-            onValueChange={onToggle}
-            value={isEnabled}
-            onTouchStart={(e) => e.stopPropagation()}
-          />
+          {/* Right side: Show Switch OR Connect Button/Indicator */}
+             <Switch
+                trackColor={{ false: '#767577', true: '#81b0ff' }}
+                thumbColor={isEnabled ? '#f4f3f4' : '#f4f3f4'}
+                ios_backgroundColor="#3e3e3e"
+                onValueChange={onToggle} // Switch directly calls onToggle
+                value={isEnabled}
+                // Stop press event on switch from bubbling up to the Pressable row
+                //onTouchStart={(e) => e.stopPropagation()}
+             />
+
         </View>
       </Pressable>
     );
@@ -76,6 +79,14 @@ const styles = StyleSheet.create({
     color: APP_GREEN_COLOR,
     fontSize: 17,
     fontWeight: '500',
+  },
+  connectStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  connectText: {
+    fontSize: 14,
+    marginRight: 5,
   },
 });
 

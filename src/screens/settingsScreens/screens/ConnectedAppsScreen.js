@@ -1,34 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   FlatList,
   StyleSheet,
   SafeAreaView,
-  StatusBar, // Import StatusBar
-  Pressable, // For back button
+  StatusBar, 
+  Pressable, 
+  Alert,
+  Linking,
 } from 'react-native';
 import Ionicons from "react-native-vector-icons/Ionicons";
-
-import ConnectedAppItem from '../components/ConnectedAppItem'; // Adjust path if needed
-
-// Define your green color constant (can be shared)
-const APP_GREEN_COLOR = '#31EE9A'; // Example green, adjust as needed
-const BACKGROUND_COLOR = '#000000'; // Black background for the screen
+import config from '../../../config/config';
+import ConnectedAppItem from '../components/ConnectedAppItem';
+ 
+// Color constant 
+const APP_GREEN_COLOR = '#31EE9A'; 
+const BACKGROUND_COLOR = '#000000'; 
 
 // --- IMPORTANT: Replace these with your actual icon paths ---
-const DUMMY_ICON_MSG = require('../../../assets/images/messages_icon.png'); // Replace with actual path
-const DUMMY_ICON_GMAIL = require('../../../assets/images/gmail_icon.png'); // Replace with actual path
+const DUMMY_ICON_MSG = require('../../../assets/images/messages_icon.png'); 
+const DUMMY_ICON_GMAIL = require('../../../assets/images/gmail_icon.png'); 
 // ---
 
-const ConnectedAppsScreen = ({ navigation }) => { // Assuming you use react-navigation
+const ConnectedAppsScreen = ({ navigation }) => { 
+  const [isSmsEnabled, setIsSmsEnabled] = useState(false);
+  const [isGmailConnected, setIsGmailConnected] = useState(false); 
   const [apps, setApps] = useState([
-    { id: 'msg', name: 'Messages', icon: DUMMY_ICON_MSG, enabled: false },
-    { id: 'gmail', name: 'Gmail', icon: DUMMY_ICON_GMAIL, enabled: false },
-    // Add more apps here if needed
+    { id: 'msg', name: 'Messages', icon: DUMMY_ICON_MSG, enabled: isSmsEnabled },
+    { id: 'gmail', name: 'Gmail', icon: DUMMY_ICON_GMAIL, enabled: isGmailConnected },
   ]);
 
-  const handleToggle = (appId) => {
+
+  const handleToggle = (appId, newValue) => {
     setApps(currentApps =>
       currentApps.map(app =>
         app.id === appId ? { ...app, enabled: !app.enabled } : app
@@ -39,7 +43,45 @@ const ConnectedAppsScreen = ({ navigation }) => { // Assuming you use react-navi
     if (toggledApp) {
         console.log(`Toggled ${toggledApp.name} to ${!toggledApp.enabled}`);
     }
+    if (appId === 'msg') {
+      handleToggleSms(newValue); // Call the specific SMS handler
+    } else if (appId === 'gmail') {
+      // If the Gmail switch is toggled ON, initiate connection
+      // If toggled OFF, initiate disconnection (if implemented)
+      if (newValue === true && !isGmailConnected) {
+         handleConnectGmail();
+      } else if (newValue === false && isGmailConnected) {
+         // Trigger disconnect logic if you have it
+         handleConnectGmail(); // Currently shows 'Disconnect not implemented'
+      }
+      // Note: The visual state of the Gmail switch (isGmailConnected)
+      // should ideally be updated based on the actual connection status
+      // fetched from backend or after successful OAuth flow / disconnect.
+      // For now, toggling it directly might be confusing if connection fails.
+      // Consider making the Gmail item just a button instead of a switch.
+    }
   };
+
+  const handleItemPress = (appId, newValue) => {
+    //console.log(`Row pressed for ${item.name}`);
+    if (appId === 'msg') {
+      handleToggleSms(newValue); // Call the specific SMS handler
+    } else if (appId === 'gmail') {
+      // If the Gmail switch is toggled ON, initiate connection
+      // If toggled OFF, initiate disconnection (if implemented)
+      if (newValue === true && !isGmailConnected) {
+         handleConnectGmail();
+      } else if (newValue === false && isGmailConnected) {
+         // Trigger disconnect logic if you have it
+         handleConnectGmail(); // Currently shows 'Disconnect not implemented'
+      }
+      // Note: The visual state of the Gmail switch (isGmailConnected)
+      // should ideally be updated based on the actual connection status
+      // fetched from backend or after successful OAuth flow / disconnect.
+      // For now, toggling it directly might be confusing if connection fails.
+      // Consider making the Gmail item just a button instead of a switch.
+    }
+  }
 
   // Function to handle back navigation
   const handleGoBack = () => {
@@ -54,10 +96,12 @@ const ConnectedAppsScreen = ({ navigation }) => { // Assuming you use react-navi
 
 
   const handleConnectGmail = () => {
-      // Construct the backend login URL
-      // Optionally pass the desired deep link redirect as a query param
-      const finalRedirect = encodeURIComponent('swiftshield://google/auth/success'); // Your app's deep link scheme
-      const googleLoginUrl = `${config.BASE_URL}/google/login?final_redirect=${finalRedirect}`;
+      if (isGmailConnected) {
+        Alert.alert("Gmail", "Disconnect functionality not yet implemented.");
+        return;
+      }
+      const finalRedirect = encodeURIComponent('swiftshield://google/auth/success'); 
+      const googleLoginUrl = `${config.BASE_URL}/google-login?final_redirect=${finalRedirect}`;
   
       console.log("Opening Google Login URL:", googleLoginUrl);
   
@@ -68,7 +112,48 @@ const ConnectedAppsScreen = ({ navigation }) => { // Assuming you use react-navi
       });
     };
 
-    
+     // --- SMS Listener Handler ---
+  const handleToggleSms = async (newValue) => {
+    if (newValue === true) { // User wants to ENABLE SMS listening
+       console.log("Attempting to enable SMS listener...");
+        // 1. Check/Request Permissions
+        let permissionsOk = await checkOrRequestSmsPermissions(); // Implement this helper
+        if (!permissionsOk) {
+            Alert.alert('Permissions Required', 'Cannot enable SMS protection without SMS read/receive permissions.');
+            return; // Don't change switch state if permissions fail
+        }
+        // 2. Start the Listener (Import or get from context)
+        console.log("TODO: Call startSmsListening()");
+        // startSmsListening(); // Replace with actual call
+        setIsSmsEnabled(true); // Update state only after starting successfully
+    } else { // User wants to DISABLE SMS listening
+        console.log("Attempting to disable SMS listener...");
+        // 1. Stop the Listener (Import or get from context)
+        console.log("TODO: Call stopSmsListening()");
+         // stopSmsListening(); // Replace with actual call
+        setIsSmsEnabled(false); // Update state
+    }
+ };
+
+   // --- Permission Helper (Example) ---
+   const checkOrRequestSmsPermissions = async () => {
+    // Re-use the permission logic from Home.js or move it to a shared util
+     if (Platform.OS !== 'android') return false;
+     try {
+         const granted = await PermissionsAndroid.requestMultiple([
+             PermissionsAndroid.PERMISSIONS.READ_SMS,
+             PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+             // PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS, // Only if needed right now
+         ]);
+         const smsReadGranted = granted[PermissionsAndroid.PERMISSIONS.READ_SMS] === PermissionsAndroid.RESULTS.GRANTED;
+         const smsReceiveGranted = granted[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS] === PermissionsAndroid.RESULTS.GRANTED;
+         return smsReadGranted && smsReceiveGranted;
+     } catch (err) {
+         console.warn("SMS Permission check/request failed:", err);
+         return false;
+     }
+ };
+
 
   return (
     <View style={styles.screenContainer}>
@@ -94,7 +179,9 @@ const ConnectedAppsScreen = ({ navigation }) => { // Assuming you use react-navi
             iconSource={item.icon}
             appName={item.name}
             isEnabled={item.enabled}
-            onToggle={() => handleToggle(item.id)}
+            onItemPress={() => handleItemPress(item)}
+            onToggle={(newValue) => handleToggle(item.id, newValue)}
+            isConnectType={item.type === 'connect'}
           />
         )}
         keyExtractor={item => item.id}

@@ -23,6 +23,16 @@ app.config["SESSION_USE_SIGNER"] = True
 app.config["SESSION_MONGODB_DB"] = 'SwiftShield_Session'
 app.config["SESSION_MONGODB_COLLECT"] = 'sessions'
 app.config["SESSION_MONGODB"] = pymongo.MongoClient(os.getenv("DB_CONNECTION_STRING"))
+# Google configs
+app.config["GOOGLE_CLIENT_ID"] = pymongo.MongoClient(os.getenv("GOOGLE_CLIENT_ID"))
+app.config["GOOGLE_CLIENT_SECRET"] = pymongo.MongoClient(os.getenv("GOOGLE_CLIENT_SECRET"))
+app.config["GOOGLE_REDIRECT_URI"] = pymongo.MongoClient(os.getenv("GOOGLE_REDIRECT_URI"))
+app.config['GOOGLE_SCOPES'] = [
+    'openid',
+    'https://www.googleapis.com/auth/userinfo.email', 
+    'https://www.googleapis.com/auth/userinfo.profile', 
+    'https://www.googleapis.com/auth/gmail.readonly'
+]
 
 # Initialize Flask-Session AFTER setting config
 Session(app) 
