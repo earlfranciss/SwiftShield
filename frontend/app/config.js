@@ -1,4 +1,4 @@
-import Constants from "expo-constants";
+/*import Constants from "expo-constants";
 
 const getBaseURL = () => {
   let host;
@@ -18,5 +18,33 @@ const getBaseURL = () => {
 const config = {
   BASE_URL: getBaseURL(),
 };
+
+export default config;*/
+
+import { Platform } from 'react-native';
+
+const getBaseURL = () => {
+  let baseURL; 
+
+  if (__DEV__) {
+    if (Platform.OS === 'android') {
+      //baseURL = 'http://10.0.2.2:5000'; 
+      baseURL = 'https://swiftshield.onrender.com';
+    } else {
+      //baseURL = 'http://localhost:5000';
+      baseURL = 'https://swiftshield.onrender.com';
+    }
+  } else {
+    baseURL = 'https://swiftshield.onrender.com';
+  }
+
+  return baseURL;
+};
+
+const config = {
+  BASE_URL: getBaseURL(),
+};
+
+console.log('Using API Base URL:', config.BASE_URL); 
 
 export default config;
