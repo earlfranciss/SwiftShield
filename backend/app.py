@@ -52,10 +52,10 @@ app = Flask(__name__)
 
 # --- App Configuration ---
 app.config["DEBUG"] = os.getenv("FLASK_DEBUG", "False").lower() == "true"
-secret_key = os.getenv("SECRET_KEY") 
-app.config["SECRET_KEY"] = secret_key
-if not app.config["SECRET_KEY"]:
-    raise ValueError("FLASK_SECRET_KEY is not set in .env")
+# secret_key = os.getenv("SECRET_KEY") 
+# app.config["SECRET_KEY"] = secret_key
+# if not app.config["SECRET_KEY"]:
+#     raise ValueError("FLASK_SECRET_KEY is not set in .env")
 
 # --- Flask-Session Configuration ---
 app.config["SESSION_TYPE"] = "mongodb" 
