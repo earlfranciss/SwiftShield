@@ -82,8 +82,8 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_SAFE_BROWSING_API_KEY")
 
 if not db_connection_string:
     raise ValueError("Environment variable DB_CONNECTION_STRING is not set")
-if not secret_key:
-    raise ValueError("Environment variable SECRET_KEY is not set (required for sessions)")
+# if not secret_key:
+#     raise ValueError("Environment variable SECRET_KEY is not set (required for sessions)")
 
 # if not GOOGLE_API_KEY:
 #     print("WARN: GOOGLE_SAFE_BROWSING_API_KEY is not set. Safe Browsing checks will be skipped.")
