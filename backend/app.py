@@ -52,10 +52,10 @@ app = Flask(__name__)
 
 # --- App Configuration ---
 app.config["DEBUG"] = os.getenv("FLASK_DEBUG", "False").lower() == "true"
-# secret_key = os.getenv("SECRET_KEY") 
-# app.config["SECRET_KEY"] = secret_key
-# if not app.config["SECRET_KEY"]:
-#     raise ValueError("FLASK_SECRET_KEY is not set in .env")
+secret_key = os.getenv("SECRET_KEY") 
+app.config["SECRET_KEY"] = secret_key
+if not app.config["SECRET_KEY"]:
+    raise ValueError("FLASK_SECRET_KEY is not set in .env")
 
 # --- Flask-Session Configuration ---
 app.config["SESSION_TYPE"] = "mongodb" 
@@ -82,8 +82,8 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_SAFE_BROWSING_API_KEY")
 
 if not db_connection_string:
     raise ValueError("Environment variable DB_CONNECTION_STRING is not set")
-# if not secret_key:
-#     raise ValueError("Environment variable SECRET_KEY is not set (required for sessions)")
+if not secret_key:
+    raise ValueError("Environment variable SECRET_KEY is not set (required for sessions)")
 
 # if not GOOGLE_API_KEY:
 #     print("WARN: GOOGLE_SAFE_BROWSING_API_KEY is not set. Safe Browsing checks will be skipped.")
