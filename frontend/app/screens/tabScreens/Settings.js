@@ -26,6 +26,7 @@ export default function Settings({ navigation, isDarkMode }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+<<<<<<< Updated upstream
       {/* Profile Section - NOW CLICKABLE */}
       <TouchableOpacity
         style={styles.profileSection} // Apply the style directly to TouchableOpacity
@@ -33,11 +34,20 @@ export default function Settings({ navigation, isDarkMode }) {
         activeOpacity={0.7} // Optional: control the feedback intensity
       >
         {/* Inner content remains the same */}
+=======
+      {/* Profile Section */}
+      <TouchableOpacity style={styles.optionButton}>
+      <View style={styles.profileSection}>
+>>>>>>> Stashed changes
         <View style={styles.avatar}></View>
         <View>
           <Text style={styles.name}>John Doe</Text>
           <Text style={styles.email}>johndoe@email.com</Text>
         </View>
+<<<<<<< Updated upstream
+=======
+      </View>
+>>>>>>> Stashed changes
       </TouchableOpacity>
 
       {/* Options Section */}
