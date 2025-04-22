@@ -55,7 +55,7 @@ app.config["DEBUG"] = os.getenv("FLASK_DEBUG", "False").lower() == "true"
 secret_key = os.getenv("SECRET_KEY") 
 app.config["SECRET_KEY"] = secret_key
 if not app.config["SECRET_KEY"]:
-    raise ValueError("FLASK_SECRET_KEY is not set in .env")
+    raise ValueError("SECRET_KEY is not set in .env")
 
 # --- Flask-Session Configuration ---
 app.config["SESSION_TYPE"] = "mongodb" 
@@ -970,6 +970,7 @@ def index():
         }
         detection_collection.insert_one(detection_data)
 
+        print(f"✅ Detection Data: {detection_data}")
 
         # --- Log Result (Happens after determining final severity) ---
         log_data = {
@@ -1002,7 +1003,9 @@ def index():
             "recommended_action": recommended_action, 
             "log_details": log_data,
         }
-
+        
+        print(f"✅ Response: {response}")
+        
         return jsonify(response), 200
 
     except pymongo.errors.PyMongoError as dbe:

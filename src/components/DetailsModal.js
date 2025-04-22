@@ -78,7 +78,7 @@ const DetailsModal = ({
   }
 
   // Severity and Color
-  console.log("Checking Severity: scanResult.severity =", scanResult?.severity);
+  //console.log("Checking Severity: scanResult.severity =", scanResult?.severity);
   const severity = scanResult?.severity?.toLowerCase() || "unknown";
   // const severity = scanResult?.severity; // Ensure lowercase for matching keys
   const severityInput = scanResult?.severity; // Get the raw severity from prop

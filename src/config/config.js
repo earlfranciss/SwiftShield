@@ -31,9 +31,11 @@ const getBaseURL = () => {
 
   if (__DEV__) {
     if (Platform.OS === 'android') {
-      baseURL = 'http://10.0.2.2:5000'; 
+      //baseURL = 'http://10.0.2.2:5000'; 
+      baseURL = 'https://swiftshield.onrender.com';
     } else {
-      baseURL = 'http://localhost:5000';
+      //baseURL = 'http://localhost:5000';
+      baseURL = 'https://swiftshield.onrender.com';
     }
   } else {
     baseURL = 'https://swiftshield.onrender.com';
