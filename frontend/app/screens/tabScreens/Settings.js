@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,12 +8,57 @@ import {
   // Consider adding Alert for placeholder action if ProfileDetails doesn't exist yet
   // Alert
 } from "react-native";
+// *** 1. Import AsyncStorage ***
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Settings({ navigation, isDarkMode }) {
-  const handleSignOut = () => {
-    // Navigate to the Login screen when the user clicks "Sign-out"
-    navigation.replace("Login");
+  // Add state to check if user is admin
+  const [isAdmin, setIsAdmin] = useState(false);
+  
+  // Simulate checking if user is admin on component mount
+  useEffect(() => {
+    // This would typically be a fetch from your API or local storage
+    // For now we'll simulate with dummy data - replace with your actual auth logic
+    checkIfUserIsAdmin();
+  }, []);
+  
+  const checkIfUserIsAdmin = async () => {
+    try {
+      // Get user data from AsyncStorage
+      const userData = await AsyncStorage.getItem('userData');
+      if (userData) {
+        const userObj = JSON.parse(userData);
+        // Check if user role is admin
+        setIsAdmin(userObj.role === 'admin');
+        console.log(`User role: ${userObj.role}, isAdmin: ${userObj.role === 'admin'}`);
+      } else {
+        setIsAdmin(false);
+        console.log('No user data found, setting isAdmin to false');
+      }
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
+    }
   };
+
+  const handleSignOut = async () => { // Make the function async
+    console.log("LOGOUT: handleSignOut function initiated.");
+    try {
+        console.log("LOGOUT: Attempting to remove 'userData' from AsyncStorage...");
+        await AsyncStorage.removeItem('userData'); // Remove the user data key
+        console.log("LOGOUT: Successfully removed 'userData'. Navigating to Login.");
+        // Navigate to Login screen AFTER successfully removing data
+        // Replace ensures the user can't press 'back' to get into the settings again
+        navigation.replace("Login");
+    } catch (error) {
+        console.error("LOGOUT ERROR: Failed to remove 'userData' from AsyncStorage:", error);
+        // Show an error message to the user (optional but good practice)
+        Alert.alert("Logout Error", "Could not clear session data. Please try again.");
+        // Still attempt to navigate to Login even if clearing failed,
+        // but the stale data might still be there on next launch.
+        navigation.replace("Login");
+    }
+};
 
   // --- Handler for Profile Section Press ---
   const handleProfilePress = () => {
@@ -21,7 +66,13 @@ export default function Settings({ navigation, isDarkMode }) {
     // Navigate to a new screen, e.g., 'ProfileDetails'
     // Make sure you have a 'ProfileDetails' screen defined in your navigator
     navigation.navigate("EditProfile");
-
+  };
+  
+  // --- Handler for Manage Users Press ---
+  const handleManageUsersPress = () => {
+    console.log("Manage Users section pressed!");
+    // Navigate to the ManageUsers screen
+    navigation.navigate("ManageUsers");
   };
 
   return (
@@ -55,6 +106,16 @@ export default function Settings({ navigation, isDarkMode }) {
       >
         <Text style={styles.optionText}>Connected Apps</Text>
       </TouchableOpacity>
+      
+      {/* Manage Users Button - ONLY VISIBLE TO ADMINS */}
+      {isAdmin && (
+        <TouchableOpacity
+          style={styles.optionButton}
+          onPress={handleManageUsersPress}
+        >
+          <Text style={styles.optionText}>Manage Users</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Options Footer Section */}
       <View style={styles.footer}>
@@ -77,7 +138,7 @@ export default function Settings({ navigation, isDarkMode }) {
 
         {/* Sign-out Section */}
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Text style={styles.signOutText}>Sign-out</Text>
+          <Text style={styles.signOutText}>Log-out</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

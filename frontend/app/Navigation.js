@@ -1,4 +1,3 @@
-// Navigation.js
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import {
@@ -35,7 +34,6 @@ import Reports from "./screens/reportsPage/Reports";
 import CreateReport from "./screens/reportsPage/CreateReport";
 import EditReport from "./screens/reportsPage/EditReport";
 import EditProfile from "./screens/EditProfile";
-import WebViewScreen from "./screens/WebViewScreen/WebViewScreen";
 
 //Icons
 import { Entypo } from "@expo/vector-icons";
@@ -114,12 +112,13 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
               {/* Pass the STACK's props DOWN, remove explicit override */}
               <ConnectedAppsScreen {...props} />
             </GradientScreen>
-          )}
-        </SettingsStackNav.Screen>
-        {/* Add other screens that should be nested under Settings tab here */}
-      </SettingsStackNav.Navigator>
-    );
-  }
+         )}
+      </SettingsStackNav.Screen>
+       {/* Add other screens that should be nested under Settings tab here */}
+    </SettingsStackNav.Navigator>
+  );
+}
+  
 
   const [isDarkMode, setDarkMode] = useState(false);
 

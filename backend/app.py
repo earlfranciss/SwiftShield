@@ -24,6 +24,17 @@ from urllib.parse import urlparse
 import ipaddress
 import tldextract
 from flask_caching import Cache
+import requests # Make sure requests is imported
+import json     # Make sure json is imported
+from functools import wraps # Needed for decorators
+
+# Import your feature extraction class (ensure filename is correct)
+try:
+    # Assuming your class is FeatureExtraction in extraction.py
+    from extraction import FeatureExtraction
+except ImportError:
+    print("ERROR: Could not import FeatureExtraction from extraction.py. Please ensure the file exists and the class is defined correctly.")
+    exit() # Exit if feature extraction can't be loaded
 
 # Initialize cache object WITHOUT the app first
 cache = Cache(config={"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300})
@@ -696,156 +707,170 @@ def index():
 # ✅ **GET - Fetch Scan Source Distribution for Pie Chart**
 # Inside app.py
 
-@app.route('/api/stats/scan-source-distribution', methods=['GET'])
-def get_scan_source_distribution():
-    """
-    Fetches the count of scans by source (Manual Scan, SMS, Email)
-    for displaying in a pie chart. Uses the 'detection' collection.
-    Returns data with names and colors expected by the frontend PieGraph.
-    """
+@app.route("/Registration", methods=['POST'])
+def Registration():
+    # Public endpoint
+    data = request.json
+    email = data.get('email')
+    password = data.get('password')
+    first_name = data.get('firstName')
+    last_name = data.get('lastName')
+    contact_number = data.get('contactNumber')
+
+    # Basic Validation
+    if not all([email, password, first_name, last_name, contact_number]):
+        return jsonify({"error": "All fields are required"}), 400
+    # Add more validation (email format, password strength, etc.)
+
+    existing_user = users_collection.find_one({'email': email})
+    if existing_user:
+        return jsonify({"error": "User with this email already exists"}), 409 # 409 Conflict
+
     try:
-        # Basic check for database collection
-        if 'detection' not in globals() or detection is None:
-             # Use app logger if configured, otherwise print
-             # current_app.logger.error("Database collection 'detection' not available.")
-             print("ERROR: Database collection 'detection' not available.")
-             return jsonify({"error": "Database collection error."}), 500
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        user_id = str(ObjectId()) # Generate ID beforehand
 
-        # --- Use Frontend-Expected Names and Colors ---
-        sources_to_count = ["SMS", "Email", "Manual Scan"] # Source names to query in DB
-        source_styles = {
-            # Use the correct frontend-expected name as the key
-            # and the correct frontend-expected color
-             # Value 16 color
-            "SMS":         {"color": "#ffde59"}, # Value 8 color
-            "Email":       {"color": "#ff914c"},
-            "Manual Scan": {"color": "#febd59"}  # Value 20 color
-             # Removed legendFontColor/Size as PieGraph doesn't seem to use them
-             # If needed, add them back here and ensure frontend uses them
+        new_user = {
+            '_id': user_id, # Use the generated ID
+            'email': email,
+            'password': hashed_password,
+            'firstName': first_name,
+            'lastName': last_name,
+            'contactNumber': contact_number,
+            'created_at': datetime.now(PH_TZ), # Use PH timezone
+            'last_login': None,
+            'role': 'user', # Assign default role 'user'
+            # 'scans': [] # Removing this - scans will be linked via user_id in Detection/Logs
         }
-        # --- End of Configuration ---
 
-        pie_chart_data = [] # Initialize the list to store results
+        result = users_collection.insert_one(new_user)
+        if not result.acknowledged:
+            return jsonify({"error": "Failed to insert user into database"}), 500
 
-        # print(f"DEBUG: Counting sources: {sources_to_count}") # Keep minimal debug logs if needed
-
-        for source in sources_to_count:
-            count = 0 # Default count to 0
-            try:
-                # Build the query filter for the current source
-                query_filter = {"metadata.source": source}
-                # print(f"DEBUG: Querying count for: {query_filter}") # Optional debug
-
-                # Perform the count directly - NO NEED for find_one
-                count = detection.count_documents(query_filter)
-                # print(f"DEBUG: Count result for '{source}': {count}") # Optional debug
-
-            except pymongo.errors.PyMongoError as count_err:
-                 # Log the specific database error during count
-                 # current_app.logger.error(f"Database error counting source '{source}': {count_err}")
-                 print(f"ERROR: Database error counting source '{source}': {count_err}")
-                 # Keep count as 0 if error occurs during counting
-                 count = 0
-            except Exception as E:
-                # Catch any other unexpected error during the count for this source
-                print(f"ERROR: Unexpected error counting source '{source}': {E}")
-                count = 0
-
-
-            # Get the style dictionary for this source (mainly for color)
-            # Provide a default grey color if source somehow not in styles
-            style = source_styles.get(source, {"color": "#CCCCCC"})
-
-            # Append the data for this source in the format expected by frontend
-            pie_chart_data.append({
-                "name": source,         # Use the source name directly (e.g., "Manual Scan")
-                "population": count,    # The count obtained from the database
-                "color": style["color"], # The color specified for this source
-                # Add other fields like legendFontColor ONLY if frontend uses them
-            })
-
-        # print(f"✅ Scan Source Distribution data being sent: {pie_chart_data}") # Final check
-        return jsonify(pie_chart_data), 200 # Return the list as JSON
-
-    except pymongo.errors.PyMongoError as dbe:
-        # Handle broader database connection/operation errors
-        # current_app.logger.error(f"Database error in get_scan_source_distribution: {dbe}")
-        print(f"ERROR: Database error in get_scan_source_distribution: {dbe}")
-        return jsonify({"error": "Database query error"}), 500
+        print(f"✅ User registered successfully: {email}, Role: user")
+        return jsonify({
+            "message": "User registered successfully",
+            "userId": user_id,
+            "email": email,
+            "firstName": first_name,
+            "redirect": "/Login" # Suggest redirect to login page
+        }), 201
 
     except Exception as e:
-        # Handle any other unexpected errors in the main try block
-        # current_app.logger.error(f"Unexpected error in get_scan_source_distribution: {e}", exc_info=True)
-        print(f"ERROR: Unexpected error in get_scan_source_distribution: {e}")
-        import traceback
-        traceback.print_exc() # Print stack trace for unexpected errors
-        return jsonify({"error": "An internal server error occurred"}), 500
-      
-# ✅ **GET - Fetch Recent Activity**
-@app.route("/recent-activity", methods=["GET"])
-def get_recent_activity():
-    try:
-        # Use MongoDB aggregation to join Detection and Logs collections
-        pipeline = [
-            {
-                "$lookup": {
-                    "from": "Logs",
-                    "localField": "detect_id",
-                    "foreignField": "detect_id",
-                    "as": "log_info"
-                }
-            },
-            {"$unwind": {"path": "$log_info", "preserveNullAndEmptyArrays": True}},
-            {"$sort": {"timestamp": pymongo.DESCENDING}}
-        ]
-        
-        recent_activity = list(detection.aggregate(pipeline))
-        formatted_activity = []
+        print(f"🔥 Error during registration: {str(e)}")
+        return jsonify({"error": f"Registration failed: {str(e)}"}), 500
 
-        for activity in recent_activity:
-            # Get log info if it exists
-            log_info = activity.get("log_info", {})
-            
-            # Determine if it's phishing based on either detection details or log verdict
-            is_phishing = activity.get("details") == "Phishing" or log_info.get("verdict") == "Phishing"
-            
-            # Format date for display
-            timestamp = activity.get("timestamp")
-            formatted_time = time_ago(timestamp) if timestamp else "Unknown"
-            
-            # Get probability and ensure it's a valid float
-            probability = 0.0
-            if log_info.get("probability") is not None:
-                probability = float(log_info.get("probability"))
-            elif activity.get("ensemble_score") is not None:
-                probability = float(activity.get("ensemble_score"))
-                
-            # Print debug info
-            print(f"Debug - ID: {activity.get('_id')}, Probability: {probability}, Type: {type(probability)}")
-            
-            # --- Ensure fields match modal needs ---
-            timestamp_obj = activity.get("timestamp") # Get the timestamp object from the 'activity' dictionary
-            formatted_activity.append({
-                "id": str(activity["_id"]),
-                "detect_id": activity.get("detect_id", "N/A"),
-                "log_id": str(log_info["_id"]) if log_info and log_info.get("_id") else None,
-                "title": "Phishing Detected" if is_phishing else "Safe Link Verified",
-                "link": f"{activity.get('url', 'Unknown URL')} - {activity.get('metadata', {}).get('source', 'Scan')}",
-                # "time": formatted_time, # We don't need 'time ago' for the modal
-                "icon": "suspicious-icon" if is_phishing else "safe-icon",
-                "severity": activity.get("severity", "Unknown"),
-                "phishing_probability_score": float(log_info.get("probability", 0.0))/100 if log_info else float(activity.get("svm_score", 0.0)),
-                "platform": log_info.get("platform", "Unknown"),
-                "recommended_action": "Block URL" if activity.get("severity", "Unknown") in ["CRITICAL", "HIGH", "MEDIUM"] else "Allow URL",
-                "url": activity.get("url", "Unknown URL"),
-                # --- CORRECTED LINE BELOW ---
-                # Get timestamp from 'activity', check if it's a datetime object, then format
-                "date_scanned": timestamp_obj.isoformat() if isinstance(timestamp_obj, datetime) else None,
-                 # --- END CORRECTED LINE ---
+
+@app.route("/Login", methods=['POST'])
+def Login():
+    # Public endpoint
+    data = request.json
+    email = data.get('email')
+    password = data.get('password')
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    user = users_collection.find_one({'email': email})
+
+    if not user:
+        print(f"DEBUG: Login failed - No user found with email: {email}")
+        return jsonify({"error": "Invalid email or password"}), 401 # Use generic error for security
+
+    if not bcrypt.check_password_hash(user['password'], password):
+        print(f"DEBUG: Login failed - Incorrect password for email: {email}")
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    # --- Login Successful - Set Session ---
+    session['user_id'] = str(user['_id'])
+    session['role'] = user.get('role', 'user') # Get role, default to 'user' if missing
+    session['email'] = user['email']
+    session['firstName'] = user.get('firstName', '') # Store first name if available
+
+    # Update last login time
+    users_collection.update_one(
+        {'_id': user['_id']},
+        {"$set": {"last_login": datetime.now(PH_TZ)}} # Use PH timezone
+    )
+
+    print(f"✅ User logged in: {email}, Role: {session['role']}")
+    return jsonify({
+        "message": "Login successful",
+        "userId": session['user_id'],
+        "email": session['email'],
+        "firstName": session['firstName'],
+        "role": session['role'], # Send role to frontend
+        # "redirect": "/Dashboard" # Suggest redirect after login
+    }), 200
+
+
+@app.route("/Logout", methods=['POST'])
+@login_required # Ensure user is logged in to log out
+def Logout():
+    user_email = session.get('email', 'Unknown user')
+    session.clear() # Clear all session data
+    print(f"✅ User logged out: {user_email}")
+    return jsonify({"message": "Logout successful"}), 200
+
+
+# --- Analytics Endpoints (RBAC Applied) ---
+
+@app.route('/api/stats/scan-source-distribution', methods=['GET'])
+@login_required # Requires login
+def get_scan_source_distribution():
+    user_id = session['user_id']
+    role = session['role']
+    print(f"DEBUG /api/stats/scan-source-distribution: User: {user_id}, Role: {role}")
+
+    try:
+        # Define sources and their presentation details
+        sources_to_count = ["User Scan", "SMS", "Email"] # Keep these consistent
+        source_labels = { "User Scan": "Manual Scans", "SMS": "SMS Scans", "Email": "Email Scans" }
+        source_styles = {
+            "User Scan": {"color": "#4CAF50", "legendFontColor": "#7F7F7F", "legendFontSize": 15},
+            "SMS": {"color": "#2196F3", "legendFontColor": "#7F7F7F", "legendFontSize": 15},
+            "Email": {"color": "#FF9800", "legendFontColor": "#7F7F7F", "legendFontSize": 15}
+        }
+
+        pie_chart_data = []
+
+        # --- Base Query Filter ---
+        base_query = {}
+        if role == 'user':
+            base_query['user_id'] = user_id # Filter by user ID for 'user' role
+            print(f"DEBUG: Applying user filter: {user_id}")
+        # No user_id filter needed for 'admin'
+
+        for source in sources_to_count:
+            # Combine base filter with source filter
+            query_filter = base_query.copy() # Start with base (empty or user_id)
+            query_filter["metadata.source"] = source # Add the source filter
+            print(f"DEBUG: Counting source '{source}' with filter: {query_filter}")
+
+            try:
+                count = detection_collection.count_documents(query_filter)
+                print(f"DEBUG: Count for '{source}': {count}")
+            except Exception as count_err:
+                print(f"ERROR during count_documents for '{source}': {count_err}")
+                count = 0 # Default to 0 on error
+
+            label = source_labels.get(source, source)
+            style = source_styles.get(source, {"color": "#cccccc", "legendFontColor": "#7F7F7F", "legendFontSize": 15})
+
+            pie_chart_data.append({
+                "name": label,
+                "population": count,
+                "color": style["color"],
+                "legendFontColor": style["legendFontColor"],
+                "legendFontSize": style["legendFontSize"]
             })
 
-        return jsonify({"recent_activity": formatted_activity})
+        print(f"✅ Scan Source Distribution data (Role: {role}): {pie_chart_data}")
+        return jsonify(pie_chart_data), 200
 
+    except pymongo.errors.PyMongoError as dbe:
+        print(f"🔥 Database error in /scan-source-distribution: {str(dbe)}")
+        return jsonify({"error": "Database query error"}), 500
     except Exception as e:
         print(f"🔥 Error in /recent-activity: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -1150,18 +1175,22 @@ def archive_report(report_id):
 # Route to get all reports
 @app.route("/reports", methods=["GET"])
 def get_reports():
+    user_id = session['user_id']
+    role = session['role']
+    report_filter = request.args.get("filter", "active").lower() # Default to active
+    search_query = request.args.get("search", "").strip()
+    print(f"DEBUG /reports GET: User: {user_id}, Role: {role}, Filter: {report_filter}, Search: '{search_query}'")
+
     try:
-        # Get filter and search parameters from request
-        report_filter = request.args.get("filter", "").lower()
-        search_query = request.args.get("search", "").strip().lower()
+        query = {}
 
-        # Define query condition for filtering archived and active reports
+        # Filter by archive status
         if report_filter == "archived":
-            query = {"archived_at": {"$exists": True}}  # Get only archived reports
-        else:
-            query = {"archived_at": {"$exists": False}}  # Get only active reports
+            query["status"] = "Archived" # Or query["archived_at"] = {"$exists": True}
+        else: # Default to active (not archived)
+            query["status"] = {"$ne": "Archived"} # Or query["archived_at"] = {"$exists": False}
 
-        # Apply search query if provided
+        # Apply search query
         if search_query:
             query["title"] = {"$regex": search_query, "$options": "i"}  # Case-insensitive search
 
@@ -1171,11 +1200,15 @@ def get_reports():
         for report in reports_cursor:
             report_data = {
                 "id": str(report["_id"]),
-                "title": report["title"],
-                "description": report["description"],
-                "status": report["status"],
-                "archived_at": report.get("archived_at"),  # Include archive timestamp if available
-                "created_at": report["created_at"].strftime("%Y-%m-%d %H:%M:%S") if "created_at" in report else None,
+                "user_id": report.get("user_id"), # Include user ID
+                "title": report.get("title"),
+                "description": report.get("description"),
+                "status": report.get("status"),
+                "remarks": report.get("remarks"),
+                 # Format dates for display
+                "created_at": report.get("created_at").isoformat() if report.get("created_at") else None,
+                "updated_at": report.get("updated_at").isoformat() if report.get("updated_at") else None,
+                "archived_at": report.get("archived_at").isoformat() if report.get("archived_at") else None,
             }
             reportslist.append(report_data)
 
@@ -1235,112 +1268,40 @@ def Registration():
             return jsonify({"error": "Failed to insert user into database"}), 500
 
         return jsonify({
-            "message": "User registered successfully",
-            "userId": user_id,
-            "email": email,
-            "firstName": first_name,
-            "redirect": "/Login"
-        }), 201
+            "user_profile": user_data,
+            "site_settings": site_settings # Empty for non-admins
+        }), 200
 
-    except Exception as e:
-        return jsonify({"error": f"Registration failed: {str(e)}"}), 500
+    elif request.method == "PUT":
+        # Update user settings
+        print(f"DEBUG /settings PUT: User: {user_id}, Role: {role}")
+        data = request.json
+        # Example: Update user profile fields (add validation)
+        update_data = {}
+        if 'firstName' in data: update_data['firstName'] = data['firstName']
+        if 'lastName' in data: update_data['lastName'] = data['lastName']
+        if 'contactNumber' in data: update_data['contactNumber'] = data['contactNumber']
+        # Password change should be a separate, more secure endpoint
 
+        if update_data:
+            result = users_collection.update_one({"_id": user_id}, {"$set": update_data})
+            if result.modified_count > 0:
+                 print(f"✅ User {user_id} updated their profile settings.")
+                 # Update session if relevant data changed (e.g., firstName)
+                 if 'firstName' in update_data: session['firstName'] = update_data['firstName']
+                 return jsonify({"message": "Settings updated successfully"}), 200
+            else:
+                 return jsonify({"message": "No changes detected or user not found"}), 304 # 304 Not Modified or 404
 
-@app.route("/Login", methods=['POST'])
-def Login():
-    data = request.json
-    email = data.get('email')
-    password = data.get('password')
+        # Admin might update global settings
+        if role == 'admin' and 'site_settings' in data:
+             # update_global_settings(data['site_settings']) # Placeholder
+             print(f"DEBUG: Admin {user_id} attempting to update site settings (Placeholder).")
+             pass # Implement global settings update logic
 
-    if not email or not password:
-        return jsonify({"error": "Email and password are required"}), 400
-
-    user = users.find_one({'email': email})
-
-    if not user:
-        print(f"Login failed: No user found with email {email}")  
-        return jsonify({"error": "No user found with email"}), 401
-
-    # Verify password
-    if not bcrypt.check_password_hash(user['password'], password):
-        print(f"Login failed: Incorrect password for {email}")  
-        return jsonify({"error": "Invalid email or password"}), 401
-
-    # Update last login time
-    users.update_one({'_id': user['_id']}, {"$set": {"last_login": datetime.now()}})
-
-    print(f"User {email} logged in successfully")  
-
-    return jsonify({
-        "message": "Login successful",
-        "userId": str(user['_id']),
-        "email": user['email'],
-        "firstName": user['firstName']
-    }), 200
+        return jsonify({"message": "No updatable settings provided"}), 400
 
 
-@app.route("/weekly-threats", methods=["GET"])
-def get_weekly_threats():
-    try:
-        # Get today's date and the start of the last 7 days range
-        today = datetime.now().date()
-        start_date = today - timedelta(days=6)  # **Start from 6 days ago to today**
-        start_date_iso = start_date.strftime("%Y-%m-%dT00:00:00")  # Format for MongoDB query
-
-        # Aggregation pipeline to fetch timestamps, extract day, and filter last 7 days
-        pipeline = [
-            {
-                "$project": {
-                    "localDate": {
-                        "$dateToString": { "format": "%Y-%m-%d", "date": "$timestamp" }
-                    },
-                    "dayOfWeek": {
-                        "$dayOfWeek": "$timestamp"  # Extract correct weekday (1=Sunday, ..., 7=Saturday)
-                    }
-                }
-            },
-            {
-                "$match": {  # Filter only the last 7 days (no older scans)
-                    "localDate": {"$gte": start_date_iso}
-                }
-            },
-            {
-                "$group": {  # Group by day of the week
-                    "_id": "$dayOfWeek",
-                    "threat_count": {"$sum": 1}
-                }
-            },
-            {"$sort": {"_id": 1}}  # Ensure correct order
-        ]
-
-        results = list(detection.aggregate(pipeline))
-
-        # Correct mapping for MongoDB's `$dayOfWeek` (1=Sunday, ..., 7=Saturday)
-        days_map = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"}
-        weekly_data = {days_map[i]: 0 for i in range(1, 8)}  # Initialize all days to 0
-
-        # Populate the dictionary with actual threat counts
-        for entry in results:
-            day_name = days_map.get(entry["_id"], "Unknown")
-            weekly_data[day_name] = entry["threat_count"]
-
-        # Ensure output is sorted by actual **dates**, not just Sunday-Saturday
-        ordered_days = []
-        ordered_values = []
-        for i in range(7):
-            day = (start_date + timedelta(days=i)).strftime("%a")  # Convert to "Mon", "Tue", etc.
-            ordered_days.append(day)
-            ordered_values.append(weekly_data.get(day, 0))  # Default to 0 if no data
-
-        response = {
-            "labels": ordered_days,  # Ordered from last 7 days
-            "data": ordered_values   # Correct threat counts
-        }
-
-        return jsonify(response)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+# --- Main Execution ---
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)
