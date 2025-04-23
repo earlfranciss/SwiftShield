@@ -460,36 +460,22 @@ export default function Navigation() {
       />
 
       {/* Notification Toast */}
-      {inAppNotification && (
-        <NotificationToast
-          notification={inAppNotification}
-          onPress={(notificationData) => {
-            // Renamed param for clarity
-            console.log(
-              "Toast pressed. Navigating with data:",
-              notificationData
-            ); // Debug log
-            if (globalNavigation) {
-              // Pass the specific notification data needed by the screen
-              globalNavigation.navigate("Notifications", {
-                notificationIdToHighlight: notificationData.id, // Example: pass ID to highlight
-                // Pass other relevant props if Notifications screen needs them
-              });
-              setInAppNotification(null); // Dismiss toast after navigation
-              setHasUnreadNotifications(false); // Mark as read
-            } else {
-              console.warn(
-                "Cannot navigate from toast press: globalNavigation not set."
-              );
-            }
-          }}
-          onDismiss={() => {
-            console.log("Toast dismissed (timeout or manual)."); // Debug log
-            setInAppNotification(null);
-          }}
-        />
-      )}
-    </>
+  {inAppNotification && (
+  <NotificationToast
+    notification={inAppNotification}
+    onPress={(notificationData) => {
+      console.log("Toast pressed, showing details modal:", notificationData); // Debug log
+      // The modal will be shown directly from NotificationToast component
+      setHasUnreadNotifications(false); // Mark as read
+    }}
+    onDismiss={() => {
+      console.log("Toast dismissed (timeout or manual)."); // Debug log
+      setInAppNotification(null);
+    }}
+    navigation={globalNavigation} // Pass the navigation prop
+  />
+  )}
+  </>
   );
 }
 
