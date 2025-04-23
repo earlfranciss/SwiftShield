@@ -34,6 +34,8 @@ import Reports from "./screens/reportsPage/Reports";
 import CreateReport from "./screens/reportsPage/CreateReport";
 import EditReport from "./screens/reportsPage/EditReport";
 import EditProfile from "./screens/EditProfile";
+import ManageUsers from "./screens/ManageUsers";
+import OnboardingScreen from "./screens/OnboardingScreen";
 
 //Icons
 import { Entypo } from "@expo/vector-icons";
@@ -115,6 +117,14 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
          )}
       </SettingsStackNav.Screen>
        {/* Add other screens that should be nested under Settings tab here */}
+       <SettingsStackNav.Screen name="ManageUsers">
+         {props => (
+            <GradientScreen {...commonGradientProps}>
+                <ManageUsers {...props} />
+            </GradientScreen>
+         )}
+        
+         </SettingsStackNav.Screen>
     </SettingsStackNav.Navigator>
   );
 }
@@ -267,6 +277,7 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
       <Stack.Screen name="Register" component={Registration} />
       <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
       <Stack.Screen name="EditProfile" component={EditProfile} />
+      <Stack.Screen name="OnboardingScreen" component={OnboardingScreen} />
       <Stack.Screen name="Tabs">
         {(props) => (
           <TabGroup
@@ -286,15 +297,7 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
         options={{ animation: "slide_from_right" }}
       />
 
-      <Stack.Screen
-        name="WebViewScreen" // Name used in navigation.navigate('WebViewScreen', ...)
-        component={WebViewScreen}
-        options={{
-          headerShown: false, // Use the custom header inside WebViewScreen
-          presentation: "modal", // Optional: Makes it slide up like a modal
-          animation: "slide_from_bottom", // Explicitly define modal animation
-        }}
-      />
+      
     </Stack.Navigator>
   );
 }
