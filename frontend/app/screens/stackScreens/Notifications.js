@@ -7,7 +7,6 @@ import {
   Image, 
   StyleSheet,
   Animated,
-  Modal,
   ActivityIndicator,
   PanResponder,
   Alert
@@ -17,6 +16,7 @@ import GradientScreen from '../components/GradientScreen';
 // import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import config from '../../config';
+import DetailsModal from '../components/DetailsModal'; // Import DetailsModal component
 
 // Icon mapping for notification types
 const iconMap = {
@@ -352,7 +352,11 @@ export default function Notifications({ route, navigation }) {
         icon: "suspicious-icon",
         timestamp: now.getTime() - 15 * 60 * 1000, // 15 minutes ago
         read: false,
-        details: "WARNING: This link was detected as potentially malicious. It may attempt to steal your personal information."
+        details: "WARNING: This link was detected as potentially malicious. It may attempt to steal your personal information.",
+        severity: "critical",
+        phishing_percentage: 95,
+        recommended_action: "Do not visit this site",
+        platform: "SMS"
       },
       {
         id: "2",
@@ -361,7 +365,11 @@ export default function Notifications({ route, navigation }) {
         icon: "safe-icon",
         timestamp: now.getTime() - 3 * 60 * 60 * 1000, // 3 hours ago
         read: false,
-        details: "This link was scanned and determined to be safe. No malicious content detected."
+        details: "This link was scanned and determined to be safe. No malicious content detected.",
+        severity: "safe",
+        phishing_percentage: 5,
+        recommended_action: "Safe to visit",
+        platform: "Email"
       },
       {
         id: "3",
@@ -370,7 +378,11 @@ export default function Notifications({ route, navigation }) {
         icon: "safe-icon",
         timestamp: now.getTime() - 2 * 24 * 60 * 60 * 1000, // 2 days ago
         read: false,
-        details: "This link was scanned and determined to be safe. No malicious content detected."
+        details: "This link was scanned and determined to be safe. No malicious content detected.",
+        severity: "low",
+        phishing_percentage: 15,
+        recommended_action: "Safe to visit with caution",
+        platform: "Facebook"
       }
     ];
   };
@@ -418,7 +430,13 @@ export default function Notifications({ route, navigation }) {
         read: readStatus[log.id] || false,
         url: log.link, // Map 'link' to 'url'
         timestamp: parseTimeString(log.time), // Parse 'time' string to timestamp
-        details: generateDetails(log, parseTimeString(log.time))
+        details: generateDetails(log, parseTimeString(log.time)),
+        date_scanned: log.time, // Add date_scanned for DetailsModal
+        log_id: log.id, // Add log_id for DetailsModal to use in delete operations
+        severity: log.icon === "safe-icon" ? "safe" : "critical", // Map icon to severity
+        phishing_percentage: log.icon === "safe-icon" ? 5 : 95, // Map icon to percentage
+        recommended_action: log.icon === "safe-icon" ? "Safe to visit" : "Do not visit this site", // Map icon to action
+        platform: log.title || "Unknown" // Use title as platform or default to Unknown
       }));
       
       console.log("Processed notification data:", notificationsData);
@@ -456,7 +474,7 @@ export default function Notifications({ route, navigation }) {
     }).start();
   }, [isMultiSelectMode]);
 
-  // Handle notification press
+  // Handle notification press - Updated to work with DetailsModal
   const handleNotificationPress = async (notification) => {
     // Create updated read status
     const readStatus = await loadReadStatus();
@@ -472,7 +490,19 @@ export default function Notifications({ route, navigation }) {
       )
     );
     
-    setSelectedNotification({ ...notification, read: true });
+    // Convert notification to format expected by DetailsModal
+    const scanResult = {
+      log_id: notification.id,
+      url: notification.url || notification.link,
+      date_scanned: notification.timestamp ? new Date(notification.timestamp).toISOString() : null,
+      severity: notification.severity || (notification.icon === "safe-icon" ? "safe" : "critical"),
+      phishing_percentage: notification.phishing_percentage || (notification.icon === "safe-icon" ? 5 : 95),
+      recommended_action: notification.recommended_action || 
+                        (notification.icon === "safe-icon" ? "Safe to visit" : "Do not visit this site"),
+      platform: notification.platform || notification.title || "Unknown"
+    };
+    
+    setSelectedNotification({ ...notification, ...scanResult, read: true });
     setModalVisible(true);
   };
 
@@ -614,6 +644,12 @@ export default function Notifications({ route, navigation }) {
       useNativeDriver: true,
     }).start();
   }, []);
+
+  // Close modal handler
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setSelectedNotification(null);
+  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -764,64 +800,15 @@ export default function Notifications({ route, navigation }) {
             />
           )}
           
-          {/* Notification Detail Modal */}
-          <Modal
-            animationType="fade"
-            transparent={true}
+          {/* Using DetailsModal instead of the custom modal */}
+          <DetailsModal
             visible={modalVisible}
-            onRequestClose={() => {
-              setModalVisible(!modalVisible);
-            }}
-          >
-            <View style={styles.centeredView}>
-              <View style={styles.modalView}>
-                {selectedNotification && (
-                  <>
-                    <View style={styles.modalHeader}>
-                      <Image 
-                        source={selectedNotification.icon === "safe-icon" ? iconMap["safe-icon"] : iconMap["suspicious-icon"]} 
-                        style={[
-                          styles.modalIcon,
-                          selectedNotification.icon === "safe-icon" && { tintColor: "black" }
-                        ]} 
-                      />
-                      <Text style={styles.modalTitle}>{selectedNotification.url || selectedNotification.link}</Text>
-                    </View>
-                    
-                    <Text style={styles.modalTime}>{formatTimeAgo(selectedNotification.timestamp)}</Text>
-                    
-                    <View style={styles.modalDivider} />
-                    
-                    <Text style={styles.modalDetails}>
-                      {selectedNotification.details}
-                    </Text>
-
-                    {selectedNotification.title && (
-                      <Text style={styles.modalSource}>
-                        Type: {selectedNotification.title}
-                      </Text>
-                    )}
-                    
-                    <View style={styles.modalButtons}>
-                      <TouchableOpacity
-                        style={[styles.button, styles.buttonOkay]}
-                        onPress={() => setModalVisible(!modalVisible)}
-                      >
-                        <Text style={styles.textStyle}>Okay</Text>
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity
-                        style={[styles.button, styles.buttonDelete]}
-                        onPress={() => handleDeleteNotification()}
-                      >
-                        <Text style={styles.textStyle}>Delete</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                )}
-              </View>
-            </View>
-          </Modal>
+            onClose={handleCloseModal}
+            onDeletePress={handleDeleteNotification}
+            scanResult={selectedNotification}
+            navigation={navigation}
+            loading={false}
+          />
           
         </Animated.View>
       </GradientScreen>
