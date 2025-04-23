@@ -138,7 +138,7 @@ export default function Settings({ navigation, isDarkMode }) {
 
         {/* Sign-out Section */}
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Text style={styles.signOutText}>Sign-out</Text>
+          <Text style={styles.signOutText}>Log-out</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

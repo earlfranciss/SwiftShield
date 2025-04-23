@@ -1303,6 +1303,7 @@ def handle_settings():
              pass # Implement global settings update logic
 
         return jsonify({"message": "No updatable settings provided"}), 400
+    
 
 
 # --- Main Execution ---
