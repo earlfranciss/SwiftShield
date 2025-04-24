@@ -20,8 +20,10 @@ const WarningModal = ({ visible, onClose, onProceed, url }) => {
 
   // Function to format the URL (just removes scheme for display)
   const formatUrlForDisplay = (urlToFormat) => {
-    if (!urlToFormat) return "this site";
-    // Remove http(s):// for cleaner display in the warning message
+    if (!urlToFormat || typeof urlToFormat !== "string") {
+      return "this site"; // Handle missing or invalid URL
+    }
+    // Remove http:// or https:// from the beginning
     return urlToFormat.replace(/^https?:\/\//, "");
   };
 
