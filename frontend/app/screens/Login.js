@@ -9,13 +9,13 @@ import {
   Image,
   // *** 1. Import Alert and ActivityIndicator ***
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import GradientScreen from "./components/GradientScreen";
 import { LinearGradient } from "expo-linear-gradient";
 import config from "../config";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const logoPath = require("../../assets/images/logo.png"); // Ensure path is correct
 
@@ -35,16 +35,19 @@ export default function Login({ navigation }) {
   if (!fontsLoaded) {
     // Show basic loading while fonts load
     return (
-        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-            <ActivityIndicator size="large" color="#3AED97" />
-        </View>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#3AED97" />
+      </View>
     );
   }
 
   const handleLogin = async () => {
     // Basic validation
     if (!email || !password) {
-      Alert.alert("Missing Information", "Please enter both email and password.");
+      Alert.alert(
+        "Missing Information",
+        "Please enter both email and password."
+      );
       return;
     }
 
@@ -53,78 +56,120 @@ export default function Login({ navigation }) {
 
     try {
       // *** 3. CRITICAL: Verify this URL path '/Login' matches your backend route EXACTLY ***
-      const response = await fetch(`${config.BASE_URL}/Login`, { // Case-sensitive! Is it /login or /Login? Or /api/login?
+      const response = await fetch(`${config.BASE_URL}/Login`, {
+        // Case-sensitive! Is it /login or /Login? Or /api/login?
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Accept": "application/json",
+          Accept: "application/json",
         },
         body: JSON.stringify({ email, password }),
       });
 
       const responseBodyText = await response.text();
-      console.log(`LOGIN API Response: Status=${response.status}, Body=${responseBodyText}`);
+      console.log(
+        `LOGIN API Response: Status=${response.status}, Body=${responseBodyText}`
+      );
 
       let responseData;
       try {
         responseData = JSON.parse(responseBodyText);
       } catch (parseError) {
-        console.error("LOGIN PARSE ERROR: Failed to parse API response JSON.", parseError);
-        console.error("LOGIN PARSE ERROR: Raw response text was:", responseBodyText);
+        console.error(
+          "LOGIN PARSE ERROR: Failed to parse API response JSON.",
+          parseError
+        );
+        console.error(
+          "LOGIN PARSE ERROR: Raw response text was:",
+          responseBodyText
+        );
         if (response.ok) {
-             Alert.alert("API Error", "Received an unexpected response format from the server.");
+          Alert.alert(
+            "API Error",
+            "Received an unexpected response format from the server."
+          );
         } else {
-             Alert.alert("Login Failed", `Server returned an error: ${responseBodyText || response.statusText}`);
+          Alert.alert(
+            "Login Failed",
+            `Server returned an error: ${
+              responseBodyText || response.statusText
+            }`
+          );
         }
         setIsLoading(false);
         return;
       }
 
       if (response.ok) {
-        console.log("LOGIN API SUCCESS: Parsed data:", JSON.stringify(responseData, null, 2));
-      
+        console.log(
+          "LOGIN API SUCCESS: Parsed data:",
+          JSON.stringify(responseData, null, 2)
+        );
+
         // Use responseData directly, not responseData.user
         const userObject = responseData; // The response IS the user object data
-      
+
         // Validation: Check if the main response object exists and has the role property
-        if (!userObject || typeof userObject.role === 'undefined') {
-            console.error("LOGIN ERROR: 'role' property not found directly in the successful API response.", responseData);
-            Alert.alert("Login Error", "User role information was not found in the server response.");
-            setIsLoading(false);
-            return; // Stop the process
+        if (!userObject || typeof userObject.role === "undefined") {
+          console.error(
+            "LOGIN ERROR: 'role' property not found directly in the successful API response.",
+            responseData
+          );
+          Alert.alert(
+            "Login Error",
+            "User role information was not found in the server response."
+          );
+          setIsLoading(false);
+          return; // Stop the process
         }
-      
+
         // Store the validated user data in AsyncStorage
         try {
-            // Make sure we're storing the role properly
-            const userDataToStore = {
-                _id: userObject.userId || userObject._id, // Use whatever ID field your backend provides
-                email: userObject.email,
-                firstName: userObject.firstName,
-                lastName: userObject.lastName,
-                role: userObject.role // This is crucial - make sure it's stored
-            };
-      
-            console.log("LOGIN STORAGE: Attempting to store this in AsyncStorage:", JSON.stringify(userDataToStore, null, 2));
-            await AsyncStorage.setItem('userData', JSON.stringify(userDataToStore));
-            console.log("LOGIN STORAGE: Successfully stored data.");
-      
-            const storedDataCheck = await AsyncStorage.getItem('userData');
-            console.log("LOGIN STORAGE CHECK: Read back immediately after storing:", storedDataCheck);
-      
-            setIsLoading(false); // Stop loading *before* navigating
-            navigation.replace('Tabs'); // Go to the main app screen
-      
+          // Make sure we're storing the role properly
+          const userDataToStore = {
+            _id: userObject.userId || userObject._id, // Use whatever ID field your backend provides
+            email: userObject.email,
+            firstName: userObject.firstName,
+            lastName: userObject.lastName,
+            role: userObject.role, // This is crucial - make sure it's stored
+          };
+
+          console.log(
+            "LOGIN STORAGE: Attempting to store this in AsyncStorage:",
+            JSON.stringify(userDataToStore, null, 2)
+          );
+          await AsyncStorage.setItem(
+            "userData",
+            JSON.stringify(userDataToStore)
+          );
+          console.log("LOGIN STORAGE: Successfully stored data.");
+
+          const storedDataCheck = await AsyncStorage.getItem("userData");
+          console.log(
+            "LOGIN STORAGE CHECK: Read back immediately after storing:",
+            storedDataCheck
+          );
+
+          setIsLoading(false); // Stop loading *before* navigating
+          navigation.replace("Tabs"); // Go to the main app screen
         } catch (storageError) {
-            console.error("LOGIN ASYNC STORAGE ERROR: Failed during storage process:", storageError);
-            Alert.alert("Storage Error", "Failed to save login information. Please try again.");
-            setIsLoading(false);
+          console.error(
+            "LOGIN ASYNC STORAGE ERROR: Failed during storage process:",
+            storageError
+          );
+          Alert.alert(
+            "Storage Error",
+            "Failed to save login information. Please try again."
+          );
+          setIsLoading(false);
         }
       }
-
     } catch (networkError) {
       console.error("LOGIN FETCH ERROR:", networkError);
-      Alert.alert("Network Error", "Could not connect to the server. Please check your connection and try again.");
+      Alert.alert(
+        "Network Error",
+        "Could not connect to the server. Please check your connection and try again."
+      );
       setIsLoading(false);
     }
   };
@@ -136,8 +181,8 @@ export default function Login({ navigation }) {
   return (
     <GradientScreen>
       <View style={styles.container}>
-         {/* Logo Image */}
-         <Image
+        {/* Logo Image */}
+        <Image
           source={logoPath} // <-- Use the required image path
           style={styles.logo} // <-- Apply the new logo style
           resizeMode="contain" // Ensures the logo scales nicely
@@ -146,7 +191,12 @@ export default function Login({ navigation }) {
         {/* Input Fields */}
         <View style={styles.inputContainer}>
           {/* Original person icon */}
-          <Ionicons name="person-outline" size={20} color="#3AED97" style={styles.icon} />
+          <Ionicons
+            name="person-outline"
+            size={20}
+            color="#3AED97"
+            style={styles.icon}
+          />
           <TextInput
             style={styles.input}
             placeholder="Email"
@@ -160,7 +210,12 @@ export default function Login({ navigation }) {
         </View>
 
         <View style={styles.inputContainer}>
-          <MaterialIcons name="lock-outline" size={20} color="#3AED97" style={styles.icon}/>
+          <MaterialIcons
+            name="lock-outline"
+            size={20}
+            color="#3AED97"
+            style={styles.icon}
+          />
           <TextInput
             style={styles.input}
             placeholder="Password"
@@ -170,7 +225,11 @@ export default function Login({ navigation }) {
             onChangeText={setPassword}
             editable={!isLoading} // Disable while loading
           />
-          <TouchableOpacity onPress={togglePasswordVisibility} style={styles.eyeIcon} disabled={isLoading}>
+          <TouchableOpacity
+            onPress={togglePasswordVisibility}
+            style={styles.eyeIcon}
+            disabled={isLoading}
+          >
             <Ionicons
               name={isPasswordVisible ? "eye-off-outline" : "eye-outline"}
               size={22}
@@ -198,8 +257,12 @@ export default function Login({ navigation }) {
             onPress={() => !isLoading && setRememberMe(!rememberMe)} // Disable interaction while loading
             disabled={isLoading}
           >
-            <View style={[styles.checkbox, rememberMe && styles.checkboxSelected]} >
-                 {rememberMe && <Ionicons name="checkmark" size={12} color="#000"/>}
+            <View
+              style={[styles.checkbox, rememberMe && styles.checkboxSelected]}
+            >
+              {rememberMe && (
+                <Ionicons name="checkmark" size={12} color="#000" />
+              )}
             </View>
             <Text style={styles.optionText}>Remember me</Text>
           </TouchableOpacity>
@@ -208,7 +271,9 @@ export default function Login({ navigation }) {
             onPress={() => !isLoading && navigation.navigate("ForgotPassword")} // Disable interaction while loading
             disabled={isLoading}
           >
-            <Text style={[styles.optionText, isLoading && styles.disabledText]}>Forgot Password?</Text>
+            <Text style={[styles.optionText, isLoading && styles.disabledText]}>
+              Forgot Password?
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -216,10 +281,14 @@ export default function Login({ navigation }) {
         <View style={styles.registerRow}>
           <Text style={styles.optionText1}>Don't have an account? </Text>
           <TouchableOpacity
-             onPress={() => !isLoading && navigation.navigate("Register")} // Disable interaction while loading
-             disabled={isLoading}
-           >
-            <Text style={[styles.registerText, isLoading && styles.disabledText]}>Register</Text>
+            onPress={() => !isLoading && navigation.navigate("Register")} // Disable interaction while loading
+            disabled={isLoading}
+          >
+            <Text
+              style={[styles.registerText, isLoading && styles.disabledText]}
+            >
+              Register
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -254,7 +323,7 @@ const styles = StyleSheet.create({
     marginBottom: 25, // Increased spacing
   },
   icon: {
-      marginRight: 10, // Add space between icon and text input
+    marginRight: 10, // Add space between icon and text input
   },
   input: {
     flex: 1,
@@ -290,7 +359,7 @@ const styles = StyleSheet.create({
   optionsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: 'center',
+    alignItems: "center",
     width: "100%",
     marginBottom: 100, // Adjusted spacing, might need further tweaking
   },
@@ -305,20 +374,22 @@ const styles = StyleSheet.create({
     borderColor: "#3AED97",
     borderRadius: 5,
     marginRight: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   checkboxSelected: {
     backgroundColor: "#3AED97",
     borderColor: "#3AED97",
   },
-  optionText: { // Style for "Remember me" and "Forgot Password"
+  optionText: {
+    // Style for "Remember me" and "Forgot Password"
     color: "#3AED97",
     fontSize: 14,
     // fontFamily: 'Inter',
     fontWeight: "500",
   },
-  optionText1: { // Style for "Don't have an account?"
+  optionText1: {
+    // Style for "Don't have an account?"
     color: "#fff",
     fontSize: 14,
     fontWeight: "500",
@@ -329,12 +400,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 20,
   },
-  registerText: { // Style for "Register" link
+  registerText: {
+    // Style for "Register" link
     color: "#3AED97",
     fontSize: 14,
     fontWeight: "bold",
   },
-   disabledText: {
-     opacity: 0.5, // Style for disabled text links
-   }
+  disabledText: {
+    opacity: 0.5, // Style for disabled text links
+  },
 });

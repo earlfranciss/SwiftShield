@@ -1287,27 +1287,33 @@ def Login():
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
 
+    # Fetch user from database
     user = users.find_one({'email': email})
 
     if not user:
-        print(f"Login failed: No user found with email {email}")  
+        print(f"Login failed: No user found with email {email}")
         return jsonify({"error": "No user found with email"}), 401
 
     # Verify password
     if not bcrypt.check_password_hash(user['password'], password):
-        print(f"Login failed: Incorrect password for {email}")  
+        print(f"Login failed: Incorrect password for {email}")
         return jsonify({"error": "Invalid email or password"}), 401
 
     # Update last login time
     users.update_one({'_id': user['_id']}, {"$set": {"last_login": datetime.now()}})
 
-    print(f"User {email} logged in successfully")  
+    # --- Retrieve the role (provide a default if it might be missing) ---
+    user_role = user.get('role', 'user') # Example default: 'user'
 
+    print(f"User {email} logged in successfully with role: {user_role}") # Log the role
+
+    # --- Add the role to the JSON response ---
     return jsonify({
         "message": "Login successful",
         "userId": str(user['_id']),
         "email": user['email'],
-        "firstName": user['firstName']
+        "firstName": user.get('firstName'), # Use .get() for safety here too
+        "role": user_role                 # <--- ADDED ROLE HERE
     }), 200
 
 
