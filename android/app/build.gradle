@@ -141,6 +141,7 @@ dependencies {
     implementation project(':react-native-vector-icons')
     implementation project(':react-native-webview')
     implementation project(':react-native-clipboard_clipboard')
+    // implementation project(':react-native-make')
 
     // SoLoader (required by React Native) - Check compatibility if needed
     implementation('com.facebook.soloader:soloader:0.10.5') // Example version
