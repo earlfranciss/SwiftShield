@@ -12,13 +12,17 @@ from urllib.parse import urlparse
 from flask_caching import Cache
 from flask_session import Session
 from functools import wraps 
+from apscheduler.schedulers.background import BackgroundScheduler
 from google_auth_oauthlib.flow import Flow 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build 
 from google.auth.transport.requests import Request 
+from functools import wraps
+from flask_login import login_required, logout_user, current_user
 import email as email_parser
 import numpy as np
 import pandas as pd
+import joblib
 import warnings
 import base64
 import pickle
@@ -66,8 +70,8 @@ app.config["SESSION_MONGODB_DB"] = 'SwiftShield'
 app.config["SESSION_MONGODB_COLLECT"] = 'sessions'
 app.config["SESSION_MONGODB"] = pymongo.MongoClient(os.getenv("DB_CONNECTION_STRING"))
 # Google configs
-app.config["GOOGLE_CLIENT_ID"] = os.getenv("GOOGLE_CLIENT_ID") # Load as string
-app.config["GOOGLE_CLIENT_SECRET"] = os.getenv("GOOGLE_CLIENT_SECRET") # Load as string
+app.config["GOOGLE_CLIENT_ID"] = os.getenv("GOOGLE_CLIENT_ID") 
+app.config["GOOGLE_CLIENT_SECRET"] = os.getenv("GOOGLE_CLIENT_SECRET") 
 app.config["GOOGLE_REDIRECT_URI"] = os.getenv("GOOGLE_REDIRECT_URI")
 app.config['GOOGLE_SCOPES'] = [
     'openid',
@@ -128,6 +132,34 @@ except Exception as e:
     print(f"ERROR: Failed to load model: {e}")
     exit()
     
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
+spam_model_path = os.path.join(BASE_DIR, '..', 'ai-models', 'Datasets', 'SpamDetection', 'spam_model.joblib')
+spam_vectorizer_path = os.path.join(BASE_DIR, '..', 'ai-models', 'Datasets', 'SpamDetection', 'vectorizer.joblib')
+
+
+spam_model = None
+spam_vectorizer = None
+
+try:
+    spam_model = joblib.load(spam_model_path)
+    print(f"✅ Spam Detection model loaded from {spam_model_path}")
+except FileNotFoundError:
+    print(f"ERROR: Spam model file not found at {spam_model_path}. SMS classification will be disabled.")
+except Exception as e:
+    print(f"ERROR: Failed to load spam model: {e}")
+
+try:
+    spam_vectorizer = joblib.load(spam_vectorizer_path)
+    print(f"✅ Spam Vectorizer loaded from {spam_vectorizer_path}")
+except FileNotFoundError:
+    print(f"ERROR: Spam vectorizer file not found at {spam_vectorizer_path}. SMS classification will be disabled.")
+    spam_model = None # Disable model if vectorizer fails
+except Exception as e:
+    print(f"ERROR: Failed to load spam vectorizer: {e}")
+    spam_model = None # Disable model if vectorizer fails
+    
+    
+    
 # --- Database Connection ---
 try:
     client = pymongo.MongoClient(db_connection_string, serverSelectionTimeoutMS=5000)
@@ -162,6 +194,11 @@ SUSPICIOUS_TLDS = {
 KEYWORDS_ACTION = ['login', 'signin', 'account', 'secure', 'verify', 'update', 'password', 'credential', 'support', 'service', 'recovery']
 KEYWORDS_URGENT_PAY = ['payment', 'confirm', 'unlock', 'alert', 'warning', 'invoice', 'billing', 'required']
 KEYWORDS_INFO_PROMO = ['discount', 'promo', 'offer', 'deal', 'sale', 'news', 'blog', 'info', 'win', 'prize', 'free']
+
+
+
+
+
 
 
 # --- Helper Functions ---
@@ -240,7 +277,7 @@ def admin_required(f):
     return decorated_function
 
 
-# --- Rule-Based Check Functions  ---
+# # --- Rule-Based Check Functions  ---
 @cache.memoize(timeout=60 * 10) 
 def check_known_blocklists(url):
     if not GOOGLE_API_KEY:
@@ -606,134 +643,39 @@ def check_url_structure(url):
 
     return "SAFE"
 
-# --- Google Services ---
-
-def get_google_credentials(app_user_id):
-    """Gets Google credentials using a stored refresh token."""
-    user_data = users_collection.find_one({'_id': app_user_id})
-    if not user_data or 'google_refresh_token' not in user_data:
-        print(f"No Google refresh token found for user {app_user_id}")
-        return None
-
-    try:
-        credentials = Credentials(
-            token=None, # Access token will be refreshed
-            refresh_token=user_data['google_refresh_token'],
-            token_uri='https://oauth2.googleapis.com/token',
-            client_id=os.getenv('GOOGLE_CLIENT_ID'),
-            client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
-            scopes=[ 'https://www.googleapis.com/auth/gmail.readonly' ] # Or load from config
+def extract_urls_from_text(text_body):
+    """ Extracts potential URLs from a given text string. """
+    if not isinstance(text_body, str): return None
+    # Using the robust regex and processing from before
+    url_regex = r"""
+        ( # Keep outer group to capture the WHOLE match
+            (?:https?|ftp):\/\/
+            |
+            www\d{0,3}[.]
+            |
+            [-\w\d_]+\.(?:com|org|net|gov|edu|info|biz|co|io|me|ph|site|xyz|ly|to|gl|be|at|us|ca|uk|de|jp|fr|au|br|cn|in|ru|it|es|ch|nl|se|no|fi|pl|kr|tr|za|ae|hk|sg|tw|vn|th|id|my|ar|cl|mx|co|pe|ve|ec|gt|cr|pa|do|py|uy|sv|hn|ni|bo|cu|ie|pt|gr|cz|hu|ro|sk|bg|lt|lv|ee|si|hr|rs|ba|mk|al|cy|lu|mt|is|li|mc)\b
+            |
+            (?:bit\.ly|t\.co|goo\.gl|is\.gd|tinyurl\.com|ow\.ly|buff\.ly)\/[-\w\d_]+
         )
-        # Check if token needs refreshing (it always will if token=None)
-        if not credentials.valid:
-             if credentials.expired and credentials.refresh_token:
-                  print(f"Refreshing Google token for user {app_user_id}")
-                  credentials.refresh(Request()) # Requires google.auth.transport.requests.Request
-                  # Optionally save the new access token and expiry back to DB
-                  # users_collection.update_one(...)
-             else:
-                  print(f"Credentials invalid and no refresh token for user {app_user_id}")
-                  return None # Cannot proceed
-        return credentials
-    except Exception as e:
-         print(f"Error getting/refreshing Google credentials for user {app_user_id}: {e}")
-         return None
-
-
-def get_gmail_service(app_user_id):
-    """Builds the Gmail API service object."""
-    credentials = get_google_credentials(app_user_id)
-    if not credentials:
-        return None
+        (?:[^\s()<>{}\[\]\'",|\\^`]*?)
+        (?:\([^\s()]*?\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’])
+    """
     try:
-        service = build('gmail', 'v1', credentials=credentials, cache_discovery=False)
-        return service
-    except Exception as e:
-        print(f"Error building Gmail service for user {app_user_id}: {e}")
-        return None
-
-def list_new_messages(app_user_id, query='is:unread in:inbox'):
-    """Lists new/unread messages for the user."""
-    service = get_gmail_service(app_user_id)
-    if not service:
-        return None
-    try:
-        results = service.users().messages().list(userId='me', q=query).execute()
-        messages = results.get('messages', [])
-        return messages 
-    except Exception as e:
-        print(f"Error listing messages for user {app_user_id}: {e}")
-        return None
-
-def get_email_details(app_user_id, message_id):
-    """Gets the content of a specific email."""
-    service = get_gmail_service(app_user_id)
-    if not service:
-        return None
-    try:
-        # Get raw message to handle different content types
-        message = service.users().messages().get(userId='me', id=message_id, format='raw').execute()
-        if 'raw' in message:
-            # Decode base64url raw message
-            msg_str = base64.urlsafe_b64decode(message['raw'].encode('ASCII'))
-            # Parse the raw email content
-            mime_msg = email_parser.message_from_bytes(msg_str)
-
-            email_data = {
-                'id': message_id,
-                'subject': mime_msg['subject'],
-                'from': mime_msg['from'],
-                'to': mime_msg['to'],
-                'date': mime_msg['date'],
-                'body_plain': None,
-                'body_html': None
-            }
-
-            # Extract body (handle multipart emails)
-            if mime_msg.is_multipart():
-                for part in mime_msg.walk():
-                    content_type = part.get_content_type()
-                    content_disposition = str(part.get("Content-Disposition"))
-                    try:
-                        body = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='replace')
-                    except Exception:
-                        continue 
-
-                    if "attachment" not in content_disposition:
-                        if content_type == "text/plain" and not email_data['body_plain']:
-                            email_data['body_plain'] = body
-                        elif content_type == "text/html" and not email_data['body_html']:
-                            email_data['body_html'] = body
+        matches = re.finditer(url_regex, text_body, re.IGNORECASE | re.VERBOSE)
+        extracted_urls = [match.group(0) for match in matches]
+        processed_urls = []
+        for url in extracted_urls: # Prepend http:// if needed
+            if not url.startswith(('http://', 'https://', 'ftp://')) and (url.startswith('www.') or '.' in url.split('/')[0]):
+                processed_urls.append('http://' + url)
             else:
-                # Not multipart, payload is the body
-                content_type = mime_msg.get_content_type()
-                try:
-                     body = mime_msg.get_payload(decode=True).decode(mime_msg.get_content_charset() or 'utf-8', errors='replace')
-                     if content_type == "text/plain":
-                          email_data['body_plain'] = body
-                     elif content_type == "text/html":
-                          email_data['body_html'] = body
-                except Exception as e:
-                     print(f"Error decoding non-multipart body: {e}")
-
-
-            # Prefer plain text body if available
-            email_data['body'] = email_data['body_plain'] or email_data['body_html'] or ''
-
-            return email_data
-        else:
-            print(f"Could not find raw content for message {message_id}")
-            return None
-
+                processed_urls.append(url)
+        return processed_urls
     except Exception as e:
-        print(f"Error getting message {message_id} for user {app_user_id}: {e}")
-        return None
-
-
-
-
-
-
+        print(f"Error during regex URL extraction: {e}")
+        return []
+    
+    
+    
 # --- ENDPOINT DEFINITIONS  ---
 
 @app.route("/scan", methods=["POST"])
@@ -946,8 +888,6 @@ def index():
         detect_id = str(uuid.uuid4())
         current_time_ph = datetime.now(pytz.timezone('Asia/Manila')) # Use timezone from your notebook
 
-        timestamp_iso = detection_data.get("timestamp").isoformat() if detection_data.get("timestamp") else None
-
         # Determine Recommended Action based on severity for the modal display
         recommended_action = "Allow URL" # Default safe action
         if severity == "CRITICAL" or severity == "HIGH":
@@ -969,7 +909,7 @@ def index():
             "metadata": {"source": "Manual Scan"} # Indicate combined classification
         }
         detection_collection.insert_one(detection_data)
-
+        
         print(f"✅ Detection Data: {detection_data}")
 
         # --- Log Result (Happens after determining final severity) ---
@@ -984,10 +924,9 @@ def index():
             "timestamp": current_time_ph,
         }
         
-        
+        timestamp_iso = detection_data.get("timestamp").isoformat() if detection_data.get("timestamp") else None
         log_result = logs_collection.insert_one(log_data)
         log_data["_id"] = str(log_result.inserted_id)
-        response["log_details"] = log_data 
         
         # --- Prepare Response ---
         response = {
@@ -1016,6 +955,126 @@ def index():
         import traceback
         traceback.print_exc()
         return jsonify({"error": "An internal server error occurred."}), 500
+
+
+# === SMS TEXT CLASSIFICATION ROUTE ===
+@app.route("/classify-sms", methods=["POST"])
+#@login_required
+def classify_sms_text():
+    """
+    Classifies the provided SMS text body using the spam detection model.
+    """
+    # Check if model and vectorizer loaded successfully
+    if spam_model is None or spam_vectorizer is None:
+        return jsonify({"error": "SMS classification model is not available."}), 503 # Service Unavailable
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data received"}), 400
+
+        sms_body = data.get("body")
+        sender = data.get("sender", "Unknown")
+
+        if sms_body is None: # Check for None explicitly
+            return jsonify({"error": "Missing 'body' key in request"}), 400
+        if not isinstance(sms_body, str) or not sms_body.strip():
+             return jsonify({"error": "'body' must be a non-empty string"}), 400
+
+        print(f"DEBUG /sms/classify-text: Received text from {sender}: '{sms_body[:100]}...'")
+
+        # 1. Transform the input text using the loaded vectorizer
+        text_transformed = spam_vectorizer.transform([sms_body])
+
+        # 2. Predict using the loaded spam model
+        prediction = spam_model.predict(text_transformed)
+        probabilities = spam_model.predict_proba(text_transformed)
+
+        # Assuming class 1 is SPAM and class 0 is NOT SPAM (HAM)
+        # Verify this based on your model training!
+        prob_spam = probabilities[0][1]
+        prob_not_spam = probabilities[0][0]
+        y_pred = prediction[0] # Should be 0 or 1
+
+        print(f"DEBUG: SMS Text Prediction: {y_pred} (Assuming 1=Spam, 0=Not Spam)")
+        print(f"DEBUG: SMS Text Probabilities: NotSpam={prob_not_spam:.4f}, Spam={prob_spam:.4f}")
+
+        # Determine classification string and severity (example logic)
+        classification = "spam" if y_pred == 1 else "safe" # Or "ham"
+        severity = "UNKNOWN"
+        if y_pred == "spam":
+             if prob_spam >= 0.9: severity = "CRITICAL"
+             if prob_spam >= 0.7: severity = "HIGH"
+             elif prob_spam >= 0.65: severity = "MEDIUM" 
+             else: severity = "LOW"
+        else: 
+             severity = "SAFE" 
+
+        print(f"✅ Final Classification: {classification}, Severity: {severity}")
+
+        # --- Store Results (Optional but recommended) ---
+        extracted_urls = []
+        extracted_urls = extract_urls_from_text(sms_body) 
+        # You might want a separate collection for text detections or add to Logs
+        detect_id = str(uuid.uuid4()) # Generate an ID for this detection event
+        current_time_ph = datetime.now(PH_TZ)
+
+        # Example: Log to Detection collection (adapt fields as needed)
+        detection_data = {
+            "detect_id": detect_id,
+            "user_id": session.get('user_id'), 
+            "url": extracted_urls,
+            "text": sms_body,
+            "sender": sender,
+            "timestamp": current_time_ph,
+            "model_prediction": y_pred,
+            "spam_probability": float(prob_spam),
+            "severity": severity,
+            "metadata": {"source": "SMS Text Scan"}
+        }
+        detection_collection.insert_one(detection_data)
+
+         # Example: Log to Logs collection
+        log_data = {
+            "log_id": str(uuid.uuid4()),
+            "detect_id": detect_id,
+            "user_id": session.get('user_id'),
+            "probability": float(prob_spam),
+            "severity": severity,
+            "platform": "SMS",
+            "verdict": classification.capitalize(), 
+            "timestamp": current_time_ph,
+        }
+        log_insert_result = logs_collection.insert_one(log_data)
+        log_data["_id"] = str(log_insert_result.inserted_id)
+        # --- End Storing Results ---
+
+
+        # --- Prepare Response ---
+        response = {
+            "text_preview": sms_body[:100] + "...",
+            "url": extracted_urls,
+            "prediction": y_pred,
+            "classification": classification,
+            "spam_probability": prob_spam * 100,
+            "safe_probability": prob_not_spam * 100,
+            "severity": severity,
+            "detect_id": detect_id, 
+            "log_details": log_data 
+        }
+
+        return jsonify(response), 200
+
+    except Exception as e:
+        print(f"🔥 Error in /sms/classify-text: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"error": "An internal server error occurred during SMS classification."}), 500
+
+
+
+
+
+
 
 # --- Authentication Endpoints ---
 
@@ -1118,12 +1177,36 @@ def Login():
 
 
 @app.route("/Logout", methods=['POST'])
-@login_required # Ensure user is logged in to log out
+@login_required # Still good practice: only logged-in users can logout
 def Logout():
-    user_email = session.get('email', 'Unknown user')
-    session.clear() # Clear all session data
-    print(f"✅ User logged out: {user_email}")
-    return jsonify({"message": "Logout successful"}), 200
+    # Get user identifier *before* logging out for logging purposes
+    # Uses Flask-Login's current_user proxy if available
+    user_identifier = 'Unknown User'
+    if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+         # Try getting email or id, common user attributes
+         user_identifier = getattr(current_user, 'email', getattr(current_user, 'id', 'Authenticated User'))
+
+    try:
+        # *** 2. Use Flask-Login's logout_user() function ***
+        logout_user()
+        # This function handles clearing the relevant session keys for Flask-Login
+        # (like user_id, _fresh, etc.)
+
+        # session.clear() # Generally redundant if using logout_user() unless you store
+                        # OTHER non-auth related things in the session you also want cleared.
+                        # If only using session for Flask-Login, logout_user() is sufficient.
+
+        print(f"✅ User logged out via backend: {user_identifier}")
+
+        # Important: The backend's main job here is clearing its *own* session state.
+        # The React Native frontend is responsible for clearing its AsyncStorage.
+        return jsonify({"message": "Logout successful"}), 200
+
+    except Exception as e:
+        # Basic error handling for unexpected issues during logout
+        print(f"❌ Error during server-side logout for user {user_identifier}: {e}")
+        # You might want more specific error handling depending on your setup
+        return jsonify({"message": "Server error during logout"}), 500
 
 
 
@@ -1734,13 +1817,7 @@ def get_reports():
 
     try:
         query = {}
-
-        # Filter by archive status
-        if report_filter == "archived":
-            query["status"] = "Archived" # Or query["archived_at"] = {"$exists": True}
-        else: # Default to active (not archived)
-            query["status"] = {"$ne": "Archived"} # Or query["archived_at"] = {"$exists": False}
-
+        
         # Apply search query
         if search_query:
             query["$or"] = [
@@ -1767,7 +1844,7 @@ def get_reports():
                  # Format dates for display
                 "created_at": report.get("created_at").isoformat() if report.get("created_at") else None,
                 "updated_at": report.get("updated_at").isoformat() if report.get("updated_at") else None,
-                "archived_at": report.get("archived_at").isoformat() if report.get("archived_at") else None,
+                
             }
             reports_list.append(report_data)
 
@@ -1937,6 +2014,34 @@ def extract_content_from_sms():
         print(f"Error in /classify_content (extract_only): {str(e)}")
         print(traceback.format_exc())
         return jsonify({"error": "Internal server error during content extraction"}), 500
+    
+    
+# --- Main Execution ---
+if __name__ == "__main__":
+    # Use waitress or gunicorn for production, not app.run(debug=True)
+    host = os.getenv("FLASK_RUN_HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", 5000)) # Use PORT env var for Render/deployment compatibility
+    debug_mode = app.config["DEBUG"]
+    print(f"Starting Flask server on {host}:{port} (Debug: {debug_mode})...")
+    app.run(host=host, port=port, debug=debug_mode)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
 # --- Google Login/Authorization ---
 @app.route("/google-login")
@@ -2132,12 +2237,185 @@ def google_callback():
         return redirect(final_redirect)
 
 
-        
-# --- Main Execution ---
-if __name__ == "__main__":
-    # Use waitress or gunicorn for production, not app.run(debug=True)
-    host = os.getenv("FLASK_RUN_HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 5000)) # Use PORT env var for Render/deployment compatibility
-    debug_mode = app.config["DEBUG"]
-    print(f"Starting Flask server on {host}:{port} (Debug: {debug_mode})...")
-    app.run(host=host, port=port, debug=debug_mode)
+# --- Google Services ---
+
+def get_google_credentials(app_user_id):
+    """Gets Google credentials using a stored refresh token."""
+    user_data = users_collection.find_one({'_id': app_user_id})
+    if not user_data or 'google_refresh_token' not in user_data:
+        print(f"No Google refresh token found for user {app_user_id}")
+        return None
+
+    try:
+        credentials = Credentials(
+            token=None, # Access token will be refreshed
+            refresh_token=user_data['google_refresh_token'],
+            token_uri='https://oauth2.googleapis.com/token',
+            client_id=os.getenv('GOOGLE_CLIENT_ID'),
+            client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
+            scopes=[ 'https://www.googleapis.com/auth/gmail.readonly' ] # Or load from config
+        )
+        # Check if token needs refreshing (it always will if token=None)
+        if not credentials.valid:
+             if credentials.expired and credentials.refresh_token:
+                  print(f"Refreshing Google token for user {app_user_id}")
+                  credentials.refresh(Request()) # Requires google.auth.transport.requests.Request
+                  # Optionally save the new access token and expiry back to DB
+                  # users_collection.update_one(...)
+             else:
+                  print(f"Credentials invalid and no refresh token for user {app_user_id}")
+                  return None # Cannot proceed
+        return credentials
+    except Exception as e:
+         print(f"Error getting/refreshing Google credentials for user {app_user_id}: {e}")
+         return None
+
+
+def get_gmail_service(app_user_id):
+    """Builds the Gmail API service object."""
+    credentials = get_google_credentials(app_user_id)
+    if not credentials:
+        return None
+    try:
+        service = build('gmail', 'v1', credentials=credentials, cache_discovery=False)
+        return service
+    except Exception as e:
+        print(f"Error building Gmail service for user {app_user_id}: {e}")
+        return None
+
+def list_new_messages(app_user_id, query='is:unread in:inbox'):
+    """Lists new/unread messages for the user."""
+    service = get_gmail_service(app_user_id)
+    if not service:
+        return None
+    try:
+        results = service.users().messages().list(userId='me', q=query).execute()
+        messages = results.get('messages', [])
+        return messages 
+    except Exception as e:
+        print(f"Error listing messages for user {app_user_id}: {e}")
+        return None
+
+def get_email_details(app_user_id, message_id):
+    """Gets the content of a specific email."""
+    service = get_gmail_service(app_user_id)
+    if not service:
+        return None
+    try:
+        # Get raw message to handle different content types
+        message = service.users().messages().get(userId='me', id=message_id, format='raw').execute()
+        if 'raw' in message:
+            # Decode base64url raw message
+            msg_str = base64.urlsafe_b64decode(message['raw'].encode('ASCII'))
+            # Parse the raw email content
+            mime_msg = email_parser.message_from_bytes(msg_str)
+
+            email_data = {
+                'id': message_id,
+                'subject': mime_msg['subject'],
+                'from': mime_msg['from'],
+                'to': mime_msg['to'],
+                'date': mime_msg['date'],
+                'body_plain': None,
+                'body_html': None
+            }
+
+            # Extract body (handle multipart emails)
+            if mime_msg.is_multipart():
+                for part in mime_msg.walk():
+                    content_type = part.get_content_type()
+                    content_disposition = str(part.get("Content-Disposition"))
+                    try:
+                        body = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='replace')
+                    except Exception:
+                        continue 
+
+                    if "attachment" not in content_disposition:
+                        if content_type == "text/plain" and not email_data['body_plain']:
+                            email_data['body_plain'] = body
+                        elif content_type == "text/html" and not email_data['body_html']:
+                            email_data['body_html'] = body
+            else:
+                # Not multipart, payload is the body
+                content_type = mime_msg.get_content_type()
+                try:
+                     body = mime_msg.get_payload(decode=True).decode(mime_msg.get_content_charset() or 'utf-8', errors='replace')
+                     if content_type == "text/plain":
+                          email_data['body_plain'] = body
+                     elif content_type == "text/html":
+                          email_data['body_html'] = body
+                except Exception as e:
+                     print(f"Error decoding non-multipart body: {e}")
+
+
+            # Prefer plain text body if available
+            email_data['body'] = email_data['body_plain'] or email_data['body_html'] or ''
+
+            return email_data
+        else:
+            print(f"Could not find raw content for message {message_id}")
+            return None
+
+    except Exception as e:
+        print(f"Error getting message {message_id} for user {app_user_id}: {e}")
+        return None
+
+def check_emails_job():
+    print("Running scheduled email check...")
+    # Find users who have linked Google accounts
+    authorized_users = users_collection.find({'google_refresh_token': {'$exists': True}})
+
+    for user in authorized_users:
+        app_user_id = user['_id']
+        print(f"Checking emails for user: {app_user_id}")
+        new_messages = list_new_messages(app_user_id) # Check unread
+
+        if new_messages:
+            for message_summary in new_messages[:5]: # Process limited number per run
+                 message_id = message_summary['id']
+                 print(f"Fetching details for message: {message_id}")
+                 email_details = get_email_details(app_user_id, message_id)
+
+                 if email_details and email_details.get('body'):
+                     # Extract URLs
+                     url_regex = r'...' # Your regex
+                     matches = re.findall(url_regex, email_details['body'], re.IGNORECASE)
+                     extracted_urls = [m[0] or m[2] for m in matches]
+
+                     if extracted_urls:
+                         print(f"Found URLs in email {message_id}: {extracted_urls}")
+                         for url in extracted_urls:
+                             try:
+                                 # Call your existing classification logic
+                                 result = index(url) # This logs to DB
+                                 print(f"Classified URL {url} from email: {result.get('classification')}")
+                                 if result.get('classification') == 'phishing':
+                                     # !!! SEND PUSH NOTIFICATION TO USER !!!
+                                     # Implement push sending logic here using FCM/APNS
+                                     # You'll need the user's push token (stored during app login/registration)
+                                     print(f"!!! Phishing URL detected in email for user {app_user_id}. SEND PUSH !!!")
+                                     pass
+                             except Exception as classify_error:
+                                  print(f"Error classifying URL {url} from email: {classify_error}")
+                     else:
+                          print(f"No URLs found in email: {message_id}")
+                          # Optionally classify text content here
+
+                     # Mark email as read (optional)
+                     # google_api.mark_message_as_read(app_user_id, message_id)
+
+                 # Avoid hitting API limits too quickly
+                 import time
+                 time.sleep(1)
+
+scheduler = BackgroundScheduler()
+# Schedule job to run e.g., every 5 minutes
+scheduler.add_job(check_emails_job, 'interval', minutes=5)
+
+def start_scheduler():
+    print("Starting email check scheduler...")
+    scheduler.start()
+
+
+
+

@@ -18,6 +18,8 @@ import config from "../../config/config";
 import DetailsModal from '../../components/DetailsModal';
 import SmsListener from 'react-native-android-sms-listener';
 import { useNotifications } from "../../utils/NotificationContext"; 
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native"; 
 
 // Instead of importing RNFS directly, create a wrapper with safety checks
 const SafeRNFS = {
@@ -38,7 +40,6 @@ const SafeRNFS = {
     }
   },
   readFile: async function(path, options) {
-    // ... (keep this function as is)
   }
 };
 
@@ -53,7 +54,8 @@ export default function Home({ navigation }) {
   const [isLoadingScan, setIsLoadingScan] = useState(false); 
   const [isProtectionEnabled, setIsProtectionEnabled] = useState(false); 
   const [isTogglingProtection, setIsTogglingProtection] = useState(false);
-  const {handleNewScanResult } = useNotifications(); // Get handler from context
+  const {handleNewScanResult } = useNotifications(); 
+  const [isProtectionActive, setIsProtectionActive] = useState(false);
   const [isSmsListening, setIsSmsListening] = useState(false);
   // This state tracks if CORE SMS permissions are granted
   const [smsPermissionGranted, setSmsPermissionGranted] = useState(false);
@@ -76,8 +78,10 @@ export default function Home({ navigation }) {
   }, []);
 
   useEffect(() => {
-    checkPermissions(); // Run when the component mounts
+    checkPermissions(); 
   }, []);
+
+
 
 
   const checkPermissions = async () => {
@@ -112,7 +116,6 @@ export default function Home({ navigation }) {
       }
 
       setSmsPermissionGranted(coreSmsGranted);
-
   
     } catch (err) {
       console.warn('Permission check failed:', err);
@@ -325,9 +328,9 @@ export default function Home({ navigation }) {
                backendErrorMsg = errorData.error;
            }
         } catch (jsonError) {
-          setInputError(jsonError.message || "An error occurred while scanning for phishing.");
+          //setInputError(jsonError.message || "An error occurred while scanning for phishing.");
         }
-        setInputError(backendErrorMsg);
+        //setInputError(backendErrorMsg);
         return;
       }
 
@@ -343,15 +346,15 @@ export default function Home({ navigation }) {
       // Success
       console.log("Scan Result:", data);
       // Add sender info back if it came from an SMS payload for notification context
-      const resultDataForNotification = { ...data };
-      if (payload.sender) {
-          resultDataForNotification.sender = payload.sender;
-      }
+      // const resultDataForNotification = { ...data };
+      // if (payload.sender) {
+      //     resultDataForNotification.sender = payload.sender;
+      // }
 
       // Call the context handler with the backend result (and added sender if applicable)
-      handleNewScanResult(resultDataForNotification);
+      // handleNewScanResult(resultDataForNotification);
       // setUrl("");
-      //showModal(data.log_details);
+      showModal(data);
 
     } catch (error) { 
       setInputError(error.message || "An error occurred. Check connection or URL.");
@@ -361,60 +364,45 @@ export default function Home({ navigation }) {
 
   // Function called ONLY by the SMS listener callback
   const sendSmsToBackendForProcessing = async (smsData) => {
-    const extractionEndpoint = `${config.BASE_URL}/sms/classify_content`;
-    const payload = { // Payload for extraction endpoint
-        url: smsData.body,
-        //sender: smsData.sender
+    const extractionEndpoint = `${config.BASE_URL}/classify-sms`;
+    const payload = { 
+      body: smsData.body,
+      sender: smsData.sender
     };
 
     console.log(`Requesting URL extraction from ${extractionEndpoint}`);
+    // await unifiedScan({ url: smsData.body }); 
 
-    await unifiedScan({ url: smsData.body }); 
+    try {
+      const textResponse = await fetch(extractionEndpoint, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify(payload)
+      });
+      if (!textResponse.ok) {
+           const errorText = await textResponse.text();
+           console.error(`SMS Text Classification Error (${textResponse.status}):`, errorText);
+           let errorJson = { error: `Backend error: ${response.status}` };
+           try { errorJson = JSON.parse(errorText); } catch (e) {}
+           throw new Error(errorJson.error || `Backend error: ${response.status}`);
+      } 
+      
+      const data = await textResponse.json();
+      console.log("SMS Text Classification Result:", data);
 
-    // try {
-    //     // --- Call backend to extract URLs ---
-    //     const extractionResponse = await fetch(`${config.BASE_URL}/predict/scan`, { //extractionEndpoint, {
-    //         method: 'POST',
-    //         headers: { 'Content-Type': 'application/json' },
-    //         body: JSON.stringify(payload),
-    //     });
+      const resultDataForNotification = { ...data };
+      if (payload.sender) {
+        resultDataForNotification.sender = payload.sender;
+      }
 
-    //     if (!extractionResponse.ok) {
-    //         const errorText = await extractionResponse.text();
-    //         console.error(`URL Extraction Error (${extractionResponse.status}):`, errorText);
-    //         throw new Error(`URL Extraction failed: ${extractionResponse.status}`);
-    //     }
+      //handleNewScanResult(resultDataForNotification);
 
-        // const extractionData = await extractionResponse.json();
-        // const extractedUrls = extractionData.extracted_urls || [];
-        // const remainingText = extractionData.remaining_text || '';
-        // console.log("Extracted URLs from backend:", extractedUrls);
-        // console.log("Remaining Text from backend:", remainingText);
+      showModal(data.log_details);
 
 
-        // // --- URLs exist, scan them individually ---
-        // if (extractedUrls.length > 0) {
-        //     console.log(`Found ${extractedUrls.length} URL(s) to scan.`);
-        //     // Loop through all extracted URLs and scan them
-        //     for (const urlToScan of extractedUrls) {
-        //        console.log(`Scanning extracted URL: ${urlToScan}`);
-        //        await unifiedScan({ url: urlToScan, sender: smsData.sender }); 
-        //     }
-        // } else {
-        //     console.log("No URLs found in SMS body by backend.");
-        //     // Handle non-URL SMS: Pass data indicating no URL was scanned
-        //     handleNewScanResult({
-        //         classification: "safe", // Assume safe if no URL
-        //         text: smsData.body, // Pass original text
-        //         sender: smsData.sender,
-        //         reason: "No URL found for scanning",
-        //         prediction: 1 // Assuming 1 = Safe
-        //     });
-        // }
-
-    // } catch (error) {
-    //     console.error("Error during SMS processing pipeline:", error.message);
-    // }
+  } catch(textError) {
+      console.error("Error calling SMS text classification endpoint:", textError);
+  }
   };
 
 
@@ -467,6 +455,7 @@ export default function Home({ navigation }) {
 
   // --- Modal Functions ---
   const showModal = (log) => {
+    setScanResultForModal(log); 
     setSelectedLog(log);
     setModalVisible(true);
   };
@@ -475,7 +464,7 @@ export default function Home({ navigation }) {
     setSelectedLog(null);
   };
 
-  // Example Delete Handler (copied from previous example, ensure it's needed/correct)
+  // Delete Handler 
   const handleDeleteLog = async (logId) => {
     if (!logId) {
       console.error("Delete failed: No log ID provided.");
@@ -483,11 +472,11 @@ export default function Home({ navigation }) {
       return;
     }
     console.log("Attempting to delete log:", logId);
-    setIsLoadingScan(true); // Optional: show loading while deleting
+    setIsLoadingScan(true); 
     try {
       const deleteUrl = `${config.BASE_URL}/logs/${logId}`;
       const response = await fetch(deleteUrl, { method: "DELETE" });
-      const result = await response.json(); // Try to parse response
+      const result = await response.json(); 
 
       if (!response.ok || result.error) {
         throw new Error(
@@ -496,7 +485,7 @@ export default function Home({ navigation }) {
       }
 
       Alert.alert("Success", "Log deleted successfully.");
-      closeModal(); // Close modal after successful deletion
+      closeModal(); 
       // Optionally: Refresh any log lists displayed elsewhere in the app
     } catch (err) {
       console.error("Delete failed:", err);

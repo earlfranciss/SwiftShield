@@ -18,7 +18,7 @@ import NotificationToast from "../components/NotificationToast";
 import * as NotificationService from "../services/NotificationService";
 const { requestNotificationPermissions, setupNotificationListeners, scheduleNotification } = NotificationService;
 import WebViewScreen from "../screens/WarningScreen/WebViewScreen";
-//Config
+//ConfignotificationData
 import config from "../config/config";
 //Tab Screens
 import Home from "../screens/tabScreens/Home";
@@ -39,6 +39,8 @@ import EditReport from "../screens/reportsPage/EditReport";
 //Settings Screens
 import ConnectedAppsScreen from '../screens/settingsScreens/screens/ConnectedAppsScreen';
 import PushNotificationsScreen from "../screens/settingsScreens/screens/PushNotifications";
+import ManageUsers from "../screens/stackScreens/ManageUsers";
+import OnboardingScreen from "../screens/stackScreens/OnboardingScreen";
 //Icons
 import Entypo from "react-native-vector-icons/Entypo";
 import Octicons from "react-native-vector-icons/Octicons";
@@ -100,6 +102,14 @@ return (
           </GradientScreen>
        )}
     </SettingsStackNav.Screen>
+    <SettingsStackNav.Screen name="ManageUsers">
+         {props => (
+            <GradientScreen {...commonGradientProps}>
+                <ManageUsers {...props} />
+            </GradientScreen>
+         )}
+
+         </SettingsStackNav.Screen>
      {/* Add other screens that should be nested under Settings tab here */}
   </SettingsStackNav.Navigator>
 );
@@ -332,6 +342,7 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
         name="EditProfile" 
         component={typeof EditProfile === 'function' ? EditProfile : ErrorScreen} 
       />
+      <Stack.Screen name="OnboardingScreen" component={OnboardingScreen} />
 
       <Stack.Screen
         name="WebViewScreen" // Name used in navigation.navigate('WebViewScreen', ...)
@@ -480,31 +491,43 @@ export default function Navigation() {
   // Simply return the MainStack and NotificationToast
   return (
     <>
-      <MainStack 
+      <MainStack
         hasUnreadNotifications={hasUnreadNotifications}
         onNotificationRead={() => setHasUnreadNotifications(false)}
       />
-      
+
       {/* Notification Toast */}
       {inAppNotification && (
-        <NotificationToast 
+        <NotificationToast
           notification={inAppNotification}
-          onPress={(notification) => {
+          onPress={(notificationData) => {
+            // Renamed param for clarity
+            console.log(
+              "Toast pressed. Navigating with data:",
+              notificationData
+            ); // Debug log
             if (globalNavigation) {
-              globalNavigation.navigate('Notifications', {
-                isDarkMode: false,
-                onToggleDarkMode: () => {},
-                notification: notification
+              // Pass the specific notification data needed by the screen
+              globalNavigation.navigate("Notifications", {
+                notificationIdToHighlight: notificationData.id, // Example: pass ID to highlight
+                // Pass other relevant props if Notifications screen needs them
               });
-              setInAppNotification(null);
-              setHasUnreadNotifications(false);
+              setInAppNotification(null); // Dismiss toast after navigation
+              setHasUnreadNotifications(false); // Mark as read
+            } else {
+              console.warn(
+                "Cannot navigate from toast press: globalNavigation not set."
+              );
             }
           }}
-          onDismiss={() => setInAppNotification(null)}
+          onDismiss={() => {
+            console.log("Toast dismissed (timeout or manual)."); // Debug log
+            setInAppNotification(null);
+          }}
         />
       )}
     </>
-  );
+    );
 }
 
 // Styles

@@ -1,30 +1,3 @@
-// import "react-native-gesture-handler";
-// import Navigation from './navigation/Navigation'; 
-
-// export default function App() {
-//   return <Navigation />;
-// }
-
-
-
-//Version 2
-// import React from 'react';
-// import { NavigationContainer } from '@react-navigation/native';
-// import "react-native-gesture-handler";
-// import Navigation from './navigation/Navigation'; 
-
-// const App = () => {
-//   console.log('App component with Navigation rendering');
-//   return (
-//     <NavigationContainer>
-//       <Navigation />
-//     </NavigationContainer>
-//   );
-// };
-
-// export default App;
-
-
 import React, {useEffect} from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import 'react-native-gesture-handler';
@@ -35,9 +8,6 @@ import NotificationToast from './components/NotificationToast';
 
 const AppContent = () => {
   const { inAppNotification, setInAppNotification, setHasUnreadNotifications } = useNotifications();
-
-  
-
 
 
   return (
@@ -73,6 +43,34 @@ const App = () => {
 };
 
 export default App;
+
+
+// import "react-native-gesture-handler";
+// import Navigation from './navigation/Navigation'; 
+
+// export default function App() {
+//   return <Navigation />;
+// }
+
+
+
+//Version 2
+// import React from 'react';
+// import { NavigationContainer } from '@react-navigation/native';
+// import "react-native-gesture-handler";
+// import Navigation from './navigation/Navigation'; 
+
+// const App = () => {
+//   console.log('App component with Navigation rendering');
+//   return (
+//     <NavigationContainer>
+//       <Navigation />
+//     </NavigationContainer>
+//   );
+// };
+
+// export default App;
+
 
 
 //Testing

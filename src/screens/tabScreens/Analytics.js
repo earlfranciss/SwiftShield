@@ -20,7 +20,6 @@ import config from "../../config/config";
 import { useFocusEffect } from "@react-navigation/native";
 
 
-
 export default function Analytics({ navigation }) {
   const [analyticsData, setAnalyticsData] = useState(null); // Note: analyticsData is fetched but not used directly in rendering yet
   const [loading, setLoading] = useState(true);

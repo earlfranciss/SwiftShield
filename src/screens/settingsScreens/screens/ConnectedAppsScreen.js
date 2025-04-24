@@ -5,6 +5,7 @@ import {
   FlatList,
   StyleSheet,
   SafeAreaView,
+  PermissionsAndroid,
   StatusBar, 
   Pressable, 
   Alert,
@@ -124,13 +125,13 @@ const ConnectedAppsScreen = ({ navigation }) => {
         }
         // 2. Start the Listener (Import or get from context)
         console.log("TODO: Call startSmsListening()");
-        // startSmsListening(); // Replace with actual call
+        startSmsListening(); // Replace with actual call
         setIsSmsEnabled(true); // Update state only after starting successfully
     } else { // User wants to DISABLE SMS listening
         console.log("Attempting to disable SMS listener...");
         // 1. Stop the Listener (Import or get from context)
         console.log("TODO: Call stopSmsListening()");
-         // stopSmsListening(); // Replace with actual call
+        stopSmsListening(); // Replace with actual call
         setIsSmsEnabled(false); // Update state
     }
  };
