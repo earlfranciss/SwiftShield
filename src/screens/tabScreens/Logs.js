@@ -284,7 +284,7 @@ export default function Logs({ route, navigation }) {
         ) : (
           <FlatList
             data={displayedLogs}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item) => item.id?.toString()}
             renderItem={({ item }) => (
               <TouchableOpacity
                 onPress={() => {

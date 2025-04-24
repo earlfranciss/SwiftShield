@@ -1017,18 +1017,20 @@ def classify_sms_text():
         extracted_urls = extract_urls_from_text(sms_body) 
         # You might want a separate collection for text detections or add to Logs
         detect_id = str(uuid.uuid4()) # Generate an ID for this detection event
-        current_time_ph = datetime.now(PH_TZ)
+        current_time_ph = datetime.now(pytz.timezone('Asia/Manila'))
 
         # Example: Log to Detection collection (adapt fields as needed)
         detection_data = {
             "detect_id": detect_id,
             "user_id": session.get('user_id'), 
-            "url": extracted_urls,
+            # "url": extracted_urls,
+            "url": sms_body,
             "text": sms_body,
             "sender": sender,
             "timestamp": current_time_ph,
             "model_prediction": y_pred,
             "spam_probability": float(prob_spam),
+            "phishing_percentage": prob_spam * 100,
             "severity": severity,
             "metadata": {"source": "SMS Text Scan"}
         }
@@ -1053,16 +1055,22 @@ def classify_sms_text():
         # --- Prepare Response ---
         response = {
             "text_preview": sms_body[:100] + "...",
-            "url": extracted_urls,
+            # "url": extracted_urls,
+            "url": sms_body,
             "prediction": y_pred,
             "classification": classification,
             "spam_probability": prob_spam * 100,
             "safe_probability": prob_not_spam * 100,
+            "phishing_percentage": prob_spam * 100,
             "severity": severity,
             "detect_id": detect_id, 
+            "date_scanned": current_time_ph,
+            "recommended_action": 'Block Number' if prob_spam > 0.6 else 'Stay Vigilant',
             "log_details": log_data 
         }
 
+        print(f"✅ Response: {response}")
+        
         return jsonify(response), 200
 
     except Exception as e:

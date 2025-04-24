@@ -397,7 +397,7 @@ export default function Home({ navigation }) {
 
       //handleNewScanResult(resultDataForNotification);
 
-      showModal(data.log_details);
+      showModal(data);
 
 
   } catch(textError) {

@@ -54,7 +54,8 @@ const DetailsModal = ({
 
   // --- Data Derivation from Props ---
   // Use optional chaining (?.) for safety in case scanResult is null/undefined briefly
-  const platform = scanResult?.platform || "Unknown";
+  const platform = typeof scanResult?.platform === "string" ? scanResult.platform : "Unknown";
+
 
   // Date Formatting (Month Day, Year)
   let dateScanned = "Unknown";
@@ -88,9 +89,10 @@ const DetailsModal = ({
 
   // Probability
   const probabilityPercentage =
-    typeof scanResult?.phishing_percentage === "number"
-      ? `${scanResult.phishing_percentage}%`
-      : "N/A";
+  typeof scanResult?.phishing_percentage === "number"
+    ? `${scanResult.phishing_percentage.toFixed(2)}%`
+    : "N/A";
+
 
   // Recommended Action
   const recommendedAction = scanResult?.recommended_action || "N/A";
@@ -229,7 +231,7 @@ const DetailsModal = ({
                     {urlToDisplay}
                   </Text>
                 </TouchableOpacity>
-                <Text style={styles.urlLabel}>URL</Text>
+                <Text style={styles.urlLabel}>Scan</Text>
 
                 {/* Analysis Details Container */}
                 <View style={styles.analysisContainer}>

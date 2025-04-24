@@ -242,14 +242,14 @@ export default function Analytics({ navigation }) {
     },
     {
       level: "High",
-      count: severityCounts?.HIGH ?? 0, // Should be 12
+      count: severityCounts?.HIGH ?? 0, 
       borderColor: "#EE8931",
       textColor: "#EE8931",
       countColor: "#EE8931",
     },
     {
       level: "Critical",
-      count: severityCounts?.CRITICAL ?? 0, // Should be 5
+      count: severityCounts?.CRITICAL ?? 0, 
       borderColor: "#ED3A3A",
       textColor: "#ED3A3A",
       countColor: "#ED3A3A",
@@ -267,7 +267,7 @@ export default function Analytics({ navigation }) {
 
   const statsData = [
     { label: "URLs Scanned", value: totalUrlsScanned },
-    { label: "Threats Blocked", value: threatsBlocked },
+    { label: "Threats Detected", value: threatsBlocked },
   ];
 
   const viewabilityConfig = {
