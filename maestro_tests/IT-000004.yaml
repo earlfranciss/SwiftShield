@@ -1,0 +1,60 @@
+# Target the Expo Go client application
+appId: host.exp.exponent
+
+---
+# --- IT-000004: Login - User inputs invalid data ---
+
+# --- Setup: Ensure we are on the Login Screen ---
+# (Assuming the app starts here or previous steps navigate here)
+- assertVisible:
+    id: "android:id/content" # Basic screen check
+- assertVisible: "Email" # Check for Email field/label
+- assertVisible: "Password" # Check for Password field/label
+- assertVisible: "LOGIN" # Check for LOGIN button
+
+# --- Test 4a: Invalid Email Format ---
+
+# Tap Email field coord
+- tapOn: { point: "50%,46%" }
+# Enter INVALID email (missing @domain.com)
+- inputText: "invalid-email-only"
+- hideKeyboard
+# Tap Password field coord
+- tapOn: { point: "50%,55%" }
+# Enter ANY password (doesn't matter for this email test)
+- inputText: "anypassword"
+- hideKeyboard
+# Tap LOGIN button coord
+- tapOn: { point: "50%,65%" }
+
+# --- Assert Login FAILED (Still on Login Screen) ---
+# Wait implicitly and check if the LOGIN button is STILL visible.
+# If login succeeded, this button would likely be gone.
+- assertVisible: "LOGIN"
+# (Optional: Add a check that a home screen element is NOT visible)
+# - assertNotVisible: "SwiftShield" # Assuming this is the home screen title
+
+# --- Test 4b: Incorrect Password ---
+
+# Clear the invalid Email field
+- tapOn: { point: "50%,46%" } # Tap Email field coord
+- eraseText
+# Enter a VALID email format
+- inputText: "test-bot@admin.com"
+- hideKeyboard
+# Clear the previous password field
+- tapOn: { point: "50%,55%" } # Tap Password field coord
+- eraseText
+# Enter an INCORRECT password
+- inputText: "wrongPassword123!"
+- hideKeyboard
+# Tap LOGIN button coord
+- tapOn: { point: "50%,65%" }
+
+# --- Assert Login FAILED (Still on Login Screen) ---
+# Wait implicitly and check if the LOGIN button is STILL visible again.
+- assertVisible: "LOGIN"
+# (Optional: Add a check that a home screen element is NOT visible)
+# - assertNotVisible: "SwiftShield" # Assuming this is the home screen title
+
+# --- End of Test 4 ---

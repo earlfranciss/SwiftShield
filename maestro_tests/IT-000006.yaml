@@ -1,0 +1,96 @@
+# Target the Expo Go client application
+appId: host.exp.exponent
+
+---
+# --- IT-000006: Detection Result - System analyzes potential Safe URL ---
+
+# --- Part 1: Login Flow (Derived from Test 3) ---
+# (Assuming login steps from previous script are here)
+# ... [Login Steps: tapOn Email, inputText, tapOn Password, inputText, tapOn LOGIN] ...
+- assertVisible:
+    id: "android:id/content"
+- assertVisible: "Remember me"
+- assertVisible: "Forgot Password?"
+- assertVisible: "Don't have an account? "
+- assertVisible: "Register"
+- assertVisible: "Email"
+- tapOn: { point: "50%,46%" }
+- inputText: "test-bot@admin.com"
+- assertVisible: { text: ".*test-bot@admin.com.*" }
+- hideKeyboard
+- assertVisible: "Password"
+- tapOn: { point: "50%,55%" }
+- inputText: "lhnRW?324r|{"
+- assertVisible: { text: ".*••••••••••••.*" }
+- hideKeyboard
+- assertVisible: ""
+- tapOn: { point: "84%,55%" }
+- assertVisible: { text: "lhnRW?324r|{" }
+- assertVisible: "LOGIN"
+- tapOn: { point: "50%,65%" }
+
+# --- Part 2: Post-Login Assertions (Verify successful login & Home screen) ---
+- assertVisible: "SwiftShield"
+- assertVisible: ""
+- assertVisible: ""
+- assertVisible: "Web Protection"
+- assertVisible: "Enabled"
+- assertVisible: "Scan URL:"
+- assertVisible: "www.malicious.link"
+- assertVisible: "SCAN"
+- assertVisible: ", Home"
+- assertVisible: ""
+- assertVisible: ""
+- assertVisible: ""
+
+# --- Part 3: Scan URL Flow ---
+- tapOn: "www.malicious.link"
+- inputText: "lmportal.uc.edu.ph"
+- hideKeyboard
+- assertVisible: { text: ".*lmportal.uc.edu.ph.*" }
+- assertVisible: "SCAN"
+- tapOn: { point: "50%,73%" } # Tap SCAN button coord
+
+# --- Wait UP TO 30 seconds specifically for the URL to appear ---
+- extendedWaitUntil:
+    # Condition: Wait for the element with the EXACT text "URL" to be visible
+    visible: "URL"
+    # Set the maximum wait time to 120000 milliseconds (120 seconds)
+    timeout: 120000
+
+# --- Part 4: Assert Scan Results Modal ---
+# Check for the label "URL"
+- assertVisible: "URL"
+# Check if the scanned URL is displayed in the results
+- assertVisible: "lmportal.uc.edu.ph"
+# Check for the label "Platform:"
+- assertVisible: "Platform:"
+# Check for the value "User Scan"
+- assertVisible: "User Scan"
+# Check for the label "Date Scanned:"
+- assertVisible: "Date Scanned:"
+
+# Option B: Use Regex to check format (if format is consistent)
+- assertVisible: { text: '[A-Za-z]+ \d{1,2}, \d{4}' } # <<< USE INSTEAD OF SPECIFIC DATE
+
+# Check for the label "Severity Level:"
+- assertVisible: "Severity Level:"
+# Check for the value "SAFE" (expected result for this URL)
+- assertVisible: "SAFE"
+# Check for the label "Probability Percentage:"
+- assertVisible: "Probability Percentage:"
+# Check for the probability value
+- assertVisible: "5.9%"
+# Check for the label "Recommended Action"
+- assertVisible: "Recommended Action"
+# Check for the text "Allow URL"
+- assertVisible: "Allow URL"
+# Check for the "Delete" button/text
+- assertVisible: "Delete"
+# Check for the "Close" button/text
+- assertVisible: "Close"
+
+# --- Part 5: Close Modal and Verify Log Entry ---
+# Tap on the "Close" button to dismiss the results modal
+- tapOn: "Close"
+# --- End of Test 5 ---

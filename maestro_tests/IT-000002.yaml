@@ -1,0 +1,113 @@
+# Target the Expo Go client application
+appId: host.exp.exponent
+
+---
+# --- IT-000002: Register - User inputs invalid data ---
+
+# Check if the main content view of the Android screen is visible
+- assertVisible:
+    id: "android:id/content"
+# Check if "Register" text is visible on the initial screen
+- assertVisible: "Register"
+# Tap on the "Register" text/button
+- tapOn: "Register"
+# Check if the main content view is visible again after navigation
+- assertVisible:
+    id: "android:id/content"
+# Check if the title "SWIFTSHIELD" is visible on the Register screen
+- assertVisible: "SWIFTSHIELD"
+
+# --- Test 1: Invalid Email Format ---
+
+# Fill First Name
+- assertVisible: "First Name"
+- tapOn: { point: "50%,29%" } # Tap First Name field coord
+- inputText: "Test Invalid"
+- hideKeyboard
+# Fill Last Name
+- assertVisible: "Last Name"
+- tapOn: { point: "50%,37%" } # Tap Last Name field coord
+- inputText: "Email"
+- hideKeyboard
+# Fill Email (INVALID FORMAT)
+- assertVisible: "Email"
+- tapOn: { point: "50%,45%" } # Tap Email field coord
+- inputText: "test-invalid-email" # Missing @domain.com
+- hideKeyboard
+# Fill Contact Number
+- assertVisible: "Contact Number"
+- tapOn: { point: "50%,53%" } # Tap Contact Number field coord
+- inputText: "09111111111"
+- hideKeyboard
+# Fill Password (Valid length for this test)
+- assertVisible: "Password"
+- tapOn: { point: "50%,60%" } # Tap Password field coord
+- inputText: "validPass1"
+- hideKeyboard
+# Fill Confirm Password (Matching valid length password)
+- assertVisible: "Confirm Password"
+- tapOn: { point: "50%,68%" } # Tap Confirm Password field coord
+- inputText: "validPass1"
+- hideKeyboard
+# Tap REGISTER button
+- assertVisible: "REGISTER"
+- tapOn: { point: "50%,78%" } # Tap REGISTER button coord
+
+# Assert Alert for Invalid Email
+- assertVisible: "Alert" # Check for Alert title
+- assertVisible: "Invalid email format" # Check for specific error message
+- tapOn: "OK" # Dismiss the alert
+
+# --- Test 2: Password Too Short ---
+
+# Clear the invalid Email field
+- tapOn: { point: "50%,45%" } # Tap Email field coord
+- eraseText # <<< CORRECTED COMMAND
+# Enter a VALID Email now
+- inputText: "test-valid@email.com"
+- hideKeyboard
+# Clear the previous Password field
+- tapOn: { point: "50%,60%" } # Tap Password field coord
+- eraseText # <<< CORRECTED COMMAND
+# Enter SHORT Password
+- inputText: "123" # Assuming less than 6 chars is invalid
+- hideKeyboard
+# Clear the previous Confirm Password field
+- tapOn: { point: "50%,68%" } # Tap Confirm Password field coord
+- eraseText # <<< CORRECTED COMMAND
+# Enter SHORT Confirm Password (matching)
+- inputText: "123"
+- hideKeyboard
+# Tap REGISTER button
+- assertVisible: "REGISTER"
+- tapOn: { point: "50%,78%" } # Tap REGISTER button coord
+
+# Assert Alert for Short Password
+- assertVisible: "Alert" # Check for Alert title
+- assertVisible: "Password must be at least 6 characters long" # Check specific error
+- tapOn: "OK" # Dismiss the alert
+
+# --- Test 3: Passwords Do Not Match ---
+
+# Password field should still contain "123", Clear it
+- tapOn: { point: "50%,60%" } # Tap Password field coord
+- eraseText # <<< CORRECTED COMMAND
+# Enter a VALID Password
+- inputText: "validPass123"
+- hideKeyboard
+# Confirm Password field should still contain "123", Clear it
+- tapOn: { point: "50%,68%" } # Tap Confirm Password field coord
+- eraseText # <<< CORRECTED COMMAND
+# Enter a DIFFERENT Confirm Password
+- inputText: "differentPass456"
+- hideKeyboard
+# Tap REGISTER button
+- assertVisible: "REGISTER"
+- tapOn: { point: "50%,78%" } # Tap REGISTER button coord
+
+# Assert Alert for Password Mismatch
+- assertVisible: "Alert" # Check for Alert title
+- assertVisible: "Passwords do not match" # Check specific error
+- tapOn: "OK" # Dismiss the alert
+
+# --- End of Invalid Tests ---
