@@ -9,73 +9,276 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  StatusBar,
+  Modal,
+  TouchableWithoutFeedback,
+  Linking,
+  // Make sure Clipboard is imported correctly for your setup
+  // If using Expo Managed: import * as Clipboard from 'expo-clipboard';
+  // If using Bare RN: import Clipboard from '@react-native-clipboard/clipboard';
 } from "react-native";
 import { WebView } from "react-native-webview";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import { Ionicons } from "@expo/vector-icons";
 import WarningModal from "../components/WarningModal"; // <-- ADJUST PATH if needed
+import * as Clipboard from "expo-clipboard";
+import SimpleToast from "./SimpleToast"; // <-- IMPORT YOUR CUSTOM TOAST
 
+const CopyIcon = require("../../../assets/images/Copy Icon.png");
+
+// --- Reusable Messenger Header Component ---
+// No changes needed in the header component itself
+const MessengerHeader = ({
+  title,
+  subtitle,
+  onBackPress,
+  onMorePress,
+  moreButtonDisabled,
+}) => {
+  const displaySubtitle = subtitle?.replace(/^https?:\/\//, "");
+
+  return (
+    <View style={styles.messengerHeaderContainer}>
+      <TouchableOpacity
+        onPress={onBackPress}
+        style={styles.messengerIconButton}
+      >
+        <Ionicons
+          name={Platform.OS === "ios" ? "chevron-back" : "arrow-back"}
+          size={28}
+          color="#0A0A0A"
+        />
+      </TouchableOpacity>
+      <View style={styles.messengerTitleContainer}>
+        <Text style={styles.messengerTitle}>{title}</Text>
+        {/* Title is now dynamic */}
+        {displaySubtitle && displaySubtitle !== title && (
+          <Text
+            style={styles.messengerSubtitle}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {displaySubtitle}
+          </Text>
+        )}
+      </View>
+      <TouchableOpacity
+        onPress={onMorePress}
+        style={styles.messengerIconButton}
+        disabled={moreButtonDisabled}
+      >
+        <Ionicons
+          name="ellipsis-vertical"
+          size={24}
+          color={moreButtonDisabled ? "#666666" : "#0A0A0A"}
+        />
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+// --- Options Menu Component (Simple Example) ---
+const OptionsMenu = ({
+  visible,
+  onClose,
+  url,
+  onMarkSuspicious,
+  showToast,
+}) => {
+  if (!visible || !url) return null;
+
+  // Simplified URL for display (optional, not used here but kept for context)
+  // const simplifiedUrl = url.replace(/^https?:\/\//, '');
+
+  // Behavior: Attempts to open the URL using the OS default handler.
+  // Works reliably for http/https. Custom schemes might work if app is installed,
+  // but less predictable without specific native declarations (which we're removing).
+  const openInBrowser = () => {
+    const urlToOpen = url; // Ensure 'url' holds the correct link
+    console.log("Checking if URL can be opened:", urlToOpen);
+
+    Linking.canOpenURL(urlToOpen)
+      .then((supported) => {
+        if (supported) {
+          console.log("URL is supported, opening...");
+          Linking.openURL(urlToOpen); // Open the link if supported
+        } else {
+          // This alert should now hopefully not appear for https links in your working environment
+          Alert.alert(
+            "Cannot Open Link",
+            `The operating system doesn't know how to open this type of URL: ${urlToOpen}`
+          );
+          console.log("Linking.canOpenURL returned false for: " + urlToOpen);
+        }
+      })
+      .catch((err) => {
+        // Alert on other errors during the check or opening
+        Alert.alert(
+          "Error",
+          "An error occurred while trying to open the link."
+        );
+        console.error(
+          "An error occurred checking or opening URL with Linking:",
+          err
+        );
+      });
+    onClose(); // Close menu after action
+  };
+
+  // Behavior: Copies the URL to the clipboard WITHOUT showing a success alert.
+  // Inside OptionsMenu component
+  const copyLink = async () => {
+    console.log("Attempting to copy URL inside copyLink:", url); // <-- Add this log
+    try {
+      await Clipboard.setStringAsync(url); // Ensure 'url' is not undefined/null here
+      console.log("Link copied successfully.");
+      showToast("Link copied", CopyIcon);
+    } catch (e) {
+      Alert.alert("Error", "Could not copy link to clipboard.");
+      console.error("Failed to copy link:", e); // <-- What does this log?
+    }
+    onClose();
+  };
+
+  // --- Other functions (openPrivacyPolicy, handleMarkSuspiciousInternal) remain the same ---
+  const openPrivacyPolicy = () => {
+    const privacyUrl = "https://example.com/privacy"; // <-- UPDATE THIS if needed
+    Linking.canOpenURL(privacyUrl)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(privacyUrl);
+        } else {
+          Alert.alert(
+            "Cannot Open Link",
+            `Don't know how to open the Privacy Policy URL.`
+          );
+        }
+      })
+      .catch((err) => {
+        Alert.alert(
+          "Error",
+          "An error occurred trying to open the Privacy Policy."
+        );
+        console.error("Error opening Privacy Policy:", err);
+      });
+    onClose();
+  };
+
+  const handleMarkSuspiciousInternal = () => {
+    onMarkSuspicious();
+    onClose();
+  };
+
+  return (
+    <Modal
+      transparent={true}
+      visible={visible}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.menuContainer}>
+              <TouchableOpacity style={styles.menuItem} onPress={copyLink}>
+                <Ionicons
+                  name="copy-outline"
+                  size={22}
+                  color="#EFEFEF"
+                  style={styles.menuIcon}
+                />
+                <Text style={styles.menuText}>Copy link</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={handleMarkSuspiciousInternal}
+              >
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={22}
+                  color="#EFEFEF"
+                  style={styles.menuIcon}
+                />
+                <Text style={styles.menuText}>Mark as suspicious</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={openInBrowser}>
+                <Ionicons
+                  name="open-outline"
+                  size={22}
+                  color="#EFEFEF"
+                  style={styles.menuIcon}
+                />
+                {/* Text remains appropriate */}
+                <Text style={styles.menuText}>Open in Browser</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={openPrivacyPolicy}
+              >
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={22}
+                  color="#EFEFEF"
+                  style={styles.menuIcon}
+                />
+                <Text style={styles.menuText}>Privacy Policy</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+};
+
+// --- Main WebView Screen ---
 const SUSPICIOUS_SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM"];
 
 const WebViewScreen = ({ navigation, route }) => {
   const initialUrl = route?.params?.url;
+  const urlForWarningDisplay = route?.params?.displayUrl || initialUrl;
   const severity = route?.params?.severity || "UNKNOWN";
   const webViewRef = useRef(null);
 
-  // State variables
-  const [currentUrl, setCurrentUrl] = useState(initialUrl);
-  const [pageTitle, setPageTitle] = useState("Loading...");
-  const [canGoBack, setCanGoBack] = useState(false);
-  const [canGoForward, setCanGoForward] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); // Start false until WebView is allowed to load
+  const [currentUrl, setCurrentUrl] = useState(initialUrl); // URL state for header/menu
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-
-  // State for Modal visibility and controlling WebView rendering/loading
   const [isWarningModalVisible, setIsWarningModalVisible] = useState(false);
-  const [allowWebViewLoad, setAllowWebViewLoad] = useState(false); // Start false
+  const [allowWebViewLoad, setAllowWebViewLoad] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false); // <-- State for custom toast visibility
+  const [toastMessage, setToastMessage] = useState(""); // <-- State for custom toast message
+  const [toastIconSource, setToastIconSource] = useState(null); // <-- State for icon source
+  const toastTimerRef = useRef(null); // <-- Ref to manage the timeout
 
-  // --- Initial Check on Mount ---
+  // --- Initial Check on Mount (no changes needed here) ---
   useEffect(() => {
     if (!initialUrl) {
       console.error("WebViewScreen: No initial URL provided.");
-      // Handle error appropriately (e.g., show alert and go back)
       Alert.alert("Error", "No URL provided.", [
         { text: "OK", onPress: handleClose },
       ]);
       return;
     }
-
     const isSuspicious = SUSPICIOUS_SEVERITIES.includes(
       String(severity).toUpperCase()
     );
-
     if (isSuspicious) {
-      // Show the warning modal first
-      console.log(
-        "WebViewScreen: Suspicious URL detected, showing WarningModal."
-      );
       setIsWarningModalVisible(true);
-      setAllowWebViewLoad(false); // Prevent WebView rendering/loading
+      setAllowWebViewLoad(false);
       setIsLoading(false);
-      setPageTitle("Warning"); // Set header title
+      setCurrentUrl(initialUrl);
     } else {
-      // URL is considered safe, proceed to load directly
-      console.log("WebViewScreen: Safe URL detected, allowing WebView load.");
       setIsWarningModalVisible(false);
-      setAllowWebViewLoad(true); // Allow WebView rendering/loading
-      setIsLoading(true); // Start loading indicator for WebView
-      setPageTitle(initialUrl); // Set initial title
+      setAllowWebViewLoad(true);
+      setIsLoading(true);
+      setCurrentUrl(initialUrl);
     }
-  }, [initialUrl, severity]); // Dependencies
+  }, [initialUrl, severity]);
 
-  // --- Navigation Functions ---
-  const handleGoBack = () => {
-    if (allowWebViewLoad && webViewRef.current && canGoBack)
-      webViewRef.current.goBack();
-  };
-  const handleGoForward = () => {
-    if (allowWebViewLoad && webViewRef.current && canGoForward)
-      webViewRef.current.goForward();
-  };
+  // --- Navigation/Action Functions ---
   const handleRefresh = () => {
     if (allowWebViewLoad && webViewRef.current) {
       setError(null);
@@ -86,50 +289,48 @@ const WebViewScreen = ({ navigation, route }) => {
   const handleClose = () => {
     if (navigation?.canGoBack()) navigation.goBack();
   };
+  const handleMorePress = () => {
+    setMenuVisible(true);
+  };
+  const handleCloseMenu = () => {
+    setMenuVisible(false);
+  };
+  const handleMarkSuspicious = () => {
+    Alert.alert(
+      "Marked as Suspicious",
+      `The URL ${currentUrl} has been reported (simulation).`
+    );
+    console.log("Mark as suspicious triggered for:", currentUrl);
+  };
 
-  // --- Modal Callback Functions ---
+  // --- Modal Callbacks (no changes needed here) ---
   const handleModalClose = () => {
-    console.log("Warning Modal: Close pressed");
     setIsWarningModalVisible(false);
-    handleClose(); // Navigate back (close the whole screen)
+    handleClose();
   };
-
   const handleModalProceed = () => {
-    console.log("Warning Modal: Proceed pressed");
     setIsWarningModalVisible(false);
-    setAllowWebViewLoad(true); // *** Allow WebView rendering/loading ***
-    setIsLoading(true); // *** Start loading indicator for WebView ***
-    setPageTitle(initialUrl || "Loading..."); // Reset title for loading state
+    setAllowWebViewLoad(true);
+    setIsLoading(true);
+    setCurrentUrl(initialUrl);
   };
 
-  // --- WebView Handlers ---
-  // (These only run if allowWebViewLoad becomes true)
+  // --- WebView Handlers (no changes needed here) ---
   const handleNavigationStateChange = (navState) => {
-    /* ... same as before ... */ setCanGoBack(navState.canGoBack);
-    setCanGoForward(navState.canGoForward);
-    setCurrentUrl(navState.url);
-    if (
-      navState.title &&
-      navState.title.trim() !== "" &&
-      !navState.title.startsWith("http")
-    ) {
-      setPageTitle(navState.title);
-    } else if (!navState.title && navState.url) {
-      setPageTitle(navState.url);
-    }
+    setCurrentUrl(navState.url); // Update URL for header subtitle and menu actions
     if (!navState.loading) {
       setError(null);
       setIsLoading(false);
     }
   };
   const handleRenderError = (syntheticEvent) => {
-    /* ... same as before ... */ const { nativeEvent } = syntheticEvent;
-    console.warn("WebView error: ", nativeEvent);
+    const { nativeEvent } = syntheticEvent;
+    console.warn("WebView render error: ", nativeEvent);
     setError(nativeEvent);
     setIsLoading(false);
   };
   const handleHttpError = (syntheticEvent) => {
-    /* ... same as before ... */ const { nativeEvent } = syntheticEvent;
+    const { nativeEvent } = syntheticEvent;
     console.warn("WebView HTTP error: ", nativeEvent);
     setError({
       code: nativeEvent.statusCode,
@@ -141,22 +342,30 @@ const WebViewScreen = ({ navigation, route }) => {
   };
 
   // --- Render Logic ---
-
-  // Added this check again for safety, although useEffect should handle it
   if (!initialUrl && !isWarningModalVisible) {
+    // Simplified error display if no URL is ever provided
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.placeholderButton} />
-          <View style={styles.placeholderButton} />
-          <View style={styles.titleContainer} />
-          <View style={styles.placeholderButton} />
-          <TouchableOpacity onPress={handleClose} style={styles.iconButton}>
-            <Icon name="close" size={26} color="#CCC" />
+        <StatusBar
+          barStyle="light-content"
+          backgroundColor={styles.messengerHeaderContainer.backgroundColor}
+        />
+        {/* Minimal header for error state */}
+        <View style={styles.messengerHeaderContainer}>
+          <View style={styles.messengerIconButton} />
+          <View style={styles.messengerTitleContainer}>
+            {/* Can optionally put the desired title here too */}
+            <Text style={styles.messengerTitle}>SwiftShield</Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleClose}
+            style={styles.messengerIconButton}
+          >
+            <Ionicons name="close" size={28} color="#CCC" />
           </TouchableOpacity>
         </View>
         <View style={styles.centered}>
-          <Icon
+          <Ionicons
             name="link-off"
             size={48}
             color="#666"
@@ -171,8 +380,34 @@ const WebViewScreen = ({ navigation, route }) => {
     );
   }
 
+  // Function to show the custom toast
+  const showSimpleToast = (message, icon = null) => {
+    // <-- Add optional icon parameter
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
+    setToastMessage(message);
+    setToastIconSource(icon); // <-- Set the icon source state
+    setToastVisible(true);
+
+    toastTimerRef.current = setTimeout(() => {
+      setToastVisible(false);
+      // Optional: Reset icon after hiding if desired
+      // setToastIconSource(null);
+    }, 2500);
+  };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
-    // Use React Fragment <> to render Modal alongside SafeAreaView
     <>
       <SafeAreaView
         style={[
@@ -180,77 +415,26 @@ const WebViewScreen = ({ navigation, route }) => {
           isWarningModalVisible ? styles.dimmedBackground : {},
         ]}
       >
-        {/* Header - Always render header, but buttons might be disabled visually */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={handleGoBack}
-            disabled={!canGoBack || !allowWebViewLoad || isWarningModalVisible}
-            style={styles.iconButton}
-          >
-            <Icon
-              name="arrow-back-ios"
-              size={22}
-              color={
-                canGoBack && allowWebViewLoad && !isWarningModalVisible
-                  ? "#FFFFFF"
-                  : "#666666"
-              }
-              style={{ marginLeft: Platform.OS === "ios" ? 8 : 0 }}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleGoForward}
-            disabled={
-              !canGoForward || !allowWebViewLoad || isWarningModalVisible
-            }
-            style={styles.iconButton}
-          >
-            <Icon
-              name="arrow-forward-ios"
-              size={22}
-              color={
-                canGoForward && allowWebViewLoad && !isWarningModalVisible
-                  ? "#FFFFFF"
-                  : "#666666"
-              }
-            />
-          </TouchableOpacity>
-          <View style={styles.titleContainer}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {/* Show "Warning" title if modal is visible, otherwise loading/page title */}
-              {isWarningModalVisible
-                ? "Warning"
-                : isLoading && !error
-                ? "Loading..."
-                : pageTitle}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={handleRefresh}
-            disabled={isLoading || !allowWebViewLoad || isWarningModalVisible}
-            style={styles.iconButton}
-          >
-            <Icon
-              name="refresh"
-              size={26}
-              color={
-                isLoading || !allowWebViewLoad || isWarningModalVisible
-                  ? "#666666"
-                  : "#FFFFFF"
-              }
-            />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleClose} style={styles.iconButton}>
-            <Icon name="close" size={26} color={"#FFFFFF"} />
-          </TouchableOpacity>
-        </View>
+        <StatusBar
+          barStyle="light-content"
+          backgroundColor={styles.messengerHeaderContainer.backgroundColor}
+        />
 
-        {/* Conditionally render WebView Component */}
+        {/* --- Use MessengerHeader with UPDATED Title --- */}
+        <MessengerHeader
+          title="SwiftShield" // <-- TITLE CHANGED HERE
+          subtitle={currentUrl}
+          onBackPress={handleClose}
+          onMorePress={handleMorePress}
+          moreButtonDisabled={isWarningModalVisible}
+        />
+
+        {/* Conditionally render WebView Component (no changes needed) */}
         {allowWebViewLoad && (
           <WebView
             ref={webViewRef}
             originWhitelist={["*"]}
-            source={{ uri: initialUrl }}
+            source={{ uri: currentUrl }}
             style={styles.webView}
             onLoadStart={() => {
               setIsLoading(true);
@@ -268,25 +452,27 @@ const WebViewScreen = ({ navigation, route }) => {
           />
         )}
 
-        {/* Keep placeholder view if webview isn't allowed yet to maintain layout */}
+        {/* Placeholder view if webview isn't allowed yet (no changes needed) */}
         {!allowWebViewLoad && (
           <View style={styles.webViewPlaceholder}>
-            {/* Optionally show a message here or just keep it blank */}
-            {/* <Text style={{color: '#555'}}>Content blocked due to security warning.</Text> */}
+            {!isWarningModalVisible && (
+              <ActivityIndicator color="#3AED97" size="large" />
+            )}
           </View>
         )}
 
-        {/* Loading Overlay for WebView (only show if loading webview) */}
+        {/* Loading Overlay (no changes needed) */}
         {allowWebViewLoad && isLoading && !error && (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator color="#3AED97" size="large" />
           </View>
         )}
-        {/* Error Overlay for WebView (only show if webview load failed) */}
+
+        {/* Error Overlay (no changes needed) */}
         {allowWebViewLoad && error && !isLoading && (
           <View style={styles.errorOverlay}>
-            <Icon
-              name="error-outline"
+            <Ionicons
+              name="cloud-offline-outline"
               size={48}
               color="#FF6B6B"
               style={{ marginBottom: 15 }}
@@ -299,59 +485,87 @@ const WebViewScreen = ({ navigation, route }) => {
               onPress={handleRefresh}
               style={styles.retryButton}
             >
+              <Ionicons
+                name="refresh"
+                size={20}
+                color="#EFEFEF"
+                style={{ marginRight: 8 }}
+              />
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
         )}
       </SafeAreaView>
 
-      {/* Warning Modal (Rendered on top, controlled by state) */}
+      {/* Warning Modal (Rendered on top) */}
       <WarningModal
         visible={isWarningModalVisible}
-        onClose={handleModalClose} // Closes the screen
-        onProceed={handleModalProceed} // Hides modal, shows/loads WebView
-        url={initialUrl}
+        onClose={handleModalClose}
+        onProceed={handleModalProceed}
+        url={urlForWarningDisplay}
+      />
+
+      {/* Options Menu Modal (Rendered on top) - passes currentUrl */}
+      <OptionsMenu
+        visible={menuVisible}
+        onClose={handleCloseMenu}
+        url={currentUrl} // <-- Ensures the *current* URL is used for actions
+        onMarkSuspicious={handleMarkSuspicious}
+        showToast={showSimpleToast}
+      />
+
+      <SimpleToast
+        visible={toastVisible}
+        message={toastMessage}
+        iconSource={toastIconSource} // <-- Pass the icon source state
       />
     </>
   );
 };
 
 // --- Styles ---
+// (Styles remain the same as the previous version)
 const styles = StyleSheet.create({
-  // ... (Keep all previous styles for container, header, webview, overlays, etc.)
   container: { flex: 1, backgroundColor: "#121212" },
-  dimmedBackground: {
-    // Optional style to slightly dim background when modal is up
-    // backgroundColor: 'rgba(18, 18, 18, 0.7)', // Example dimming
-  },
-  header: {
-    height: 55,
-    backgroundColor: "#1E1E1E",
+  dimmedBackground: {},
+  messengerHeaderContainer: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,
-    borderBottomWidth: 1,
+    backgroundColor: "#3AED97",
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#333",
+    height: Platform.OS === "ios" ? 55 : 60,
   },
-  iconButton: { padding: 8, marginHorizontal: 2 },
-  placeholderButton: { width: 40, height: 40 },
-  titleContainer: {
-    flex: 1,
+  messengerIconButton: {
+    padding: 8,
     justifyContent: "center",
-    alignItems: Platform.OS === "ios" ? "center" : "flex-start",
-    marginHorizontal: 5,
+    alignItems: "center",
+    minWidth: 40,
   },
-  headerTitle: {
-    color: "#EFEFEF",
-    fontSize: 16,
+  messengerTitleContainer: {
+    flex: 1,
+    alignItems: Platform.OS === "ios" ? "center" : "flex-start",
+    justifyContent: "center",
+    marginLeft: Platform.OS === "ios" ? 0 : 10,
+    marginRight: 5,
+  },
+  messengerTitle: {
+    fontSize: 17,
     fontWeight: "600",
+    color: "#0A0A0A",
+    textAlign: Platform.OS === "ios" ? "center" : "left",
+  },
+  messengerSubtitle: {
+    fontSize: 12,
+    color: "#4A4A4A",
+    marginTop: 1,
     textAlign: Platform.OS === "ios" ? "center" : "left",
   },
   webView: { flex: 1, backgroundColor: "#FFFFFF" },
   webViewPlaceholder: {
-    // Takes up space where WebView would be
     flex: 1,
-    backgroundColor: "#121212", // Match container background
+    backgroundColor: "#121212",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -389,8 +603,43 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 25,
     borderRadius: 5,
+    flexDirection: "row",
+    alignItems: "center",
   },
   retryButtonText: { color: "#EFEFEF", fontSize: 16, fontWeight: "500" },
+  modalOverlay: {
+    flex: 1,
+
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingTop: Platform.OS === "ios" ? 50 : 55,
+    paddingRight: 10,
+  },
+  menuContainer: {
+    backgroundColor: "#3AED97",
+    borderRadius: 8,
+    paddingVertical: 5,
+    minWidth: 220,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  menuItem: {
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  menuIcon: {
+    marginRight: 15,
+    color: "#0A0A0A",
+  },
+  menuText: {
+    fontSize: 16,
+    color: "#0A0A0A",
+  },
 });
 
 export default WebViewScreen;

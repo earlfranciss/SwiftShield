@@ -799,56 +799,88 @@ def get_recent_activity():
             {"$sort": {"timestamp": pymongo.DESCENDING}}
         ]
         
-        recent_activity = list(detection.aggregate(pipeline))
+        recent_activity = list(detection.aggregate(pipeline)) # Execute aggregation
         formatted_activity = []
 
-        for activity in recent_activity:
-            # Get log info if it exists
-            log_info = activity.get("log_info", {})
-            
-            # Determine if it's phishing based on either detection details or log verdict
-            is_phishing = activity.get("details") == "Phishing" or log_info.get("verdict") == "Phishing"
-            
-            # Format date for display
-            timestamp = activity.get("timestamp")
-            formatted_time = time_ago(timestamp) if timestamp else "Unknown"
-            
-            # Get probability and ensure it's a valid float
-            probability = 0.0
-            if log_info.get("probability") is not None:
-                probability = float(log_info.get("probability"))
-            elif activity.get("ensemble_score") is not None:
-                probability = float(activity.get("ensemble_score"))
-                
-            # Print debug info
-            print(f"Debug - ID: {activity.get('_id')}, Probability: {probability}, Type: {type(probability)}")
-            
-            # --- Ensure fields match modal needs ---
-            timestamp_obj = activity.get("timestamp") # Get the timestamp object from the 'activity' dictionary
-            formatted_activity.append({
-                "id": str(activity["_id"]),
-                "detect_id": activity.get("detect_id", "N/A"),
-                "log_id": str(log_info["_id"]) if log_info and log_info.get("_id") else None,
-                "title": "Phishing Detected" if is_phishing else "Safe Link Verified",
-                "link": f"{activity.get('url', 'Unknown URL')} - {activity.get('metadata', {}).get('source', 'Scan')}",
-                # "time": formatted_time, # We don't need 'time ago' for the modal
-                "icon": "suspicious-icon" if is_phishing else "safe-icon",
-                "severity": activity.get("severity", "Unknown"),
-                "phishing_probability_score": float(log_info.get("probability", 0.0))/100 if log_info else float(activity.get("svm_score", 0.0)),
-                "platform": log_info.get("platform", "Unknown"),
-                "recommended_action": "Block URL" if activity.get("severity", "Unknown") in ["CRITICAL", "HIGH", "MEDIUM"] else "Allow URL",
-                "url": activity.get("url", "Unknown URL"),
-                # --- CORRECTED LINE BELOW ---
-                # Get timestamp from 'activity', check if it's a datetime object, then format
-                "date_scanned": timestamp_obj.isoformat() if isinstance(timestamp_obj, datetime) else None,
-                 # --- END CORRECTED LINE ---
-            })
+        # --- ADD LOG HERE ---
+        print(f"DEBUG /recent-activity: MongoDB aggregation returned {len(recent_activity)} raw documents.")
+        if len(recent_activity) > 0:
+            print(f"DEBUG /recent-activity: First raw document example: {recent_activity[0]}")
+        # --- END LOG ---
 
+        for activity in recent_activity:
+            # Wrap the entire processing for one item in a try...except block
+            try:
+                log_info = activity.get("log_info", {})
+
+                # --- Get necessary data fields ---
+                normalized_url = activity.get("url") # Should have https://
+                source = activity.get("metadata", {}).get("source", "Scan")
+                timestamp_obj = activity.get("timestamp")
+                severity_str = activity.get("severity", "UNKNOWN")
+                if severity_str == "UNKNOWN" and log_info:
+                    severity_str = log_info.get("severity", "UNKNOWN")
+
+                import re
+
+                # --- Format URL for DISPLAY (Remove Scheme) ---
+                url_for_display_link = normalized_url # Default
+                if isinstance(normalized_url, str):
+                    url_for_display_link = re.sub(r'^https?:\/\/', '', normalized_url)
+                elif normalized_url is None:
+                    url_for_display_link = "URL Missing" # Handle None case
+                else:
+                    url_for_display_link = "Invalid URL Format" # Handle other non-string cases
+
+                # --- Format other display fields ---
+                formatted_time = time_ago(timestamp_obj) if timestamp_obj else "Unknown"
+                is_suspicious = severity_str in ["CRITICAL", "HIGH", "MEDIUM"]
+                title_str = "Phishing Detected" if is_suspicious else "Safe Link Verified"
+                icon_str = "suspicious-icon" if is_suspicious else "safe-icon"
+
+                link_field_value = f"{url_for_display_link} - {source}"
+
+                # --- Assemble the final object for this item ---
+                # Check for essential fields before assembling
+                log_id_value = str(log_info["_id"]) if log_info and log_info.get("_id") else None
+                if not log_id_value:
+                    print(f"Warning: Missing log_id for activity: {activity.get('_id')}")
+                    # Decide whether to skip this item or add it with missing log_id
+                    # continue # Option: Skip item if log_id is critical
+
+                formatted_item = {
+                    "icon": icon_str,
+                    "title": title_str,
+                    "link": link_field_value,
+                    "time": formatted_time,
+                    "log_id": log_id_value,
+                    "url": normalized_url, # Keep normalized for actions
+                    "severity": severity_str,
+                    "phishing_probability_score": float(log_info.get("probability", 0.0))/100 if log_info else float(activity.get("svm_score", 0.0)),
+                    "platform": log_info.get("platform", "Unknown") if log_info else source,
+                    "date_scanned": timestamp_obj.isoformat() if isinstance(timestamp_obj, datetime) else None,
+                    "recommended_action": "Block URL" if is_suspicious else "Allow URL",
+                }
+                formatted_activity.append(formatted_item)
+
+            # --- ADD ERROR HANDLING FOR THE LOOP ITEM ---
+            except Exception as item_error:
+                print(f"🔥 ERROR processing recent activity item (detect_id: {activity.get('detect_id', 'N/A')}): {item_error}")
+                # Optionally print the problematic 'activity' data: print(activity)
+                # Continue to the next item instead of crashing the whole request
+                continue
+            # --- END ERROR HANDLING ---
+
+        print(f"DEBUG /recent-activity: Successfully formatted {len(formatted_activity)} items.") # Log count before returning
         return jsonify({"recent_activity": formatted_activity})
 
     except Exception as e:
-        print(f"🔥 Error in /recent-activity: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        # This catches errors outside the loop (like the aggregation itself)
+        print(f"🔥 Error in /recent-activity (outside loop): {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Ensure an empty list is returned in case of error
+        return jsonify({"recent_activity": [], "error": "Failed to fetch recent activity"}), 500 # Return error status
 
 
 

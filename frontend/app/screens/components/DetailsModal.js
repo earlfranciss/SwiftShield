@@ -52,7 +52,6 @@ const DetailsModal = ({
 
   // --- Data Derivation from Props ---
   // Use optional chaining (?.) for safety in case scanResult is null/undefined briefly
-  const urlToDisplay = scanResult?.url || "Loading...";
   const platform = scanResult?.platform || "Unknown";
 
   // Date Formatting (Month Day, Year)
@@ -129,36 +128,58 @@ const DetailsModal = ({
     );
   };
 
+  const formatUrlForDisplay = (urlToFormat) => {
+    // --- STRONGER CHECK ---
+    // Check if it's null, undefined, or not a string, or an empty string
+    if (
+      !urlToFormat ||
+      typeof urlToFormat !== "string" ||
+      urlToFormat.trim() === ""
+    ) {
+      console.log("formatUrlForDisplay: Invalid input, returning fallback."); // Optional log
+      return loading ? "Loading..." : "N/A";
+    }
+    // --- END STRONGER CHECK ---
+
+    // Only call replace if we have a valid string
+    try {
+      return urlToFormat.replace(/^https?:\/\//, "");
+    } catch (e) {
+      // Fallback in case replace fails for some unexpected reason
+      console.error("Error in URL replace:", e, "Input was:", urlToFormat);
+      return urlToFormat; // Return original string on error
+    }
+  };
+
+  const normalizedUrl = scanResult?.url;
+  const urlToDisplay = formatUrlForDisplay(normalizedUrl); // Call remains the same
+
   /// --- URL Press Handler (Navigates using the passed prop) ---
   const handleOpenUrl = () => {
-    const urlString = scanResult?.url;
-    // --- Add Log to see severity being passed ---
-    const severityToPass = scanResult?.severity; // Read it again for clarity
+    const urlForAction = normalizedUrl; // Use the URL with scheme for actions
+    const displayVersion = urlToDisplay; // Use the scheme-less version for display in warning
+    const severityToPass = scanResult?.severity;
     console.log(
-      `>>> DetailsModal handleOpenUrl - Passing severity: '${severityToPass}'`
+      `>>> DetailsModal handleOpenUrl - Action URL: '${urlForAction}', Display URL: '${displayVersion}', Passing severity: '${severityToPass}'`
     );
     // --- End Log ---
 
-    if (!urlString) {
-      /* ... alert ... */ return;
+    if (!urlForAction) {
+      Alert.alert("No URL");
+      return;
     }
-    const urlToOpen = urlString.startsWith("http")
-      ? urlString
-      : `https://${urlString}`;
-
     if (!navigation) {
-      /* ... error handling ... */ return;
+      Alert.alert("Navigation Error");
+      return;
     }
 
     try {
       navigation.navigate("WebViewScreen", {
-        url: urlToOpen,
-        // Ensure we pass the severity string
-        severity: String(severityToPass || "UNKNOWN"), // Force to string
+        url: urlForAction, // Pass NORMALIZED URL for loading
+        displayUrl: displayVersion, // Pass SCHEME-LESS URL for display in warning
+        severity: String(severityToPass || "UNKNOWN"),
       });
-      if (onClose) {
-        onClose();
-      }
+      if (onClose) onClose();
     } catch (error) {
       /* ... error handling ... */
     }
@@ -202,7 +223,9 @@ const DetailsModal = ({
 
                 {/* URL Display */}
                 <TouchableOpacity onPress={handleOpenUrl}>
-                  <Text style={[styles.urlText]}>{urlToDisplay}</Text>
+                  <Text style={[styles.urlText, styles.linkText]}>
+                    {urlToDisplay}
+                  </Text>
                 </TouchableOpacity>
                 <Text style={styles.urlLabel}>URL</Text>
 
