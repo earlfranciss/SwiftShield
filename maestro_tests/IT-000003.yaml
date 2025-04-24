@@ -1,0 +1,109 @@
+# Target the Expo Go client application
+appId: host.exp.exponent
+
+---
+# --- IT-000003: Login - User inputs valid data ---
+
+# Check if the main content view of the Android screen is visible (basic sanity check)
+- assertVisible:
+    id: "android:id/content"
+
+# Check if an element with the exact text "Remember me" is visible
+- assertVisible: "Remember me"
+
+# Check if an element with the exact text "Forgot Password?" is visible
+- assertVisible: "Forgot Password?"
+
+# Check if an element with the exact text "Don't have an account? " is visible
+- assertVisible: "Don't have an account? " # Note the trailing space if it's intentional
+
+# Check if an element with the exact text "Register" is visible (likely a link/button)
+- assertVisible: "Register"
+
+# Check if an element with the exact text "Email" is visible (likely the label or input field)
+- assertVisible: "Email"
+
+# Tap on a specific coordinate point (50% width, 46% height) - likely targeting the Email input field
+- tapOn:
+    point: "50%,46%"
+
+# Enter "test-bot@admin.com" into the currently focused input field
+- inputText: "test-bot@admin.com"
+
+# Check if an element containing the text "test-bot@admin.com" is visible (using regex)
+- assertVisible: { text: ".*test-bot@admin.com.*" }
+
+# Dismiss the keyboard
+- hideKeyboard
+
+# Check if an element with the exact text "Password" is visible (likely the label or input field)
+- assertVisible: "Password"
+
+# Tap on a specific coordinate point (50% width, 55% height) - likely targeting the Password input field
+- tapOn:
+    point: "50%,55%"
+
+# Enter the password string into the currently focused input field
+- inputText: "lhnRW?324r|{"
+
+# Check if an element containing masked password characters (dots) is visible (using regex)
+- assertVisible: { text: ".*••••••••••••.*" }
+
+# Dismiss the keyboard
+- hideKeyboard
+
+# Check if an element displaying the icon "" is visible (likely a show/hide password icon)
+- assertVisible: ""
+
+# Tap on a specific coordinate point (84% width, 55% height) - likely targeting the show/hide password icon near the password field
+- tapOn:
+    point: "84%,55%" # Adjusted height to match password field tap Y-coordinate
+
+# Check if the actual password text ("lhnRW?324r|{") is now visible after tapping the icon
+- assertVisible: { text: "lhnRW?324r|{" }
+
+# Check if an element with the exact text "LOGIN" is visible (likely the submit button)
+- assertVisible: "LOGIN"
+
+# Tap on a specific coordinate point (50% width, 65% height) - likely targeting the LOGIN submit button
+- tapOn:
+    point: "50%,65%"
+
+# --- Assertions Below Verify Successful Login and Correct Landing Screen (Home/Dashboard) ---
+
+# Check if the app title "SwiftShield" is visible on the new screen
+- assertVisible: "SwiftShield"
+
+# Check if an icon "" is visible (purpose unknown from image alone, but expected)
+- assertVisible: ""
+
+# Check if another icon "" is visible (purpose unknown from image alone, but expected)
+- assertVisible: ""
+
+# Check if the text "Web Protection" is visible
+- assertVisible: "Web Protection"
+
+# Check if the text "Enabled" is visible (indicating protection status)
+- assertVisible: "Enabled"
+
+# Check if the text "Scan URL:" is visible
+- assertVisible: "Scan URL:"
+
+# Check if the text "www.malicious.link" is visible (likely placeholder text in URL input)
+- assertVisible: "www.malicious.link"
+
+# Check if the text "SCAN" is visible (likely the scan button)
+- assertVisible: "SCAN"
+
+# Check if the Home tab icon/text ", Home" is visible in the bottom navigation
+- assertVisible: ", Home"
+
+# Check if the Analytics tab icon "" is visible in the bottom navigation
+- assertVisible: ""
+
+# Check if the Logs tab icon "" is visible in the bottom navigation
+- assertVisible: ""
+
+# Check if the Settings tab icon "" is visible in the bottom navigation
+- assertVisible: ""
+# --- Login test successful if all assertions above pass ---

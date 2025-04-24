@@ -1,0 +1,161 @@
+# Target the Expo Go client application
+appId: host.exp.exponent
+
+---
+# --- IT-0000010: Analytics - User clicks on identified phishing URL in Details modal ---
+
+# --- Part 1: Login Flow ---
+# (Same login steps as before)
+- assertVisible:
+    id: "android:id/content"
+- assertVisible: "Remember me"
+- assertVisible: "Forgot Password?"
+- assertVisible: "Don't have an account? "
+- assertVisible: "Register"
+- assertVisible: "Email"
+- tapOn: { point: "50%,46%" }
+- inputText: "test-bot@admin.com"
+- assertVisible: { text: ".*test-bot@admin.com.*" }
+- hideKeyboard
+- assertVisible: "Password"
+- tapOn: { point: "50%,55%" }
+- inputText: "lhnRW?324r|{"
+- assertVisible: { text: ".*••••••••••••.*" }
+- hideKeyboard
+- assertVisible: ""
+- tapOn: { point: "84%,55%" }
+- assertVisible: { text: "lhnRW?324r|{" }
+- assertVisible: "LOGIN"
+- tapOn: { point: "50%,65%" }
+
+# --- Part 2: Post-Login Assertions (Verify Home screen) ---
+# (Same post-login checks as before)
+- assertVisible: "SwiftShield"
+- assertVisible: ""
+- assertVisible: ""
+- assertVisible: "Web Protection"
+- assertVisible: "Enabled"
+- assertVisible: "Scan URL:"
+- assertVisible: "www.malicious.link"
+- assertVisible: "SCAN"
+- assertVisible: ", Home"
+- assertVisible: "" # Analytics Icon
+- assertVisible: "" # Logs Icon
+- assertVisible: "" # Settings Icon
+
+# --- Part 3: Navigate to and Verify Analytics Screen (Initial View) ---
+
+# 1. Navigate to Analytics Screen
+- tapOn: "" # Tap Analytics Icon
+- assertVisible: "Loading Analytics..."
+
+# 2. Verify Analytics Screen Content is Visible
+- assertVisible: "Weekly Threat Analysis:"
+- assertVisible: "Threats by Source:"
+- assertVisible: "SMS:"
+- assertVisible: "Email:"
+- assertVisible: "Manual Scan:"
+
+# Verify aggregate counts using REGEX \d+
+- assertVisible: { text: "URLs Scanned: \\d+" } # Check label + any number
+- assertVisible: { text: "Threats Blocked: \\d+" } # Check label + any number
+
+# Verify Risk Category boxes (checking labels AND using regex for numbers within them)
+# This is slightly more complex with text selectors, assumes number is clearly associated
+- assertVisible: "Low"
+- assertVisible: { text: "\\d+", below: "Low" } # Check for a number below "Low" text
+- assertVisible: "Medium"
+- assertVisible: { text: "\\d+", below: "Medium" } # Check for a number below "Medium" text
+- assertVisible: "High"
+- assertVisible: { text: "\\d+", below: "High" } # Check for a number below "High" text
+- assertVisible: "Critical"
+- assertVisible: { text: "\\d+", below: "Critical" } # Check for a number below "Critical" text
+# Note: The relative 'below' checks are still layout-dependent. testIDs are better.
+
+# Verify "Recent Activity" section header is visible before scrolling
+- assertVisible: "Recent Activity:"
+
+# --- Part 4: Scroll "Recent Activity" and Find Specific Entries ---
+
+- scrollUntilVisible:
+    element: "Phishing Detected" # <<< REPLACE WITH ACTUAL TEXT
+    direction: DOWN
+    speed: 20 # Try slower scroll speed (default 40, lower is slower)
+    timeout: 45000 # Increase timeout just in case
+
+# --- Add a small pause AFTER the scroll attempt ---
+
+# --- Now assert visibility ---
+- assertVisible: "Phishing Detected" # <<< REPLACE WITH ACTUAL TEXT
+
+# 2. Continue scrolling (or scroll from top again) looking for the specific URL entry
+#    Note: This will continue scrolling from the current position.
+#    If the URL might appear *before* the Phishing link, you might need to scroll UP
+#    or find a way to reset scroll position if Maestro supports it (usually not directly).
+- scrollUntilVisible:
+    # Element to find - uses regex for flexibility around the URL part
+    element: { text: ".*teretzurwaalet.webflow.io.*Manual Scan.*" }
+    # Direction to scroll
+    direction: DOWN
+    # Optional: timeout
+    # timeout: 30000
+
+# --- Assertion after finding the URL entry ---
+# If scrollUntilVisible succeeded, the element is now visible. Assert to confirm.
+- assertVisible: { text: ".*teretzurwaalet.webflow.io.*Manual Scan.*" }
+
+- tapOn: "Phishing Detected"
+
+# --- Part 4: Assert Scan Results Modal ---
+# Check for the label "URL"
+- assertVisible: "URL"
+# Check if the scanned URL is displayed in the results
+- assertVisible: "teretzurwaalet.webflow.io"
+# Check for the label "Platform:"
+- assertVisible: "Platform:"
+# Check for the value "User Scan"
+- assertVisible: "User Scan"
+# Check for the label "Date Scanned:"
+- assertVisible: "Date Scanned:"
+
+# Option B: Use Regex to check format (if format is consistent)
+- assertVisible: { text: '[A-Za-z]+ \d{1,2}, \d{4}' } # <<< USE INSTEAD OF SPECIFIC DATE
+
+# Check for the label "Severity Level:"
+- assertVisible: "Severity Level:"
+# Check for the value "SAFE" (expected result for this URL)
+- assertVisible: "HIGH"
+# Check for the label "Probability Percentage:"
+- assertVisible: "Probability Percentage:"
+# Check for the probability value
+- assertVisible: "95.8%"
+# Check for the label "Recommended Action"
+- assertVisible: "Recommended Action"
+# Check for the text "Allow URL"
+- assertVisible: "Block URL"
+# Check for the "Delete" button/text
+- assertVisible: "Delete"
+# Check for the "Close" button/text
+- assertVisible: "Close"
+
+- tapOn:
+    point: "50%,39%"
+
+- assertVisible:
+    id: "android:id/content"
+
+- assertVisible: "Warning!"
+
+- assertVisible: "SwiftShield has detected this URL as phishing!"
+
+- assertVisible: "Attackers on teretzurwaalet.webflow.io might try to trick you to steal your information (for example: passwords, emails, messages, and/or payment information)"
+
+- assertVisible: "Proceed to site"
+
+- assertVisible: "Close"
+
+- tapOn: "Close"
+
+# --- Take a screenshot for verification ---
+- takeScreenshot: screenshots/IT00007_Analytics_Scrolled_Regex
+# --- End of Test IT-000010 ---

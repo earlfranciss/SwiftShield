@@ -1,0 +1,163 @@
+# Target the Expo Go client application
+appId: host.exp.exponent
+
+---
+# --- IT-000001: Register - User inputs valid data ---
+
+# Check if the main content view of the Android screen is visible (basic sanity check)
+- assertVisible:
+    id: "android:id/content"
+
+# Check if an element with the exact text "Register" is visible
+- assertVisible: "Register"
+
+# Tap on the element with the exact text "Register"
+- tapOn: "Register"
+
+# Check again if the main content view is visible after tapping Register
+- assertVisible:
+    id: "android:id/content"
+
+# Check if an element with the exact text "SWIFTSHIELD" is visible (likely a title)
+- assertVisible: "SWIFTSHIELD"
+
+# Check if an element with the exact text "Already have an account" is visible in Register
+- assertVisible: "Already have an account? "
+
+# Check if an element with the exact text "Login" is visible in Register
+- assertVisible: "Login"
+
+# Check if an element with the exact text "First Name" is visible (likely a label)
+- assertVisible: "First Name"
+
+# Tap on a specific coordinate point (50% width, 29% height) - likely targeting the First Name input field
+- tapOn:
+    point: "50%,29%"
+
+# Enter "Test Admin" into the currently focused input field
+- inputText: "Test Admin"
+
+# Check if an element containing the text "Test Admin" is visible (using regex)
+- assertVisible: { text: ".*Test Admin.*" }
+
+# Dismiss the keyboard
+- hideKeyboard
+
+# Check if an element with the exact text "Last Name" is visible
+- assertVisible: "Last Name"
+
+# Tap on a specific coordinate point (50% width, 37% height) - likely targeting the Last Name input field
+- tapOn:
+    point: "50%,37%"
+
+# Enter "Bot" into the currently focused input field
+- inputText: "Bot"
+
+# Check if an element containing the text "Bot" is visible (using regex)
+- assertVisible: { text: ".*Bot.*" }
+
+# Dismiss the keyboard
+- hideKeyboard
+
+# Check if an element with the exact text "Email" is visible
+- assertVisible: "Email"
+
+# Tap on a specific coordinate point (50% width, 45% height) - likely targeting the Email input field
+- tapOn:
+    point: "50%,45%"
+
+# Enter "test-bot@admin.com" into the currently focused input field
+- inputText: "test-bot@admin.com"
+
+# Check if an element containing the text "test-bot@admin.com" is visible (using regex)
+- assertVisible: { text: ".*test-bot@admin.com.*" }
+
+# Dismiss the keyboard
+- hideKeyboard
+
+# Check if an element with the exact text "Contact Number" is visible
+- assertVisible: "Contact Number"
+
+# Tap on a specific coordinate point (50% width, 53% height) - likely targeting the Contact Number input field
+- tapOn:
+    point: "50%,53%"
+
+# Enter "09123456789" into the currently focused input field
+- inputText: "09123456789"
+
+# Check if an element containing the text "09123456789" is visible (using regex)
+- assertVisible: { text: ".*09123456789.*" }
+
+# Dismiss the keyboard
+- hideKeyboard
+
+# Check if an element with the exact text "Password" is visible
+- assertVisible: "Password"
+
+# Tap on a specific coordinate point (50% width, 60% height) - likely targeting the Password input field
+- tapOn:
+    point: "50%,60%"
+
+# Enter the password string into the currently focused input field
+- inputText: "lhnRW?324r|{"
+
+# Check if an element containing masked password characters (dots) is visible (using regex)
+- assertVisible: { text: ".*••••••••••••.*" }
+
+# Dismiss the keyboard
+- hideKeyboard
+
+# Check if an element displaying the icon "" is visible (likely a show/hide password icon)
+- assertVisible: ""
+
+# Tap on a specific coordinate point (84% width, 60% height) - likely targeting the show/hide password icon
+- tapOn:
+    point: "84%,60%"
+
+# Check if the actual password text is now visible after tapping the icon
+- assertVisible: { text: "lhnRW?324r|{" }
+
+# Check if an element with the exact text "Confirm Password" is visible
+- assertVisible: "Confirm Password"
+
+# Tap on a specific coordinate point (50% width, 68% height) - likely targeting the Confirm Password input field
+- tapOn:
+    point: "50%,68%"
+
+# Enter the same password string into the currently focused input field
+- inputText: "lhnRW?324r|{"
+
+# Check if an element containing masked password characters (dots) is visible (using regex)
+- assertVisible: { text: ".*••••••••••••.*" }
+
+# Dismiss the keyboard
+- hideKeyboard
+
+# Check if an element displaying the icon "" is visible (likely the show/hide password icon again)
+- assertVisible: ""
+
+# Tap on a specific coordinate point (84% width, 68% height) - likely targeting the Confirm Password show/hide icon
+- tapOn:
+    point: "84%,68%"
+
+# Check if the actual password text is now visible in the Confirm Password field
+- assertVisible: { text: "lhnRW?324r|{" }
+
+# Check if an element with the exact text "REGISTER" is visible (likely the submit button)
+- assertVisible: "REGISTER"
+
+# Tap on a specific coordinate point (50% width, 78% height) - likely targeting the REGISTER submit button
+- tapOn:
+    point: "50%,78%"
+
+# Check if an element with the exact text "Alert" is visible on the screen.
+# This commonly appears as the title of a system alert pop-up.
+- assertVisible: "Alert"
+
+# Check if an element with the exact text "Registration successful! Please log in." is visible.
+# This is likely the message body within the alert pop-up confirming success.
+- assertVisible: "Registration successful! Please log in."
+
+# Tap on the element with the exact text "OK".
+# This is typically the confirmation button used to dismiss the alert pop-up.
+- tapOn: "OK"
