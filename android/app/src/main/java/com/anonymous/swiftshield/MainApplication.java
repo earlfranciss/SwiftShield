@@ -10,6 +10,10 @@ import com.facebook.react.defaults.DefaultReactNativeHost;
 import com.facebook.soloader.SoLoader;
 import java.util.List;
 import com.anonymous.swiftshield.BackgroundMonitorPackage;
+import com.reactnativecommunity.clipboard.ClipboardPackage;
+
+
+
 
 // import com.centaurwarchief.smslistener.SmsListenerPackage;
 // import com.BV.LinearGradient.LinearGradientPackage;
@@ -30,6 +34,8 @@ public class MainApplication extends Application implements ReactApplication {
           @SuppressWarnings("UnnecessaryLocalVariable")
           List<ReactPackage> packages = new PackageList(this).getPackages();
           packages.add(new BackgroundMonitorPackage()); 
+
+          //packages.add(new ClipboardPackage());
           return packages;
         }
 

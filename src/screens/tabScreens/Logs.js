@@ -23,7 +23,7 @@ const iconMap = {
   "safe-icon": require("../../assets/images/safe-icon.png"),
 };
 
-export default function Logs({ route }) {
+export default function Logs({ route, navigation }) {
   const [url, setUrl] = useState("");
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true); // For initial/filter fetch
@@ -316,10 +316,12 @@ export default function Logs({ route }) {
       {console.log(`[Logs.js] Preparing to render DetailsModal. Props being passed - visible: ${modalVisible || logLoading}, logLoading: ${logLoading}`)}
 
       <DetailsModal
+        navigation={navigation}
         // Pass combined visibility. Modal shows if *either* modalVisible is true OR logLoading is true
         visible={modalVisible || logLoading}
         onClose={closeModal} // Pass the closeModal function directly
         logDetails={selectedLog}
+        scanResult={selectedLog}
         loading={logLoading} // Pass the specific loading state for the modal content
         onDelete={handleDeleteLog} // Pass the delete handler
       />

@@ -61,6 +61,9 @@ project(':react-native-image-picker').projectDir = new File(rootProject.projectD
 include ':react-native-webview'
 project(':react-native-webview').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-webview/android') 
 
+include ':react-native-clipboard_clipboard'
+project(':react-native-clipboard_clipboard').projectDir = new File(rootProject.projectDir, '../node_modules/@react-native-clipboard/clipboard/android')
+
 
 rootProject.name = "SwiftShield"
 

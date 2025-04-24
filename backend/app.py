@@ -1455,7 +1455,18 @@ def fetch_logs_rb(user_id=None, role='user', limit=None, search_query=None):
     Fetches log entries joined with detection details, applying user filtering
     based on role and optional search query.
     """
-    pipeline = []
+    pipeline = [
+            {
+                "$lookup": {
+                    "from": "Logs",
+                    "localField": "detect_id",
+                    "foreignField": "detect_id",
+                    "as": "log_info"
+                }
+            },
+            {"$unwind": {"path": "$log_info", "preserveNullAndEmptyArrays": True}},
+            {"$sort": {"timestamp": pymongo.DESCENDING}}
+        ]
 
     # 1. Base Match Stage (Apply User Filter first if needed)
     match_stage = {}
@@ -1478,23 +1489,6 @@ def fetch_logs_rb(user_id=None, role='user', limit=None, search_query=None):
         pipeline.append({"$match": match_stage})
 
 
-    # 2. Lookup Logs Information (from Logs collection)
-    pipeline.extend([
-        {
-            "$lookup": {
-                "from": "Logs", # Join with Logs collection
-                "localField": "detect_id",
-                "foreignField": "detect_id",
-                "as": "log_info"
-            }
-        },
-        # Unwind the log_info array. Use preserveNullAndEmptyArrays if a detection might not have a log entry.
-        {"$unwind": {"path": "$log_info", "preserveNullAndEmptyArrays": True}},
-
-        # 3. Sort by Detection Timestamp (most recent first)
-        {"$sort": {"timestamp": pymongo.DESCENDING}}
-    ])
-
     # 4. Add limit if provided
     if limit:
         pipeline.append({"$limit": limit})
@@ -1514,36 +1508,68 @@ def fetch_logs_rb(user_id=None, role='user', limit=None, search_query=None):
 
     # 5. Format Results
     formatted_logs = []
-    for entry in log_entries:
-        log_info = entry.get("log_info", {}) # Get the joined log data
+    for activity in log_entries:
+            # Wrap the entire processing for one item in a try...except block
+            try:
+                log_info = activity.get("log_info", {})
 
-        # Use detection timestamp as primary time source
-        timestamp = entry.get("timestamp")
-        formatted_time = time_ago(timestamp) if timestamp else "Unknown"
+                # --- Get necessary data fields ---
+                normalized_url = activity.get("url") # Should have https://
+                source = activity.get("metadata", {}).get("source", "Scan")
+                timestamp_obj = activity.get("timestamp")
+                severity_str = activity.get("severity", "UNKNOWN")
+                if severity_str == "UNKNOWN" and log_info:
+                    severity_str = log_info.get("severity", "UNKNOWN")
 
-        # Determine title/icon based on detection severity
-        severity = entry.get("severity", "UNKNOWN")
-        is_threat = severity in ["MEDIUM", "HIGH", "CRITICAL"]
+                import re
 
-        # Get source from detection metadata
-        source = entry.get("metadata", {}).get("source", "Scan")
-        platform = log_info.get("platform", "User Scan (Unknown)") # Get platform from log
+                # --- Format URL for DISPLAY (Remove Scheme) ---
+                url_for_display_link = normalized_url # Default
+                if isinstance(normalized_url, str):
+                    url_for_display_link = re.sub(r'^https?:\/\/', '', normalized_url)
+                elif normalized_url is None:
+                    url_for_display_link = "URL Missing" # Handle None case
+                else:
+                    url_for_display_link = "Invalid URL Format" # Handle other non-string cases
 
-        formatted_logs.append({
-            "id": str(entry["_id"]), # Use Detection's _id as the main ID for the row
-            "log_id": str(log_info["_id"]) if log_info and "_id" in log_info else None, # ID from Logs collection if available
-            "detect_id": entry.get("detect_id", "N/A"),
-            "title": "Phishing Detected" if is_threat else "Safe Link Verified",
-            "link": f"{entry.get('url', 'Unknown URL')} - {entry.get('metadata', {}).get('source', 'Scan')}",
-            "time": formatted_time,
-            "icon": "suspicious-icon" if is_threat else "safe-icon",
-            "severity": severity,
-            "probability": float(log_info.get("probability", 0.0))/100 if log_info else float(entry.get("svm_score", 0.0)),
-            "platform": platform,
-            "recommended_action": "Block URL" if entry.get("severity", "Unknown") in ["CRITICAL", "HIGH", "MEDIUM"] else "Allow URL",
-            "url": entry.get("url", "Unknown URL"),
-            "date_scanned": timestamp.isoformat() if isinstance(timestamp, datetime) else None,
-        })
+                # --- Format other display fields ---
+                formatted_time = time_ago(timestamp_obj) if timestamp_obj else "Unknown"
+                is_suspicious = severity_str in ["CRITICAL", "HIGH", "MEDIUM"]
+                title_str = "Phishing Detected" if is_suspicious else "Safe Link Verified"
+                icon_str = "suspicious-icon" if is_suspicious else "safe-icon"
+
+                link_field_value = f"{url_for_display_link} - {source}"
+
+                # --- Assemble the final object for this item ---
+                # Check for essential fields before assembling
+                log_id_value = str(log_info["_id"]) if log_info and log_info.get("_id") else None
+                if not log_id_value:
+                    print(f"Warning: Missing log_id for activity: {activity.get('_id')}")
+                    # Decide whether to skip this item or add it with missing log_id
+                    # continue # Option: Skip item if log_id is critical
+
+                formatted_item = {
+                    "icon": icon_str,
+                    "title": title_str,
+                    "link": link_field_value,
+                    "time": formatted_time,
+                    "log_id": log_id_value,
+                    "url": normalized_url, # Keep normalized for actions
+                    "severity": severity_str,
+                    "phishing_probability_score": float(log_info.get("probability", 0.0))/100 if log_info else float(activity.get("svm_score", 0.0)),
+                    "platform": log_info.get("platform", "Unknown") if log_info else source,
+                    "date_scanned": timestamp_obj.isoformat() if isinstance(timestamp_obj, datetime) else None,
+                    "recommended_action": "Block URL" if is_suspicious else "Allow URL",
+                }
+                formatted_logs.append(formatted_item)
+
+            # --- ADD ERROR HANDLING FOR THE LOOP ITEM ---
+            except Exception as item_error:
+                print(f"🔥 ERROR processing recent activity item (detect_id: {activity.get('detect_id', 'N/A')}): {item_error}")
+                # Optionally print the problematic 'activity' data: print(activity)
+                # Continue to the next item instead of crashing the whole request
+                continue
+            # --- END ERROR HANDLING ---
 
     return formatted_logs
 
