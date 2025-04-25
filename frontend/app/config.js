@@ -1,4 +1,4 @@
-/*import Constants from "expo-constants";
+import Constants from "expo-constants";
 
 const getBaseURL = () => {
   let host;
@@ -19,9 +19,9 @@ const config = {
   BASE_URL: getBaseURL(),
 };
 
-export default config;*/
+export default config;
 
-import { Platform } from 'react-native';
+/*import { Platform } from 'react-native';
 
 const getBaseURL = () => {
   let baseURL; 
@@ -47,4 +47,4 @@ const config = {
 
 console.log('Using API Base URL:', config.BASE_URL); 
 
-export default config;
+export default config;*/

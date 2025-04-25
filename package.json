@@ -2,32 +2,72 @@
   "name": "swiftshield",
   "license": "0BSD",
   "version": "1.0.0",
-  "main": "expo-router/entry",
+  "main": "index.js",
+  "private": true,
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "start": "npx react-native start",
+    "android": "npx react-native run-android",
+    "ios": "npx react-native run-ios",
+    "clean": "watchman watch-del-all && rm -rf node_modules package-lock.json ios/Pods ios/build android/app/build android/.gradle && npm cache clean --force && npm install && cd ios && pod install && cd ..",
+    "gradle-clean": "cd android && ./gradlew clean && cd ..",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "postinstall": "patch-package"
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "1.23.1",
-    "axios": "^1.7.9",
-    "expo": "~52.0.11",
-    "expo-notifications": "~0.29.13",
-    "expo-status-bar": "~2.0.0",
-    "express": "^4.21.2",
+    "@react-native-async-storage/async-storage": "^1.24.0",
+    "@react-navigation/bottom-tabs": "^6.5.11",
+    "@react-navigation/native": "^6.1.10",
+    "@react-navigation/native-stack": "^6.9.18",
+    "@react-navigation/stack": "^6.3.20",
+    "axios": "^1.8.3",
     "nativewind": "^4.1.23",
-    "react": "18.3.1",
-    "react-native": "0.76.3",
-    "react-native-gesture-handler": "^2.24.0",
+    "react": "18.2.0",
+    "react-native": "0.73.6",
+    "react-native-android-sms-listener": "^0.8.0",
+    "react-native-asset": "^2.1.1",
+    "react-native-chart-kit": "^6.12.0",
+    "react-native-fs": "^2.20.0",
+    "react-native-gesture-handler": "2.14.0",
+    "react-native-image-picker": "^8.2.0",
     "react-native-linear-gradient": "^2.8.3",
     "react-native-paper": "^5.13.1",
-    "react-native-svg": "^15.10.0",
-    "tailwindcss": "^3.4.16"
+    "react-native-push-notification": "^8.1.1",
+    "react-native-reanimated": "3.6.1",
+    "react-native-safe-area-context": "^4.8.2",
+    "react-native-screens": "3.27.0",
+    "react-native-svg": "^15.11.2",
+    "react-native-vector-icons": "^10.2.0",
+    "react-native-webview": "^13.13.5",
+    "tailwindcss": "^3.4.17"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0",
-    "@react-native-community/cli": "latest"
+    "@babel/core": "^7.24.0",
+    "@babel/plugin-transform-template-literals": "^7.26.8",
+    "@babel/runtime": "^7.24.0",
+    "@react-native/babel-preset": "0.74.83",
+    "@react-native/eslint-config": "0.74.83",
+    "@react-native/metro-config": "0.74.83",
+    "@react-native/typescript-config": "0.74.83",
+    "@types/react": "^18.2.6",
+    "@types/react-test-renderer": "^18.0.0",
+    "babel-jest": "^29.6.3",
+    "eslint": "^8.19.0",
+    "jest": "^29.6.3",
+    "metro-react-native-babel-preset": "0.77.0",
+    "patch-package": "^8.0.0",
+    "prettier": "2.8.8",
+    "react-native-dotenv": "^3.4.11",
+    "react-native-make": "^1.0.1",
+    "react-test-renderer": "18.2.0",
+    "typescript": "5.0.4"
   },
-  "private": true
+  "engines": {
+    "node": ">=18"
+  },
+  "jest": {
+    "preset": "react-native",
+    "transformIgnorePatterns": [
+      "node_modules/(?!(jest-)?react-native|@react-native|@react-navigation|nativewind|react-native-reanimated|react-native-vector-icons|react-native-linear-gradient|react-native-fs|react-native-svg|react-native-chart-kit|@react-native-async-storage/async-storage)"
+    ]
+  }
 }

@@ -1,0 +1,153 @@
+// Apply essential plugins
+apply plugin: "com.android.application"
+apply plugin: "com.facebook.react"
+apply plugin: "org.jetbrains.kotlin.android" // Needed because some dependencies use Kotlin
+
+/**
+ * This is the configuration block to customize your React Native Android app.
+ * By default you don't need to apply any configuration, just uncomment the lines you need.
+ */
+react {
+    /* Folders */
+    // root = file("../../")
+    // reactNativeDir = file("../../node_modules/react-native")
+    // codegenDir = file("../../node_modules/@react-native/codegen")
+    // cliFile = file("../../node_modules/react-native/cli.js")
+
+    /* Variants */
+    // debuggableVariants = ["liteDebug", "prodDebug"]
+
+    /* Bundling */
+    bundleAssetName = "index.android.bundle" // Your custom setting
+    entryFile = file("../../index.js") // Your custom setting
+    // nodeExecutableAndArgs = ["node"]
+    // bundleCommand = "ram-bundle"
+    // bundleConfig = file(../rn-cli.config.js)
+    // extraPackagerArgs = []
+
+    /* Hermes Commands */
+    // hermesCommand = "$rootDir/my-custom-hermesc/bin/hermesc"
+    // hermesFlags = ["-O", "-output-source-map"]
+
+    /* Autolinking */
+    // autolinkLibrariesWithApp() // <-- REMOVED - Deprecated in RN 0.71+
+}
+
+/**
+ * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
+ */
+def enableProguardInReleaseBuilds = false
+
+/**
+ * The preferred build flavor of JavaScriptCore (JSC)
+ */
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+' // Check if this version is appropriate for RN 0.73
+
+// Define hermesEnabled based on gradle.properties (ensures consistency)
+//def hermesEnabled = project.ext.react.get("enableHermes", true)
+
+android {
+    // Use versions from rootProject.ext for consistency
+    ndkVersion rootProject.ext.ndkVersion
+    compileSdkVersion rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+
+    namespace "com.anonymous.swiftshield" // Make sure this matches your package structure
+
+    defaultConfig {
+        applicationId "com.anonymous.swiftshield"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        // Removed externalNativeBuild block from here based on user's backup
+    }
+
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        // release { // You should configure a proper release signing config later
+        //     signingConfig signingConfigs.debug // Using debug for now
+        //     minifyEnabled enableProguardInReleaseBuilds
+        //     proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        // }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['release'] 
+        }
+        release {
+            signingConfig signingConfigs.debug // Using debug for now, configure properly later
+            minifyEnabled enableProguardInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            matchingFallbacks = ['debug']
+        }
+    }
+
+    lintOptions {
+        abortOnError false
+    }
+
+    // Add sourceSets block to include generated code
+    // This might help once the generation task runs correctly
+    sourceSets {
+        main.java.srcDirs += [
+            // Use the correct path where PackageList was found
+            "$buildDir/generated/autolinking/src/main/java"
+        ]
+    }
+
+    packagingOptions { // Keep these, they often prevent crashes
+        pickFirst '**/libc++_shared.so'
+        pickFirst '**/libfbjni.so'
+        // Add other pickFirst rules if needed based on build errors
+    }
+
+    // Add externalNativeBuild if you have custom C++ code in src/main/cpp
+    //  externalNativeBuild {
+    //      cmake {
+    //          path file('src/main/cpp/CMakeLists.txt') // Assuming this path exists
+    //      }
+    //  }
+}
+
+dependencies {
+    // The version of react-native is set by the React Native Gradle Plugin
+    implementation("com.facebook.react:react-android")
+
+    // Hermes or JSC
+    if (project.hasProperty('hermesEnabled') && project.property('hermesEnabled').toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+
+    implementation 'androidx.core:core:1.9.0' // Use a stable version compatible with compileSdk 34
+
+    // Autolinked Native Modules (Gradle finds these via settings.gradle)
+    implementation project(':react-native-async-storage_async-storage')
+    implementation project(':react-native-android-sms-listener')
+    implementation project(':react-native-gesture-handler')
+    implementation project(':react-native-linear-gradient')
+    implementation project(':react-native-push-notification')
+    implementation project(':react-native-reanimated')
+    implementation project(':react-native-safe-area-context')
+    implementation project(':react-native-screens')
+    implementation project(':react-native-svg')
+    implementation project(':react-native-vector-icons')
+
+    // SoLoader (required by React Native) - Check compatibility if needed
+    implementation('com.facebook.soloader:soloader:0.10.5') // Example version
+}
+
+// Apply React Native specific gradle script (like font handling)
+apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
+
+// Apply Vector Icons font handling script
+apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
