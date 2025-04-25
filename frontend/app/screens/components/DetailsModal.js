@@ -1,4 +1,4 @@
-import React, { useEffect, useState, Linking } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Modal,
   View,
@@ -7,79 +7,35 @@ import {
   StyleSheet,
   Dimensions,
   ActivityIndicator,
-  Image,
-  Alert
+  Alert,
+  Linking
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons'; // Ensure you have react-native-vector-icons installed
 
-const iconMap = {
-  "suspicious": require("../../../assets/images/suspicious-icon.png"),
-  "safe": require("../../../assets/images/safe-icon.png"),
-};
+// Removed the external handleDelete and handleUpdate as we'll integrate the logic
+// const handleUpdate = async (logDetails, onClose, config) => { ... };
+// const handleDelete = async (logDetails, onClose, config, onDelete) => { ... };
+
 
 const severityColors = {
-  "low": "#31EE9A", 
-  "medium": "#FFC107", 
-  "high": "#FF8C00", 
-  "critical": "#FF0000" 
+  "low": "#31EE9A",
+  "medium": "#FFC107",
+  "high": "#FF8C00",
+  "critical": "#FF0000"
 };
 
-
-const handleUpdate = async () => {
-  if (!logDetails?.log_id) return;
-
-  try {
-    const response = await fetch(`${config.BASE_URL}/logs/${logDetails.log_id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        severity: "High",
-        probability: 90,
-        platform: "Web",
-        recommended_action: "Review URL",
-      }),
-    });
-
-    const data = await response.json();
-    if (data.error) {
-      console.error("Error updating log:", data.error);
-    } else {
-      console.log("Log updated successfully:", data);
-      onClose();
-    }
-  } catch (error) {
-    console.error("Error updating log:", error);
-  }
-};
-
-const handleDelete = async () => {
-  if (!logDetails?.log_id) return;
-
-  try {
-    const response = await fetch(`${config.BASE_URL}/logs/${logDetails.log_id}`, {
-      method: "DELETE",
-    });
-
-    const data = await response.json();
-    if (data.error) {
-      console.error("Error deleting log:", data.error);
-    } else {
-      console.log("Log deleted successfully:", data);
-      onClose();
-    }
-  } catch (error) {
-    console.error("Error deleting log:", error);
-  }
-};
-
-
-const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, onDeletePress }) => {
+// Renamed onDelete prop to onLogDeleted for clarity
+const DetailsModal = ({ visible, onClose, logDetails, loading, config, onLogDeleted }) => {
   const [screenDimensions, setScreenDimensions] = useState(Dimensions.get('window'));
   const [editedLog, setEditedLog] = useState({});
+  const [isDeleting, setIsDeleting] = useState(false); // State to track deletion in progress
+  const [deleteError, setDeleteError] = useState(null); // State for deletion error messages
 
   useEffect(() => {
     if (logDetails) {
       setEditedLog(logDetails);
+      // Reset delete states when new log details are loaded
+      setIsDeleting(false);
+      setDeleteError(null);
     }
   }, [logDetails]);
 
@@ -87,13 +43,11 @@ const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, on
     const updateDimensions = () => {
       setScreenDimensions(Dimensions.get('window'));
     };
-
-    Dimensions.addEventListener('change', updateDimensions);
+    const dimensionChangeSubscription = Dimensions.addEventListener('change', updateDimensions);
 
     return () => {
-      if (Dimensions.removeEventListener) {
-        Dimensions.removeEventListener('change', updateDimensions);
-      }
+      // Clean up the event listener subscription
+      dimensionChangeSubscription.remove();
     };
   }, []);
 
@@ -109,6 +63,58 @@ const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, on
     }
   };
 
+  // Function to execute the actual delete API call
+  const executeDelete = async () => {
+    if (!logDetails?.log_id) {
+      setDeleteError("Cannot delete: Log ID is missing.");
+      Alert.alert("Deletion Failed", "Log ID is missing."); // Also show alert for critical error
+      return;
+    }
+
+    setIsDeleting(true); // Start loading state
+    setDeleteError(null); // Clear any previous error
+
+    try {
+      // Your backend delete endpoint structure
+      const response = await fetch(`${config.BASE_URL}/logs/${logDetails.log_id}`, {
+        method: "DELETE",
+        // Add any necessary headers here (e.g., authorization)
+      });
+
+      if (!response.ok) {
+        // Attempt to read error message from the response body
+         let errorData = "Failed to delete log.";
+         try {
+             const jsonResponse = await response.json();
+             errorData = jsonResponse.error || jsonResponse.message || errorData;
+         } catch (e) {
+             // If parsing fails, use a generic message
+             console.warn("Could not parse error response body:", e);
+         }
+        throw new Error(errorData);
+      }
+
+      console.log("Log deleted successfully:", logDetails.log_id);
+
+      // Notify the parent component that this log was deleted
+      if (onLogDeleted) {
+         // Pass the ID of the log that was deleted back to the parent
+         onLogDeleted(logDetails.log_id);
+      }
+
+      // Close the modal ONLY after successful deletion
+      onClose();
+
+    } catch (error) {
+      console.error("Error deleting log:", error);
+      setDeleteError(error.message || "Failed to delete log."); // Set state for UI display
+      Alert.alert("Deletion Failed", error.message || "Failed to delete log."); // Also show an alert for immediate user feedback
+    } finally {
+      setIsDeleting(false); // End loading state
+    }
+  };
+
+
   // Handle Delete Press with confirmation
   const handleDeletePress = () => {
     Alert.alert("Confirm Delete", "Are you sure you want to delete this log?", [
@@ -116,19 +122,10 @@ const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, on
       {
         text: "Delete",
         style: "destructive",
-        onPress: () => {
-          if (onDelete && editedLog?.id) {
-            onDelete(editedLog.id); // Trigger the delete function
-            handleClosePress(); // Optionally close the modal after deletion
-          }
-        },
+        onPress: executeDelete, // Call the function that performs the delete
       },
     ]);
   };
-
-
-  const isSafe = editedLog?.recommended_action === "Allow URL";
-  const iconSource = isSafe ? iconMap.safe : iconMap.suspicious;
 
   const probability = editedLog?.probability ? Math.round(editedLog.probability) : "N/A";
   const severity = editedLog?.severity ? editedLog.severity.toLowerCase() : "unknown";
@@ -145,25 +142,41 @@ const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, on
       <TouchableOpacity
         style={styles.overlay}
         activeOpacity={1}
-        onPress={handleClosePress}
+        onPress={isDeleting ? null : handleClosePress} // Prevent closing overlay while deleting
       >
         <View
           style={[
             styles.modalContainer,
             { width: modalWidth, left: modalLeft, top: screenDimensions.height / 2 - 200 }
           ]}
+          // Prevent closing modal when tapping inside
+          onStartShouldSetResponder={() => true}
+          onResponderRelease={() => {}}
         >
-            
-          {loading ? (
-            <ActivityIndicator size="large" color="#31EE9A" />
-          ) : logDetails ? (
-            <>
-
-              {/* Dynamic Icon */}
-              <View style={styles.iconContainer}>
-                <Image source={iconSource} style={styles.icon} />
+          {/* Initial Loading state (e.g., fetching details) */}
+          {loading && (
+              <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#31EE9A" />
+                  <Text style={styles.loadingText}>Loading Details...</Text>
               </View>
+          )}
 
+          {/* Deletion Loading state */}
+          {isDeleting && (
+               <View style={styles.deletingContainer}>
+                   <ActivityIndicator size="small" color="#FFFFFF" />
+                   <Text style={styles.deletingText}>Deleting...</Text>
+               </View>
+          )}
+
+          {/* Error Display for initial load */}
+          {!loading && !logDetails && (
+              <Text style={styles.errorText}>Error loading details.</Text>
+          )}
+
+          {/* Main Content (show if not loading and logDetails exist) */}
+          {!loading && logDetails && (
+            <>
               {/* URL Display */}
               <TouchableOpacity
                 onPress={() => {
@@ -177,6 +190,7 @@ const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, on
                     });
                   }
                 }}
+                disabled={isDeleting} // Disable link while deleting
               >
                 <Text style={[styles.urlText, { color: '#31EE9A', textDecorationLine: 'underline' }]}>
                   {logDetails.url || "Unknown URL"}
@@ -215,29 +229,35 @@ const DetailsModal = ({ visible, onClose, logDetails, loading, onUpdatePress, on
                 </View>
               </View>
 
+               {/* Display Deletion Error Message */}
+               {deleteError && (
+                  <Text style={styles.deleteErrorText}>{deleteError}</Text>
+               )}
+
+
               {/* Buttons Row (Delete before Close) */}
               <View style={styles.buttonRow}>
                 {/* Delete Button */}
-                <TouchableOpacity 
-                  style={[styles.sideButton, { backgroundColor: '#FF4C4C' }]} 
-                  onPress={handleDeletePress}  // Trigger the delete when pressed
-                  activeOpacity={0.7}
+                <TouchableOpacity
+                  style={[styles.sideButton, { backgroundColor: '#FF4C4C' }]}
+                  onPress={handleDeletePress}  // Trigger the delete confirmation
+                  disabled={isDeleting || loading} // Disable button while deleting or initial loading
+                  activeOpacity={isDeleting || loading ? 1 : 0.7}
                 >
-                  <Text style={styles.actionButtonText}>Delete</Text>
+                  <Text style={styles.actionButtonText}>{isDeleting ? 'Deleting...' : 'Delete'}</Text>
                 </TouchableOpacity>
 
                 {/* Close Button */}
-                <TouchableOpacity 
-                  style={styles.sideButton} 
+                <TouchableOpacity
+                  style={styles.sideButton}
                   onPress={handleClosePress}
-                  activeOpacity={0.7}
+                  disabled={isDeleting || loading} // Disable button while deleting or initial loading
+                  activeOpacity={isDeleting || loading ? 1 : 0.7}
                 >
                   <Text style={styles.actionButtonText}>Close</Text>
                 </TouchableOpacity>
               </View>
             </>
-          ) : (
-            <Text style={styles.errorText}>Error loading details.</Text>
           )}
         </View>
       </TouchableOpacity>
@@ -259,32 +279,38 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: 'center',
   },
-  headerIcons: {
-    flexDirection: 'row',
-    position: 'absolute',
-    right: 15,
-    top: 15,
+  loadingContainer: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
   },
-  iconButton: {
-    marginLeft: 10,
-  },
-  iconContainer: {
-    marginBottom: 15,
-    alignItems: 'center',
-  },
-  icon: {
-    width: 70,
-    height: 70,
-  },
+   loadingText: {
+      marginTop: 10,
+      color: '#31EE9A',
+      fontSize: 16,
+   },
+    deletingContainer: {
+      position: 'absolute', // Position over content
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.7)', // Semi-transparent overlay
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1, // Ensure it's on top
+   },
+   deletingText: {
+      marginTop: 10,
+      color: '#FFFFFF',
+      fontSize: 16,
+   },
   urlText: {
     fontSize: 18,
     fontWeight: '600',
     color: '#FFFFFF',
     textAlign: 'center',
-  },
-  urlLabel: {
-    fontSize: 14,
-    color: '#AAAAAA',
     marginBottom: 20,
   },
   analysisContainer: {
@@ -311,33 +337,30 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'right',
   },
-  actionButton: {
-    backgroundColor: '#31EE9A',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 15,
-    marginTop: 10,
-    width: '100%',
-    alignItems: 'center',
-  },
   actionButtonText: {
     color: '#000000',
     fontSize: 16,
     fontWeight: '600',
   },
-  errorText: {
+  errorText: { // Style for initial loading error
     color: 'red',
     fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
   },
+   deleteErrorText: { // Style specifically for deletion error
+      color: '#FF4C4C', // Use a red color
+      fontSize: 14,
+      marginTop: 10,
+      textAlign: 'center',
+      fontWeight: 'bold',
+   },
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
     marginTop: 20,
   },
-  
   sideButton: {
     flex: 1,
     backgroundColor: '#31EE9A',
@@ -345,8 +368,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
     borderRadius: 15,
     alignItems: 'center',
-  },        
+  },
 });
 
 export default DetailsModal;
-  

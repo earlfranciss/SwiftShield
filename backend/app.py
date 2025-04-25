@@ -256,53 +256,57 @@ def get_recent_activity():
             {"$unwind": {"path": "$log_info", "preserveNullAndEmptyArrays": True}},
             {"$sort": {"timestamp": pymongo.DESCENDING}}
         ]
-        
+
         recent_activity = list(detection.aggregate(pipeline))
         formatted_activity = []
 
         for activity in recent_activity:
             # Get log info if it exists
             log_info = activity.get("log_info", {})
-            
+
             # Determine if it's phishing based on either detection details or log verdict
             is_phishing = activity.get("details") == "Phishing" or log_info.get("verdict") == "Phishing"
-            
+
             # Format date for display
             timestamp = activity.get("timestamp")
             formatted_time = time_ago(timestamp) if timestamp else "Unknown"
-            
+
             # Get probability and ensure it's a valid float
             probability = 0.0
             if log_info.get("probability") is not None:
                 probability = float(log_info.get("probability"))
             elif activity.get("ensemble_score") is not None:
                 probability = float(activity.get("ensemble_score"))
-                
+
             # Print debug info
-            print(f"Debug - ID: {activity.get('_id')}, Probability: {probability}, Type: {type(probability)}")
-            
+            # print(f"Debug - ID: {activity.get('_id')}, Probability: {probability}, Type: {type(probability)}") # Keep if needed
+
             formatted_activity.append({
-                "id": str(activity["_id"]),
+                # "id": str(activity["_id"]), # This is Detection _id, maybe rename or keep separate?
                 "detect_id": activity.get("detect_id", "N/A"),
+                "log_id": str(log_info.get("_id")) if log_info else None, # ✅ Add the Log's _id here
                 "title": "Phishing Detected" if is_phishing else "Safe Link Verified",
                 "link": f"{activity.get('url', 'Unknown URL')} - {activity.get('metadata', {}).get('source', 'Scan')}",
                 "time": formatted_time,
                 "icon": "suspicious-icon" if is_phishing else "safe-icon",
-                "severity": activity.get("severity", "Medium"),
-                "probability": probability,  # Now guaranteed to be a float
+                "severity": activity.get("severity", "Medium"), # Use severity from Detection if available
+                "probability": probability,
                 "platform": log_info.get("platform", "Web"),
-                "recommended_action": "Block URL" if is_phishing else "Allow URL",
+                "recommended_action": log_info.get("recommended_action", "N/A") if log_info else ("Block URL" if is_phishing else "Allow URL"), # Use log action if available
                 # Additional fields needed for modal
                 "url": activity.get("url", "Unknown URL"),
                 "date_scanned": timestamp
             })
+
+        # Filter out entries where log_id is None if you only want entries that have a corresponding log
+        formatted_activity = [item for item in formatted_activity if item["log_id"] is not None]
+
 
         return jsonify({"recent_activity": formatted_activity})
 
     except Exception as e:
         print(f"🔥 Error in /recent-activity: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
 
 
 
