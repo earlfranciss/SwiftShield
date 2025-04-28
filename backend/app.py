@@ -18,7 +18,8 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build 
 from google.auth.transport.requests import Request 
 from functools import wraps
-from flask_login import login_required, logout_user, current_user
+from flask import Flask, session, jsonify, request
+from flask_login import LoginManager, logout_user, current_user, login_required
 import email as email_parser
 import numpy as np
 import pandas as pd
@@ -37,6 +38,7 @@ import tldextract
 import whois
 import re
 import traceback
+
 
 # Import your feature extraction class
 try:
@@ -101,6 +103,9 @@ cache = Cache(config={"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300}
 cache.init_app(app)
 
 warnings.filterwarnings('ignore')
+
+login_manager = LoginManager()
+login_manager.init_app(app)
 
 # --- Load ML Model ---
 model_path = os.path.join(os.path.dirname(__file__), "../ai-models/pickle/stackmodel.pkl")
@@ -1184,41 +1189,31 @@ def Login():
     }), 200
 
 
+
+# User loader function
+@login_manager.user_loader
+def load_user(user_id):
+    # Return a user object from your database
+    return users_collection.find_one({'_id': user_id})
+
+# Then your logout route
 @app.route("/Logout", methods=['POST'])
-@login_required # Still good practice: only logged-in users can logout
 def Logout():
-    # Get user identifier *before* logging out for logging purposes
-    # Uses Flask-Login's current_user proxy if available
-    user_identifier = 'Unknown User'
-    if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
-         # Try getting email or id, common user attributes
-         user_identifier = getattr(current_user, 'email', getattr(current_user, 'id', 'Authenticated User'))
-
     try:
-        # *** 2. Use Flask-Login's logout_user() function ***
-        logout_user()
-        # This function handles clearing the relevant session keys for Flask-Login
-        # (like user_id, _fresh, etc.)
-
-        # session.clear() # Generally redundant if using logout_user() unless you store
-                        # OTHER non-auth related things in the session you also want cleared.
-                        # If only using session for Flask-Login, logout_user() is sufficient.
-
-        print(f"✅ User logged out via backend: {user_identifier}")
-
-        # Important: The backend's main job here is clearing its *own* session state.
-        # The React Native frontend is responsible for clearing its AsyncStorage.
+        # Simple session clearing - this always works
+        session.clear()
+        
+        # Try Flask-Login logout if available
+        try:
+            if current_user.is_authenticated:
+                logout_user()
+        except:
+            pass  # Ignore Flask-Login errors
+            
         return jsonify({"message": "Logout successful"}), 200
-
     except Exception as e:
-        # Basic error handling for unexpected issues during logout
-        print(f"❌ Error during server-side logout for user {user_identifier}: {e}")
-        # You might want more specific error handling depending on your setup
+        print(f"Error during logout: {str(e)}")
         return jsonify({"message": "Server error during logout"}), 500
-
-
-
-
 # --- Analytics Endpoints (RBAC Applied) ---
 
 @app.route('/api/stats/scan-source-distribution', methods=['GET'])
