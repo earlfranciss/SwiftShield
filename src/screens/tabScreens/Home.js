@@ -464,6 +464,12 @@ export default function Home({ navigation }) {
     setSelectedLog(null);
   };
 
+  const handleClearInput = () => {
+    setUrl("");            
+    setInputError("");   
+  };
+  
+
   // Delete Handler 
   const handleDeleteLog = async (logId) => {
     if (!logId) {
@@ -549,22 +555,25 @@ export default function Home({ navigation }) {
         <Text style={styles.scanLabel}>Scan URL:</Text>
         <TextInput
           style={[
-              styles.textInput, 
-              inputError ? styles.inputErrorBorder : null, 
-              inputError ? styles.inputTextError : null 
+            styles.textInput,
+            inputError ? styles.inputErrorBorder : null,
+            inputError ? styles.inputTextError : null
           ]}
           placeholder="www.malicious.link"
           placeholderTextColor="#6c757d"
           onChangeText={(text) => {
-              setUrl(text);
-              if (inputError) { 
-                  setInputError("");
-              }
+            setUrl(text);
+            if (inputError) {
+              setInputError("");
+            }
           }}
           value={url}
           autoCapitalize="none"
           keyboardType="url"
         />
+      
+
+
         {/* --- Display Error Message Below Input --- */}
          {inputError ? <Text style={styles.errorText}>{inputError}</Text> : null}
 
@@ -586,6 +595,17 @@ export default function Home({ navigation }) {
             </LinearGradient>
           </TouchableOpacity>
         )}
+
+        <TouchableOpacity style={styles.clearButton} onPress={handleClearInput}>
+            <LinearGradient
+              colors={["#3AED97", "#BCE26E", "#FCDE58"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.gradientButton}
+            >
+              <Text style={styles.clearButtonText}>Clear</Text>
+            </LinearGradient>
+        </TouchableOpacity>
       </View>
 
       <DetailsModal
@@ -683,6 +703,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   scanButtonText: {
+    color: "#000000",
+    // fontFamily: "Inter", // Make sure font is linked
+    fontSize: 16, // Slightly smaller
+    fontWeight: "800",
+    letterSpacing: 3, // Less spacing
+  },
+  clearButton: {
+    width: "100%",
+    height: 40,
+    borderRadius: 8,
+    overflow: "hidden",
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  clearButtonText: {
     color: "#000000",
     // fontFamily: "Inter", // Make sure font is linked
     fontSize: 16, // Slightly smaller

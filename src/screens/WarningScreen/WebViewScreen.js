@@ -18,10 +18,10 @@ import { WebView } from "react-native-webview";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import WarningModal from "../../components/WarningModal";
-import Clipboard from '@react-native-clipboard/clipboard';
-import SimpleToast from "./SimpleToast"; 
+import Clipboard from "@react-native-clipboard/clipboard";
+import SimpleToast from "./SimpleToast";
 
-const CopyIcon = require("../../assets/images/Copy Icon.png");
+const CopyIcon = require("../../assets/images/copy_icon.png");
 
 // --- Reusable Messenger Header Component ---
 // No changes needed in the header component itself
@@ -91,48 +91,41 @@ const OptionsMenu = ({
   // Works reliably for http/https. Custom schemes might work if app is installed,
   // but less predictable without specific native declarations (which we're removing).
   const openInBrowser = () => {
-    const urlToOpen = url; // Ensure 'url' holds the correct link
-    console.log("Checking if URL can be opened:", urlToOpen);
-
-    Linking.canOpenURL(urlToOpen)
-      .then((supported) => {
-        if (supported) {
-          console.log("URL is supported, opening...");
-          Linking.openURL(urlToOpen); // Open the link if supported
-        } else {
-          // This alert should now hopefully not appear for https links in your working environment
-          Alert.alert(
-            "Cannot Open Link",
-            `The operating system doesn't know how to open this type of URL: ${urlToOpen}`
-          );
-          console.log("Linking.canOpenURL returned false for: " + urlToOpen);
-        }
-      })
-      .catch((err) => {
-        // Alert on other errors during the check or opening
-        Alert.alert(
-          "Error",
-          "An error occurred while trying to open the link."
-        );
-        console.error(
-          "An error occurred checking or opening URL with Linking:",
-          err
-        );
-      });
-    onClose(); // Close menu after action
+    const urlToOpen = url; // Get the URL passed via props
+    // 1. Basic Validation
+    if (!urlToOpen || typeof urlToOpen !== "string") {
+      console.error("Invalid URL provided to openInBrowser:", urlToOpen);
+      Alert.alert("Error", "Cannot open an invalid link.");
+      onClose();
+      return;
+    }
+    console.log(`Attempting to open URL in system browser: ${urlToOpen}`);
+    // 2. Directly attempt to open the URL
+    Linking.openURL(urlToOpen).catch((err) => {
+      // <-- Directly calls openURL
+      // 3. Handle potential errors
+      console.error("Linking.openURL failed:", err);
+      Alert.alert("Error Opening Link", `Could not open the link...`);
+    });
+    // 4. Close the menu immediately
+    onClose();
   };
 
   // Behavior: Copies the URL to the clipboard WITHOUT showing a success alert.
   // Inside OptionsMenu component
-  const copyLink = async () => {
-    console.log("Attempting to copy URL inside copyLink:", url); // <-- Add this log
+  const copyLink = () => {
+    // Remove async if only using setString
+    console.log("Attempting to copy URL inside copyLink:", url);
     try {
-      await Clipboard.setStringAsync(url); // Ensure 'url' is not undefined/null here
+      // --- CHANGE HERE: Use setString instead of setStringAsync ---
+      Clipboard.setString(url);
+      // ---------------------------------------------------------
       console.log("Link copied successfully.");
       showToast("Link copied", CopyIcon);
     } catch (e) {
       Alert.alert("Error", "Could not copy link to clipboard.");
-      console.error("Failed to copy link:", e); // <-- What does this log?
+      // Log the error to see if setString itself fails for some reason
+      console.error("Failed to copy link using setString:", e);
     }
     onClose();
   };
