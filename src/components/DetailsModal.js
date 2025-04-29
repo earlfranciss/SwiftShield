@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { 
-  Modal, 
-  View, 
-  Text, 
+import React, { useEffect, useState } from "react";
+import {
+  Modal,
+  View,
+  Text,
   TouchableOpacity,
   StyleSheet,
   Dimensions,
@@ -10,19 +10,19 @@ import {
   Image,
   Alert,
   Linking,
-} from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons'; 
+} from "react-native";
+import Icon from "react-native-vector-icons/MaterialIcons";
 
 const iconMap = {
-  "suspicious": require("../assets/images/suspicious-icon.png"),
-  "safe": require("../assets/images/safe-icon.png"),
-  "critical": "#FF0000", // Red
+  suspicious: require("../assets/images/suspicious-icon.png"),
+  safe: require("../assets/images/safe-icon.png"),
+  critical: "#FF0000", // Red
 };
 
 // --- Severity Colors (Text Color) ---
 // Define colors based on your requirements
 const severityTextColors = {
-  safe: "#000000", // White for Safe text
+  safe: "#20BB00", // White for Safe text
   low: "#3AED97", // Your specified Low color
   medium: "#EED531", // Your specified Medium color
   high: "#EE8931", // Your specified High color
@@ -54,8 +54,8 @@ const DetailsModal = ({
 
   // --- Data Derivation from Props ---
   // Use optional chaining (?.) for safety in case scanResult is null/undefined briefly
-  const platform = typeof scanResult?.platform === "string" ? scanResult.platform : "Unknown";
-
+  const platform =
+    typeof scanResult?.platform === "string" ? scanResult.platform : "Unknown";
 
   // Date Formatting (Month Day, Year)
   let dateScanned = "Unknown";
@@ -89,10 +89,9 @@ const DetailsModal = ({
 
   // Probability
   const probabilityPercentage =
-  typeof scanResult?.phishing_percentage === "number"
-    ? `${scanResult.phishing_percentage.toFixed(2)}%`
-    : "N/A";
-
+    typeof scanResult?.phishing_percentage === "number"
+      ? `${scanResult.phishing_percentage.toFixed(2)}%`
+      : "N/A";
 
   // Recommended Action
   const recommendedAction = scanResult?.recommended_action || "N/A";
@@ -281,7 +280,7 @@ const DetailsModal = ({
                 {/* Buttons Row */}
                 <View style={styles.buttonRow}>
                   {/* Delete Button - Conditionally render if handler exists */}
-                  {onDeletePress && (
+                  {onDeletePress && ( // <--- CONDITION IS HERE
                     <TouchableOpacity
                       style={[styles.buttonBase, styles.deleteButton]}
                       onPress={handleDeleteConfirmation}
@@ -379,9 +378,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#000000",
     fontWeight: "500",
-    textAlign: "right",
+    //textAlign: "right",
     flexShrink: 1, // Allow text to wrap if needed
-    paddingLeft: 5, // Add small gap
+    //paddingLeft: 5, // Add small gap
+    marginLeft: 45,
   },
   buttonRow: {
     flexDirection: "row",

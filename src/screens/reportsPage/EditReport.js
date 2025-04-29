@@ -8,7 +8,7 @@ import {
   Alert,
   ScrollView,
 } from "react-native";
-import { MaterialIcons } from "react-native-vector-icons/MaterialIcons";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import GradientScreen from "../../components/GradientScreen";
 import { RadioButton } from "react-native-paper";
 import config from "../../config/config";

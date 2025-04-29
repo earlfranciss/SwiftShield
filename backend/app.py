@@ -1551,10 +1551,17 @@ def fetch_logs_rb(user_id=None, role='user', limit=None, search_query=None):
                 # --- Assemble the final object for this item ---
                 # Check for essential fields before assembling
                 log_id_value = str(log_info["_id"]) if log_info and log_info.get("_id") else None
-                if not log_id_value:
-                    print(f"Warning: Missing log_id for activity: {activity.get('_id')}")
-                    # Decide whether to skip this item or add it with missing log_id
-                    # continue # Option: Skip item if log_id is critical
+
+                # --- THIS IS THE CRITICAL PART ---
+                detection_id_value = str(activity.get("_id")) if activity.get("_id") else None
+                if not detection_id_value:
+                     print(f"### CRITICAL WARNING: Missing _id (detection_id) in activity item {activity}. Skipping this item.")
+                     continue # Skip item if primary ID missing
+
+                # Add this log to CONFIRM the ID is being processed
+                print(f"### DEBUG BACKEND: Processing detection_id_value = {detection_id_value}")
+                # --- END CRITICAL PART ---
+
 
                 formatted_item = {
                     "icon": icon_str,
@@ -1562,25 +1569,24 @@ def fetch_logs_rb(user_id=None, role='user', limit=None, search_query=None):
                     "link": link_field_value,
                     "time": formatted_time,
                     "log_id": log_id_value,
-                    "url": normalized_url, # Keep normalized for actions
+                    "detection_id": detection_id_value, # <-- ENSURE THIS LINE EXISTS
+                    "url": normalized_url,
                     "severity": severity_str,
                     "phishing_probability_score": float(log_info.get("probability", 0.0))/100 if log_info else float(activity.get("svm_score", 0.0)),
                     "platform": log_info.get("platform", "Unknown") if log_info else source,
                     "date_scanned": timestamp_obj.isoformat() if isinstance(timestamp_obj, datetime) else None,
                     "recommended_action": "Block URL" if is_suspicious else "Allow URL",
                 }
+                # Add this log to see the item being appended
+                print(f"### DEBUG BACKEND: Appending item: {formatted_item}")
+
                 formatted_logs.append(formatted_item)
 
-            # --- ADD ERROR HANDLING FOR THE LOOP ITEM ---
             except Exception as item_error:
-                print(f"🔥 ERROR processing recent activity item (detect_id: {activity.get('detect_id', 'N/A')}): {item_error}")
-                # Optionally print the problematic 'activity' data: print(activity)
-                # Continue to the next item instead of crashing the whole request
-                continue
-            # --- END ERROR HANDLING ---
+                 print(f"🔥 ERROR processing recent activity item (detect_id: {activity.get('detect_id', 'N/A')} - might be missing): {item_error}")
+                 continue
 
     return formatted_logs
-
 
 # GET Recent Activity (Logs Page) - Applies RBAC and Search
 @app.route("/recent-activity", methods=["GET"])
