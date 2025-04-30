@@ -50,6 +50,7 @@ export default function Home({ navigation }) {
   const [selectedLog, setSelectedLog] = useState(null);
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [inputError, setInputError] = useState(""); 
+  const [inputValue, setInputValue] = useState(''); 
   const [scanResultForModal, setScanResultForModal] = useState(null);
   const [isLoadingScan, setIsLoadingScan] = useState(false); 
   const [isProtectionEnabled, setIsProtectionEnabled] = useState(false); 
@@ -296,7 +297,7 @@ export default function Home({ navigation }) {
   const handleUrlScan = async () => {
     setInputError(""); 
     const trimmedUrl = url.trim();
-  
+     
     // --- Frontend Validation ---
     if (!trimmedUrl) {
       setInputError("Please enter a URL to scan.");
@@ -360,8 +361,13 @@ export default function Home({ navigation }) {
       setInputError(error.message || "An error occurred. Check connection or URL.");
     }
   };
-  
 
+  // Handler function to clear the input
+ /* const handleClearInput = () => {
+    setUrl(''); // Clear the state variable tied to the TextInput
+    setInputError(''); // Also clear any existing input error message
+  };*/
+  
   // Function called ONLY by the SMS listener callback
   const sendSmsToBackendForProcessing = async (smsData) => {
     const extractionEndpoint = `${config.BASE_URL}/classify-sms`;
@@ -562,10 +568,14 @@ export default function Home({ navigation }) {
           placeholder="www.malicious.link"
           placeholderTextColor="#6c757d"
           onChangeText={(text) => {
-            setUrl(text);
-            if (inputError) {
-              setInputError("");
-            }
+              setUrl(text);
+              if (inputError) { 
+                  setInputError("");
+              }
+              if (inputValue) {
+                setInputValue("");
+              }
+
           }}
           value={url}
           autoCapitalize="none"
@@ -584,16 +594,16 @@ export default function Home({ navigation }) {
             <Text style={styles.loadingText}>Scanning...</Text>
           </View>
         ) : (
-          <TouchableOpacity style={styles.scanButton} onPress={handleUrlScan}>
-            <LinearGradient
-              colors={["#3AED97", "#BCE26E", "#FCDE58"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.gradientButton}
-            >
-              <Text style={styles.scanButtonText}>SCAN</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+          <><TouchableOpacity style={styles.scanButton} onPress={handleUrlScan}>
+              <LinearGradient
+                colors={["#3AED97", "#BCE26E", "#FCDE58"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.gradientButton}
+              >
+                <Text style={styles.scanButtonText}>SCAN</Text>
+              </LinearGradient>
+            </TouchableOpacity></>   
         )}
 
         <TouchableOpacity style={styles.clearButton} onPress={handleClearInput}>
@@ -613,7 +623,7 @@ export default function Home({ navigation }) {
         visible={modalVisible}
         onClose={closeModal}
         scanResult={scanResultForModal}
-        onDeletePress={handleDeleteLog}
+        //onDeletePress={handleDeleteLog}
       />
     </SafeAreaView>
   );

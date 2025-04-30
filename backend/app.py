@@ -1588,7 +1588,6 @@ def fetch_logs_rb(user_id=None, role='user', limit=None, search_query=None):
 
     return formatted_logs
 
-
 # GET Recent Activity (Logs Page) - Applies RBAC and Search
 @app.route("/recent-activity", methods=["GET"])
 @login_required

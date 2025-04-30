@@ -412,7 +412,8 @@ export default function Logs({ route, navigation }) {
         scanResult={selectedLog} // Pass transformed data
         loading={logLoading}
         // CHANGE 'onDelete' TO 'onDeletePress'
-        onDeletePress={handleDeleteLog} // <-- CORRECT PROP NAME
+
+        //onDeletePress={handleDeleteLog} // <-- CORRECT PROP NAME
       />
     </SafeAreaView>
   );
