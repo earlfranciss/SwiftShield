@@ -7,12 +7,13 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
-import { MaterialIcons } from "react-native-vector-icons/MaterialIcons";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import GradientScreen from "../../components/GradientScreen";
 import config from "../../config/config";
 
 export default function CreateReport({ navigation, route }) {
-  const { isDarkMode = false, onToggleDarkMode = () => {} } = route.params || {};
+  const { isDarkMode = false, onToggleDarkMode = () => {} } =
+    route.params || {};
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -27,58 +28,66 @@ export default function CreateReport({ navigation, route }) {
     }
 
     // Show confirmation prompt before submission
-    Alert.alert(
-      "Confirm Submission",
-      "This report will now be submitted.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Submit",
-          onPress: async () => {
+    Alert.alert("Confirm Submission", "This report will now be submitted.", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Submit",
+        onPress: async () => {
+          try {
+            console.log("Submitting report to:", `${config.BASE_URL}/reports`);
+            console.log("Payload:", {
+              title: trimmedTitle,
+              description: trimmedDescription,
+            });
+
+            const response = await fetch(`${config.BASE_URL}/reports`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                title: trimmedTitle,
+                description: trimmedDescription,
+              }),
+            });
+
+            let responseData;
             try {
-              console.log("Submitting report to:", `${config.BASE_URL}/reports`);
-              console.log("Payload:", { title: trimmedTitle, description: trimmedDescription });
-
-              const response = await fetch(`${config.BASE_URL}/reports`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ title: trimmedTitle, description: trimmedDescription }),
-              });
-
-              let responseData;
-              try {
-                responseData = await response.json();
-              } catch (jsonError) {
-                throw new Error("Invalid JSON response from server");
-              }
-
-              if (response.ok) {
-                Alert.alert("Submitted", "Report created successfully");
-                setTitle("");
-                setDescription("");
-
-                // Call refreshReports() to update the Reports list
-                if (route.params?.refreshReports) {
-                  route.params.refreshReports(); 
-                }
-
-                navigation.goBack();
-              } else {
-                Alert.alert("Error", responseData.message || "Failed to create report");
-              }
-            } catch (error) {
-              console.error("Error creating report:", error);
-              Alert.alert("Error", `Failed to connect to server: ${error.message}`);
+              responseData = await response.json();
+            } catch (jsonError) {
+              throw new Error("Invalid JSON response from server");
             }
-          },
+
+            if (response.ok) {
+              Alert.alert("Submitted", "Report created successfully");
+              setTitle("");
+              setDescription("");
+
+              // Call refreshReports() to update the Reports list
+              if (route.params?.refreshReports) {
+                route.params.refreshReports();
+              }
+
+              navigation.goBack();
+            } else {
+              Alert.alert(
+                "Error",
+                responseData.message || "Failed to create report"
+              );
+            }
+          } catch (error) {
+            console.error("Error creating report:", error);
+            Alert.alert(
+              "Error",
+              `Failed to connect to server: ${error.message}`
+            );
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   return (

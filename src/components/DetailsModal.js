@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { 
-  Modal, 
-  View, 
-  Text, 
+import React, { useEffect, useState } from "react";
+import {
+  Modal,
+  View,
+  Text,
   TouchableOpacity,
   StyleSheet,
   Dimensions,
@@ -10,13 +10,13 @@ import {
   Image,
   Alert,
   Linking,
-} from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons'; 
+} from "react-native";
+import Icon from "react-native-vector-icons/MaterialIcons";
 
 const iconMap = {
-  "suspicious": require("../assets/images/suspicious-icon.png"),
-  "safe": require("../assets/images/safe-icon.png"),
-  "critical": "#FF0000", // Red
+  suspicious: require("../assets/images/suspicious-icon.png"),
+  safe: require("../assets/images/safe-icon.png"),
+  critical: "#FF0000", // Red
 };
 
 // --- Severity Colors (Text Color) ---
@@ -54,8 +54,8 @@ const DetailsModal = ({
 
   // --- Data Derivation from Props ---
   // Use optional chaining (?.) for safety in case scanResult is null/undefined briefly
-  const platform = typeof scanResult?.platform === "string" ? scanResult.platform : "Unknown";
-
+  const platform =
+    typeof scanResult?.platform === "string" ? scanResult.platform : "Unknown";
 
   // Date Formatting (Month Day, Year)
   let dateScanned = "Unknown";
@@ -89,10 +89,9 @@ const DetailsModal = ({
 
   // Probability
   const probabilityPercentage =
-  typeof scanResult?.phishing_percentage === "number"
-    ? `${scanResult.phishing_percentage.toFixed(2)}%`
-    : "N/A";
-
+    typeof scanResult?.phishing_percentage === "number"
+      ? `${scanResult.phishing_percentage.toFixed(2)}%`
+      : "N/A";
 
   // Recommended Action
   const recommendedAction = scanResult?.recommended_action || "N/A";
@@ -281,7 +280,7 @@ const DetailsModal = ({
                 {/* Buttons Row */}
                 <View style={styles.buttonRow}>
                   {/* Delete Button - Conditionally render if handler exists */}
-                  {onDeletePress && (
+                  {onDeletePress && ( // <--- CONDITION IS HERE
                     <TouchableOpacity
                       style={[styles.buttonBase, styles.deleteButton]}
                       onPress={handleDeleteConfirmation}
