@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react'; 
 import { View, Text, StyleSheet, TouchableOpacity, Image, Animated } from 'react-native';
 import DetailsModal from './DetailsModal'; 
+import NotificationSounds from 'react-native-notification-sounds';
 
 // Import icons from your assets
 const iconMap = {
@@ -16,7 +17,7 @@ const formatTimeAgo = (timestamp) => {
       return "Unknown time";
     }
     
-    // Convert to Date object if it's not already
+    // Convert to Date object if it's not already 
     const scanTime = new Date(timestamp);
     
     // Check if date is valid
@@ -42,11 +43,13 @@ const formatTimeAgo = (timestamp) => {
     return "Unknown time";
   }
 };
+let soundsInitialized = false;
 
 const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => {
   const slideAnim = new Animated.Value(-100);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
+  const [sounds, setSounds] = useState([]); 
 
   useEffect(() => {
     // Slide in
@@ -55,6 +58,27 @@ const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => 
       duration: 300,
       useNativeDriver: true,
     }).start();
+
+  // CORRECT HOOK PLACEMENT - KEEP HOOKS AT TOP LEVEL
+  useEffect(() => {
+    // Initialize sounds
+    NotificationSounds.getNotifications()
+      .then(soundList => setSounds(soundList))
+      .catch(console.error);
+  }, []);
+  
+    // Play sound when notification arrives
+    if (sounds && sounds.length > 0) {
+      try {
+        // Find default notification sound
+        const defaultSound = sounds.find(s => s.soundType === 3); // NOTIFICATION type
+        if (defaultSound) {
+          NotificationSounds.playSound(defaultSound);
+        }
+      } catch (error) {
+        console.log('Sound playback error:', error);
+      }
+    }
 
     // Auto dismiss after 5 seconds
     const timer = setTimeout(() => {

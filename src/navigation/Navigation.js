@@ -57,9 +57,9 @@ let globalNavigation = null;
 //Bottom Tab Bar Component
 // TabGroup component
 function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
-  // Store the navigation prop globally when this component mounts
   useEffect(() => {
     globalNavigation = navigation;
+    return () => { globalNavigation = null; };
   }, [navigation]);
 
   // Define the Settings Stack function
@@ -318,35 +318,29 @@ export default function Navigation() {
   const [inAppNotification, setInAppNotification] = useState(null);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const appState = useRef(AppState.currentState);
-  // **** Add useRef to track the last notified ID ****
   const lastNotifiedIdRef = useRef(null);
 
-  // Set up notifications on app start
   useEffect(() => {
-    // Request permissions
     requestNotificationPermissions();
-
-    // Set up listeners for system notifications
     const cleanupListeners = setupNotificationListeners(
       (notification) => {
-        // Handle received notification
-        console.log("Notification received", notification);
+        console.log("Notification received:", notification);
       },
       (response) => {
-        // Handle notification response (user tap)
         const data = response.notification.request.content.data;
         navigateToNotificationsScreen(data);
       }
     );
 
-    // Set up polling for new notifications
-    //const checkInterval = setInterval(checkForNewNotifications, 30000); // Every 30 seconds
-    //checkForNewNotifications(); // Check immediately on mount
+
+    // ENABLE NOTIFICATION POLLING
+    const checkInterval = setInterval(checkForNewNotifications, 30000);
+    checkForNewNotifications();
 
     // Clean up on unmount
     return () => {
       cleanupListeners();
-      //clearInterval(checkInterval);
+      clearInterval(checkInterval);
     };
   }, []);
 
@@ -355,98 +349,81 @@ export default function Navigation() {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       appState.current = nextAppState;
     });
-
-    return () => {
-      subscription.remove();
-    };
+    return () => subscription.remove();
   }, []);
 
   // Function to check for new notifications
   const checkForNewNotifications = async () => {
     try {
-      // Check if config and BASE_URL exist
-      if (!config || !config.BASE_URL) {
-        console.error("BASE_URL is not defined in config");
+      if (!config?.BASE_URL) {
+        console.error("BASE_URL missing");
         return;
       }
 
       const response = await fetch(`${config.BASE_URL}/logs`);
-      // **** Added error handling for non-ok responses ****
       if (!response.ok) {
-        console.error(
-          `Error fetching logs: ${response.status} ${response.statusText}`
-        );
-        // Optionally handle specific statuses like 404, 500 etc.
+        console.error(`HTTP Error: ${response.status}`);
         return;
       }
+
       const data = await response.json();
+      console.log('API response data:', data);
 
       // **** Changed check to ensure data exists and is an array ****
-      if (data && Array.isArray(data) && data.length > 0) {
-        // Get the latest notification (assuming API returns sorted newest first)
-        const latestNotification = data[0];
-        console.log(`[Check] Latest log ID from API: ${latestNotification.id}`); // Debug log
-        handleNewNotification(latestNotification);
-      } else {
-        // console.log("[Check] No logs found or invalid data format from API."); // Optional debug log
+      if (data?.length > 0) {
+        const sortedData = data.sort((a, b) => 
+          new Date(b.timestamp) - new Date(a.timestamp)
+        );
+        handleNewNotification(sortedData[0]);
       }
     } catch (error) {
-      console.error("Error during checkForNewNotifications fetch:", error);
+      console.error("Fetch error:", error);
     }
   };
 
   // Handle a new notification
   const handleNewNotification = (notification) => {
-    // **** Ensure notification and its ID exist ****
-    if (!notification || !notification.id) {
-      console.warn(
-        "handleNewNotification received invalid notification data:",
-        notification
-      );
+    // Validate required fields
+    if (!notification?.detection_id || !notification?.log_id) {
+      console.warn("Invalid notification format:", notification);
       return;
     }
 
-    // Determine if link is malicious based on icon or other property
-    const isMalicious = notification.icon === "suspicious-icon";
-    const title = isMalicious
-      ? "Warning: Malicious Link Detected"
-      : "Safe Link Verified";
-    const body = notification.link || ""; // Use link as body
-
-    // Set unread notifications flag (might need refinement later if you track read status globally)
-    setHasUnreadNotifications(true);
+  // Normalize notification data
+  const newNotification = {
+    id: notification.detection_id, // Use detection_id as primary ID
+    log_id: notification.log_id,
+    url: notification.url || notification.link || "No URL provided",
+    icon: notification.icon === "safe-icon" ? "safe-icon" : "suspicious-icon",
+    timestamp: notification.date_scanned ? 
+      new Date(notification.date_scanned).getTime() : Date.now(),
+    severity: notification.severity?.toUpperCase() || "UNKNOWN",
+    phishing_percentage: notification.phishing_probability_score ?
+      Math.round(notification.phishing_probability_score * 100) : 0,
+    recommended_action: notification.recommended_action || "No recommendation",
+    platform: notification.platform || "Unknown Source"
+  };
+  
+    console.log('Processing notification:', newNotification);
 
     // **** Core Logic: Check if the ID is new ****
-    if (notification.id !== lastNotifiedIdRef.current) {
-      console.log(
-        `[New Notification] ID ${notification.id} is different from last notified ID ${lastNotifiedIdRef.current}. Showing toast.`
-      ); // Debug log
+    if (newNotification.id !== lastNotifiedIdRef.current) {
+      console.log(`New notification ID: ${newNotification.id}`);
+      setHasUnreadNotifications(true);
+
       if (appState.current === "active") {
-        // App is in foreground, show in-app notification
-        setInAppNotification({
-          id: notification.id, // Use the actual ID from the log
-          link: notification.link, // Use link from log data
-          icon:
-            notification.icon ||
-            (isMalicious ? "suspicious-icon" : "safe-icon"),
-          // Add any other properties your NotificationToast needs from the notification object
-        });
-        // **** Update the last notified ID ****
-        lastNotifiedIdRef.current = notification.id;
+        setInAppNotification(newNotification);
+        lastNotifiedIdRef.current = newNotification.id;
       } else {
-        // App is in background, show system notification
-        console.log(
-          `[New Notification] App not active. Scheduling system notification for ID ${notification.id}.`
-        ); // Debug log
-        scheduleNotification(title, body, notification);
-        // **** Update the last notified ID even for background notifications ****
-        // This prevents showing an in-app toast for the same item when the app returns to foreground
-        lastNotifiedIdRef.current = notification.id;
+        scheduleNotification(
+          newNotification.severity === 'critical' 
+            ? "Malicious Link Detected" 
+            : "Safe Link Verified",
+          newNotification.url,
+          newNotification
+        );
+        lastNotifiedIdRef.current = newNotification.id;
       }
-    } else {
-      console.log(
-        `[New Notification] ID ${notification.id} is the SAME as last notified ID ${lastNotifiedIdRef.current}. Skipping toast.`
-      ); // Debug log
     }
   };
 
@@ -454,14 +431,11 @@ export default function Navigation() {
   const navigateToNotificationsScreen = (data) => {
     if (globalNavigation) {
       globalNavigation.navigate("Notifications", {
-        isDarkMode: false, // Pass relevant props if needed
+        isDarkMode: false,
         onToggleDarkMode: () => {},
-        ...data, // Pass any data needed by the Notifications screen
+        ...data
       });
-      // Clear unread notifications when navigating to the Notifications screen
       setHasUnreadNotifications(false);
-    } else {
-      console.warn("Cannot navigate: globalNavigation is not set.");
     }
   };
 
@@ -473,23 +447,21 @@ export default function Navigation() {
         onNotificationRead={() => setHasUnreadNotifications(false)}
       />
 
-      {/* Notification Toast */}
-  {inAppNotification && (
-  <NotificationToast
-    notification={inAppNotification}
-    onPress={(notificationData) => {
-      console.log("Toast pressed, showing details modal:", notificationData); // Debug log
-      // The modal will be shown directly from NotificationToast component
-      setHasUnreadNotifications(false); // Mark as read
-    }}
-    onDismiss={() => {
-      console.log("Toast dismissed (timeout or manual)."); // Debug log
-      setInAppNotification(null);
-    }}
-    navigation={globalNavigation} // Pass the navigation prop
-  />
-  )}
-  </>
+      {inAppNotification && (
+        <NotificationToast
+          notification={inAppNotification}
+          onPress={(data) => {
+            console.log("Toast pressed:", data);
+            setHasUnreadNotifications(false);
+          }}
+          onDismiss={() => {
+            console.log("Toast dismissed");
+            setInAppNotification(null);
+          }}
+          navigation={globalNavigation}
+        />
+      )}
+    </>
   );
 }
 
