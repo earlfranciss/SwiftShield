@@ -70,6 +70,12 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            storeFile file(MYAPP_RELEASE_STORE_FILE)
+            storePassword MYAPP_RELEASE_STORE_PASSWORD
+            keyAlias MYAPP_RELEASE_KEY_ALIAS
+            keyPassword MYAPP_RELEASE_KEY_PASSWORD
+        }
         // release { // You should configure a proper release signing config later
         //     signingConfig signingConfigs.debug // Using debug for now
         //     minifyEnabled enableProguardInReleaseBuilds
@@ -81,10 +87,16 @@ android {
         debug {
             signingConfig signingConfigs.debug
         }
+        // release {
+        //     signingConfig signingConfigs.debug // Using debug for now, configure properly later
+        //     minifyEnabled enableProguardInReleaseBuilds
+        //     proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        // }
         release {
-            signingConfig signingConfigs.debug // Using debug for now, configure properly later
-            minifyEnabled enableProguardInReleaseBuilds
-            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            signingConfig signingConfigs.release
+            minifyEnabled false // or true if using Proguard
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
