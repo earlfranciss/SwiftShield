@@ -4,7 +4,10 @@ import DetailsModal from './DetailsModal';
 
 // Import icons from your assets
 const iconMap = {
-  "suspicious-icon": require("../assets/images/suspicious-icon.png"),
+  "sms-warning-icon": require("../assets/images/suspicious-icon.png"),
+  "email-warning-icon": require("../assets/images/suspicious-icon.png"),
+  "url-warning-icon": require("../assets/images/suspicious-icon.png"),
+  "warning-icon": require("../assets/images/suspicious-icon.png"),
   "safe-icon": require("../assets/images/safe-icon.png"),
 };
 
@@ -43,6 +46,24 @@ const formatTimeAgo = (timestamp) => {
   }
 };
 
+
+const getBackgroundColor = (type, severity) => {
+  if (severity === 'high') {
+    return '#FF4D4D'; // Red for high severity
+  }
+  
+  switch (type) {
+    case 'sms':
+      return '#FFB74D'; // Orange for SMS
+    case 'gmail':
+      return '#4285F4'; // Google Blue for Gmail
+    case 'url':
+      return '#FF8F00'; // Dark Orange for URLs
+    default:
+      return '#757575'; // Grey for unknown types
+  }
+};
+
 const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => {
   const slideAnim = new Animated.Value(-100);
   const [modalVisible, setModalVisible] = useState(false);
@@ -70,9 +91,7 @@ const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => 
     return () => clearTimeout(timer);
   }, []);
 
-  const isMalicious = notification.icon === "suspicious-icon";
-  const title = isMalicious ? "Warning: Malicious Link Detected" : "Safe Link Verified";
-  const body = notification.url || notification.link || "";
+  const backgroundColor = getBackgroundColor(notification.type, notification.severity);
   
   // Handle notification press to open the modal
   const handleNotificationPress = () => {
@@ -186,10 +205,17 @@ const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => 
 const styles = StyleSheet.create({
   toastContainer: {
     position: 'absolute',
+
     top: 15, // Adjust this value to move it higher (was likely 60 or more)
     left: 0,
     right: 0,
     backgroundColor: '#3AED97',
+// =======
+//     top: 15,
+//     left: 16,
+//     right: 16,
+//     borderRadius: 12,
+// >>>>>>> Stashed changes
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
@@ -212,9 +238,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toastIcon: {
-    width: 24,
-    height: 24,
+    width: 28,
+    height: 28,
     marginRight: 12,
+    tintColor: '#FFFFFF',
   },
   toastTextContainer: {
     flex: 1,
@@ -222,19 +249,35 @@ const styles = StyleSheet.create({
   toastTitle: {
     fontWeight: 'bold',
     fontSize: 16,
-    color: '#000',
+    color: '#FFFFFF',
+    marginBottom: 4,
   },
   toastMessage: {
-    fontSize: 14, 
-    color: '#000',
+    fontSize: 14,
+    color: '#FFFFFF',
+    opacity: 0.9,
+  },
+  urlCount: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    opacity: 0.8,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   dismissButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 12,
+  },
+  dismissText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+    lineHeight: 24,
   },
 });
 

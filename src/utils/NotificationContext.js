@@ -37,35 +37,82 @@ export const NotificationProvider = ({ children }) => {
   // The function to handle incoming scan results
   const handleNewScanResult = (scanResultData) => {
     if (!scanResultData) {
-        console.warn("handleNewScanResult called with invalid data");
-        return;
+      console.warn("handleNewScanResult called with invalid data");
+      return;
     }
 
-    const verdict = scanResultData.log_details?.verdict;
-    const isMalicious = verdict?.toLowerCase() === 'phishing';
-    const severity = scanResultData.severity || scanResultData.log_details?.severity || 'N/A';
+    const { type, severity, source, preview, detectionId, urls } = scanResultData;
     
+    // Determine notification content based on type
+    let title, body, icon;
+    
+    switch (type) {
+      case 'sms':
+        title = "SMS Phishing Alert";
+        body = `Suspicious SMS from ${source}${preview ? `: ${preview}` : ''}`;
+        icon = "sms-warning-icon";
+        break;
+        
+      case 'gmail':
+        title = "Email Phishing Alert";
+        body = `Suspicious email${source ? ` from ${source}` : ''}${preview ? `: ${preview}` : ''}`;
+        icon = "email-warning-icon";
+        break;
+        
+      case 'url':
+        title = "URL Scan Result";
+        body = `${severity === 'high' ? 'Dangerous' : 'Suspicious'} URL detected${source ? ` from ${source}` : ''}`;
+        icon = "url-warning-icon";
+        break;
+        
+      default:
+        title = "Security Alert";
+        body = `Potential threat detected${severity ? ` (${severity})` : ''}`;
+        icon = "warning-icon";
+    }
+
     const notification = {
-        id: scanResultData.detect_id || Math.random().toString(),
-        url: scanResultData.url || scanResultData.text || 'N/A',
-        icon: isMalicious ? "suspicious-icon" : "safe-icon",
-        title: isMalicious ? "Warning: Malicious Content Detected" : "Scan Result: Safe",
-        body: `Severity: ${severity}. ${scanResultData.url ? `(${scanResultData.url.substring(0,30)}...) ` : ''}${isMalicious ? 'Avoid interaction.' : ''}`,
-        rawData: scanResultData
+      id: detectionId || Math.random().toString(),
+      type,
+      severity,
+      source,
+      preview,
+      icon,
+      title,
+      body,
+      urls,
+      rawData: scanResultData
     };
 
-    console.log("Handling new scan result:", notification);
+    console.log("Processing new scan result:", notification);
     setHasUnreadNotifications(true);
 
     if (appState.current === 'active') {
-      console.log("App active, setting in-app notification state.");
+      console.log("App active, showing in-app notification");
       setInAppNotification(notification);
-      // Optional: Auto-clear after delay
-      // setTimeout(() => setInAppNotification(null), 5000);
+      
+      // Auto-clear after 5 seconds if not interacted with
+      setTimeout(() => {
+        setInAppNotification((current) => 
+          current?.id === notification.id ? null : current
+        );
+      }, 5000);
     } else {
-      console.log("App inactive/background, scheduling system notification.");
-      scheduleNotification(notification.title, notification.body, notification.rawData);
+      console.log("App inactive/background, scheduling system notification");
+      scheduleNotification(notification.title, notification.body, {
+        type,
+        detectionId,
+        source,
+        preview,
+        severity
+      });
     }
+  };
+
+  const clearNotification = (notificationId) => {
+    setInAppNotification((current) => 
+      current?.id === notificationId ? null : current
+    );
   };
 
   // Value provided by the context
@@ -74,7 +121,8 @@ export const NotificationProvider = ({ children }) => {
     setHasUnreadNotifications,
     inAppNotification,
     setInAppNotification,
-    handleNewScanResult
+    handleNewScanResult,
+    clearNotification
   };
 
   return (

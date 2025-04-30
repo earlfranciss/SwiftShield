@@ -4,7 +4,7 @@ import 'react-native-gesture-handler';
 import Navigation from './navigation/Navigation';
 import { NotificationProvider, useNotifications } from './utils/NotificationContext'; 
 import NotificationToast from './components/NotificationToast'; 
-
+import './services/SwiftShieldBackgroundTask'; 
 
 const AppContent = () => {
   const { inAppNotification, setInAppNotification, setHasUnreadNotifications } = useNotifications();

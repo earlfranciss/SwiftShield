@@ -211,7 +211,7 @@ const DetailsModal = ({
               <ActivityIndicator
                 size="large"
                 color="#31EE9A"
-                style={{ marginVertical: 50 }}
+                style={{ marginVertical: 50, marginHorizontal: 100 }}
               />
             ) : scanResult ? ( // Check if scanResult data is available
               <>

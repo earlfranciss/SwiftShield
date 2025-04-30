@@ -11,7 +11,6 @@ from bson.objectid import ObjectId
 from urllib.parse import urlparse
 from flask_caching import Cache
 from flask_session import Session
-from functools import wraps 
 from apscheduler.schedulers.background import BackgroundScheduler
 from google_auth_oauthlib.flow import Flow 
 from google.oauth2.credentials import Credentials
@@ -38,6 +37,14 @@ import whois
 import re
 import traceback
 
+
+# from .auth import login_required, get_google_credentials, get_user_id # Assuming these exist
+# from .models import detection_collection, users_collection # Assuming your MongoDB collections
+from scan_logic import classify_email_content, extract_urls, classify_url # Assuming your scanning functions
+
+
+
+
 # Import your feature extraction class
 try:
     from PhishingFeatureExtraction import FeatureExtraction, LEGIT_DOMAINS, PHISHING_URLS, COMMON_PHISHING_TARGETS
@@ -53,6 +60,7 @@ load_dotenv(dotenv_path=dotenv_path)
 
 # --- Flask App Configuration ---
 app = Flask(__name__) 
+
 
 # --- App Configuration ---
 app.config["DEBUG"] = os.getenv("FLASK_DEBUG", "False").lower() == "true"
@@ -675,7 +683,129 @@ def extract_urls_from_text(text_body):
         return []
     
     
+
+
+def check_emails_job():
+    try:
+        print("Starting email check job...")
+        
+        # Get all users with Gmail monitoring enabled
+        users = users_collection.find({
+            'gmail_monitoring_enabled': True,
+            'google_credentials': {'$exists': True}
+        })
+        
+        for user in users:
+            try:
+                user_id = user['_id']
+                credentials = get_google_credentials(user_id)
+                
+                if not credentials or credentials.expired:
+                    print(f"User {user_id} has invalid or expired credentials")
+                    continue
+                
+                # Get Gmail service
+                service = get_gmail_service(user_id)
+                if not service:
+                    print(f"Failed to get Gmail service for user {user_id}")
+                    continue
+                
+                # List new messages
+                messages = list_new_messages(user_id)
+                if not messages:
+                    continue
+                
+                for message in messages:
+                    try:
+                        # Get email details
+                        email_details = get_email_details(user_id, message['id'])
+                        if not email_details:
+                            continue
+                        
+                        # Extract content
+                        subject = email_details.get('subject', '')
+                        body = email_details.get('body', '')
+                        sender = email_details.get('from', '')
+                        
+                        # Classify content
+                        classification_result = classify_text(body)
+                        urls = extract_urls(body)
+                        suspicious_urls = []
+                        
+                        # Check URLs
+                        for url in urls:
+                            url_result = classify_url(url)
+                            if url_result.get('is_phishing', False):
+                                suspicious_urls.append({
+                                    'url': url,
+                                    'is_phishing': True,
+                                    'confidence': url_result.get('confidence', 0)
+                                })
+                        
+                        # Create detection if phishing
+                        if classification_result.get('is_phishing', False) or suspicious_urls:
+                            detection_id = str(ObjectId())
+                            detection = {
+                                '_id': detection_id,
+                                'type': 'gmail',
+                                'severity': 'high' if classification_result.get('is_phishing', False) else 'low',
+                                'source': sender,
+                                'subject': subject,
+                                'content': body,
+                                'urls': suspicious_urls,
+                                'timestamp': datetime.now().isoformat(),
+                                'user_id': user_id,
+                                'classification': classification_result
+                            }
+                            
+                            # Save to database
+                            detection_collection.insert_one(detection)
+                            
+                            print(f"Created detection {detection_id} for user {user_id}")
+                    
+                    except Exception as e:
+                        print(f"Error processing email for user {user_id}: {str(e)}")
+                        continue
+            
+            except Exception as e:
+                print(f"Error processing user {user['_id']}: {str(e)}")
+                continue
+        
+        print("Email check job completed")
     
+    except Exception as e:
+        print(f"Error in check_emails_job: {str(e)}")
+        traceback.print_exc()
+        
+        
+scheduler = BackgroundScheduler()
+# Schedule job to run e.g., every 5 minutes
+scheduler.add_job(check_emails_job, 'interval', minutes=5)
+
+def start_scheduler():
+    try:
+        # Initialize scheduler
+        scheduler = BackgroundScheduler()
+        
+        # Add email check job (runs every 5 minutes)
+        scheduler.add_job(
+            check_emails_job,
+            'interval',
+            minutes=5,
+            id='email_check_job',
+            replace_existing=True
+        )
+        
+        # Start scheduler
+        scheduler.start()
+        print("Scheduler started successfully")
+        
+    except Exception as e:
+        print(f"Error starting scheduler: {str(e)}")
+        traceback.print_exc()
+
+
+
 # --- ENDPOINT DEFINITIONS  ---
 
 @app.route("/scan", methods=["POST"])
@@ -2012,7 +2142,7 @@ def extract_content_from_sms():
                 (?:bit\.ly|t\.co|goo\.gl|is\.gd|tinyurl\.com|ow\.ly|buff\.ly)\/[-\w\d_]+ # Common shorteners
             )
             (?:[^\s()<>{}\[\]\'",|\\^`]*?)              # Non-space/bracket characters following the start
-            (?:\([^\s()]*?\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]) # Allow paired parentheses, exclude trailing punctuation
+            (?:\([^\s()]*?\)|[^\s`!()\[\]{};:'".,<>?«»"”‘’]) # Allow paired parentheses, exclude trailing punctuation
         """
         # Find all non-overlapping matches, ignore case
         matches = re.findall(url_regex, sms_body, re.IGNORECASE | re.VERBOSE)
@@ -2057,17 +2187,7 @@ def extract_content_from_sms():
         return jsonify({"error": "Internal server error during content extraction"}), 500
     
     
-# --- Main Execution ---
-if __name__ == "__main__":
-    # Use waitress or gunicorn for production, not app.run(debug=True)
-    host = os.getenv("FLASK_RUN_HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 5000)) # Use PORT env var for Render/deployment compatibility
-    debug_mode = app.config["DEBUG"]
-    print(f"Starting Flask server on {host}:{port} (Debug: {debug_mode})...")
-    app.run(host=host, port=port, debug=debug_mode)
-    
-    
-    
+
     
     
     
@@ -2460,3 +2580,428 @@ def start_scheduler():
 
 
 
+
+@app.route("/debug/latest-email", methods=["GET"])
+@login_required # User MUST be logged into SwiftShield
+def debug_get_latest_email():
+    """
+    FOR DEBUGGING ONLY: Fetches subject and body snippet of the latest unread email.
+    """
+    app_user_id = session.get('user_id')
+    print(f"DEBUG /debug/latest-email: Checking for user {app_user_id}")
+
+    if not app_user_id:
+         return jsonify({"error": "SwiftShield session not found."}), 401 # Should be caught by @login_required
+
+    try:
+        # 1. Get Gmail Service (uses stored refresh token)
+        service = get_gmail_service(app_user_id) # Use the helper function
+        if not service:
+            print(f"DEBUG /debug/latest-email: Failed to get Gmail service for user {app_user_id}.")
+            return jsonify({"error": "Could not connect to Gmail. Has the user linked their account?"}), 503 # Service Unavailable
+
+        # 2. List latest unread message
+        print(f"DEBUG /debug/latest-email: Listing unread messages for user {app_user_id}...")
+        list_results = service.users().messages().list(
+            userId='me',
+            q='is:unread in:inbox', # Query for unread inbox messages
+            maxResults=1 # Only fetch the single most recent one
+            ).execute()
+
+        messages = list_results.get('messages', [])
+
+        if not messages:
+            print(f"DEBUG /debug/latest-email: No unread messages found for user {app_user_id}.")
+            return jsonify({"message": "No unread messages found."}), 200
+
+        # 3. Get details of the latest message
+        latest_message_id = messages[0]['id']
+        print(f"DEBUG /debug/latest-email: Fetching details for message ID: {latest_message_id}")
+        email_details = get_email_details(app_user_id, latest_message_id) # Use the helper function
+
+        if not email_details:
+            print(f"DEBUG /debug/latest-email: Failed to fetch details for message {latest_message_id}.")
+            return jsonify({"error": f"Could not fetch details for message {latest_message_id}"}), 500
+
+        # 4. Log the content to the CONSOLE
+        print("\n--- LATEST UNREAD EMAIL CONTENT (DEBUG) ---")
+        print(f"User ID: {app_user_id}")
+        print(f"Message ID: {email_details.get('id')}")
+        print(f"From: {email_details.get('from')}")
+        print(f"To: {email_details.get('to')}")
+        print(f"Date: {email_details.get('date')}")
+        print(f"Subject: {email_details.get('subject')}")
+        print(f"Body Snippet (Plain): { (email_details.get('body_plain') or '')[:200] }...") # Show first 200 chars
+        print(f"Body Snippet (HTML): { (email_details.get('body_html') or '')[:200] }...") # Show first 200 chars
+        print("--- END EMAIL CONTENT (DEBUG) ---\n")
+
+        # 5. Return a simple success message to the frontend
+        return jsonify({
+            "message": "Latest unread email content logged to backend console.",
+            "subject_snippet": email_details.get('subject', '')[:50] # Send a small snippet back
+        }), 200
+
+    except Exception as e:
+        print(f"ERROR in /debug/latest-email: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"error": "An internal error occurred while fetching email."}), 500
+    
+    
+
+
+
+
+
+
+
+
+@app.route("/sms/classify-text", methods=["POST"])
+@login_required
+def classify_sms():
+    try:
+        data = request.get_json()
+        if not data or 'body' not in data:
+            return jsonify({"error": "Missing required fields"}), 400
+
+        # Extract SMS content
+        body = data.get('body', '')
+        sender = data.get('sender', 'Unknown')
+        timestamp = data.get('timestamp', datetime.now().isoformat())
+
+        # Classify the text
+        classification_result = classify_text(body)
+        
+        # Extract URLs if any
+        urls = extract_urls(body)
+        suspicious_urls = []
+        
+        # Check each URL
+        for url in urls:
+            url_result = classify_url(url)
+            if url_result.get('is_phishing', False):
+                suspicious_urls.append({
+                    'url': url,
+                    'is_phishing': True,
+                    'confidence': url_result.get('confidence', 0)
+                })
+
+        # Create detection record
+        detection_id = str(ObjectId())
+        detection = {
+            '_id': detection_id,
+            'type': 'sms',
+            'severity': 'high' if classification_result.get('is_phishing', False) else 'low',
+            'source': sender,
+            'content': body,
+            'urls': suspicious_urls,
+            'timestamp': timestamp,
+            'user_id': session['user_id'],
+            'classification': classification_result
+        }
+
+        # Save to database
+        detection_collection.insert_one(detection)
+
+        return jsonify({
+            'detection_id': detection_id,
+            'classification': classification_result,
+            'urls': suspicious_urls,
+            'text_preview': body[:100] + '...' if len(body) > 100 else body
+        })
+
+    except Exception as e:
+        print(f"Error in classify_sms: {str(e)}")
+        return jsonify({"error": "Failed to process SMS"}), 500
+
+@app.route("/monitor/toggle", methods=["POST"])
+@login_required
+def toggle_monitoring():
+    try:
+        data = request.get_json()
+        if not data or 'enable' not in data:
+            return jsonify({"error": "Missing required fields"}), 400
+
+        enable = data.get('enable', False)
+        user_id = session['user_id']
+
+        # Update user settings
+        users_collection.update_one(
+            {'_id': user_id},
+            {
+                '$set': {
+                    'sms_monitoring_enabled': enable,
+                    'last_monitoring_status': 'enabled' if enable else 'disabled',
+                    'last_updated': datetime.now()
+                }
+            }
+        )
+
+        return jsonify({
+            'status': 'success',
+            'monitoring_enabled': enable
+        })
+
+    except Exception as e:
+        print(f"Error in toggle_monitoring: {str(e)}")
+        return jsonify({"error": "Failed to update monitoring status"}), 500
+
+
+
+@app.route("/google-status", methods=["GET"])
+@login_required
+def check_gmail_status():
+    try:
+        print(f"Hi hello")
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({"error": "User not authenticated"}), 401
+            
+        user = users_collection.find_one({'_id': user_id})
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        # Check Gmail credentials
+        credentials = get_google_credentials(user_id)
+        print(f"Hello, credentials: {str(credentials)}")
+        linked = credentials is not None and not credentials.expired
+        print(f"credentials: {str(credentials)}")
+        
+        return jsonify({
+            'linked': linked,
+            'monitoring_enabled': user.get('gmail_monitoring_enabled', False)
+        })
+
+    except Exception as e:
+        print(f"Error in check_gmail_status: {str(e)}")
+        return jsonify({"error": "Failed to check Gmail status"}), 500
+    
+    
+# Helper to refresh Google credentials server-side
+def refresh_credentials_server_side(user_id):
+    user = users_collection.find_one({'_id': user_id})
+    if not user or 'google_credentials' not in user:
+        print(f"User {user_id} not found or no Google credentials.")
+        return None
+
+    creds_data = user['google_credentials']
+    creds = Credentials.from_authorized_user_info(creds_data)
+
+    if creds.expired and creds.refresh_token:
+        try:
+            print(f"Attempting server-side refresh for user {user_id}")
+            creds.refresh(Request())
+            # Update credentials in DB
+            users_collection.update_one(
+                {'_id': user_id},
+                {'$set': {'google_credentials': json.loads(creds.to_json())}} # Store updated creds
+            )
+            print(f"Server-side refresh successful for user {user_id}")
+        except Exception as e:
+            print(f"Server-side refresh failed for user {user_id}: {e}")
+            # Invalidate credentials if refresh fails permanently? Or let check_gmail_status handle it.
+            return None # Refresh failed
+
+    # Return credentials regardless of refresh attempt, let caller check expiry
+    return creds
+
+
+# New endpoint for native service to send email data for scanning
+@app.route("/scan-email", methods=["POST"])
+@login_required # Assuming you use sessions/cookies for auth even for service calls
+def scan_email():
+    try:
+        data = request.get_json()
+        if not data or 'message_id' not in data:
+            return jsonify({"error": "Missing required fields (message_id)"}), 400
+
+        # Get user ID from session (set by @login_required)
+        user_id = session.get('user_id')
+        if not user_id:
+             # This should not happen with @login_required, but as a safeguard
+            return jsonify({"error": "Authentication required"}), 401
+
+
+        message_id = data.get('message_id')
+        sender = data.get('source', 'Unknown') # Use 'source' as sent by native service
+        subject = data.get('subject', 'No Subject')
+        date = data.get('date') # RFC 2822 format date string
+        body_plain = data.get('body_plain')
+        body_html = data.get('body_html')
+        detected_urls_from_app = data.get('detected_urls', []) # URLs extracted client-side
+
+
+        # --- Perform Classification ---
+        is_phishing = False
+        classification_details = {}
+        scan_source = "unknown" # To track where the most convincing threat came from (content or URLs)
+        phishing_urls_found = []
+        severity = "low"
+
+        # Prioritize body content scan if plain text is available
+        content_to_scan = body_plain if body_plain else body_html # Choose a body to scan
+        if content_to_scan:
+            # Assuming classify_email_content returns { is_phishing: bool, score: float, details: {...} }
+            content_classification = classify_email_content(body_plain, body_html, sender, subject) # Pass sender/subject for context if needed
+            is_phishing = content_classification.get('is_phishing', False)
+            classification_details['content_scan'] = content_classification
+            if is_phishing:
+                 scan_source = "content"
+                 severity = "high" # Assuming content match is high severity
+
+
+        # Scan URLs, whether extracted client-side or server-side (or both)
+        all_urls_to_check = set(detected_urls_from_app) # Use a set to avoid duplicates
+        # You might also want to extract URLs server-side for robustness
+        # if content_to_scan:
+        #      server_extracted_urls = extract_urls(content_to_scan)
+        #      all_urls_to_check.update(server_extracted_urls)
+
+        for url in all_urls_to_check:
+             if url: # Ensure URL is not empty
+                # Assuming classify_url returns { is_phishing: bool, confidence: float, match_details: {...} }
+                url_classification = classify_url(url)
+                if url_classification.get('is_phishing', False):
+                    phishing_urls_found.append({
+                        'url': url,
+                        'is_phishing': True,
+                        'confidence': url_classification.get('confidence', 0),
+                        'match_details': url_classification.get('match_details', {})
+                    })
+                    # If any URL is phishing, the overall is phishing, and potentially high severity
+                    is_phishing = True
+                    if severity != "high": # Don't downgrade if content was high
+                         severity = "high" # Assuming any malicious URL is high severity
+                    scan_source = "url" # Indicate URL scan contributed
+                    # Optionally, store details for all malicious URLs
+
+        # If no phishing detected yet, check basic heuristics or other scans
+        if not is_phishing:
+             # Example: simple check if sender is suspicious or subject contains keywords
+             # You would add more logic here
+             pass
+
+
+        # --- Create and Save Detection Record ---
+        detection_id = str(ObjectId()) # Generate a unique ID
+        detection_timestamp = datetime.utcnow() # Use server time, or parse date from email headers
+
+        log_details = {
+            '_id': detection_id,
+            'type': 'email', # Explicitly email type
+            'user_id': user_id, # Link to authenticated user
+            'message_id': message_id, # Original Gmail message ID
+            'source': sender,
+            'subject': subject,
+            'date': date, # Store original date string
+            'body_plain': body_plain, # Store original bodies
+            'body_html': body_html,
+            'extracted_urls': list(all_urls_to_check), # Store all urls found
+            'phishing_urls': phishing_urls_found, # Store details for malicious URLs
+            'is_phishing': is_phishing, # Overall result boolean
+            'severity': severity, # e.g., 'low', 'medium', 'high'
+            'scan_source': scan_source, # Where the threat was detected (content/url)
+            'classification_details': classification_details, # Detailed scan results
+            'timestamp': detection_timestamp, # When the scan occurred on the server
+            'received_timestamp': datetime.fromtimestamp(data.get('timestamp') / 1000) if data.get('timestamp') else None # Original timestamp from app/email if available
+            # Add other metadata (headers, etc.) if useful for analysis/display
+        }
+
+        # Save to database
+        detection_collection.insert_one(log_details)
+        print(f"Email scan result saved: {detection_id}, Phishing: {is_phishing}")
+
+
+        # --- Return Result to Native Service ---
+        # The native service expects a JSON response to decide whether to emit an event
+        response_payload = {
+            'status': 'success',
+            'is_phishing': is_phishing,
+            'detection_id': detection_id,
+            'log_details': log_details # Include the full log details for the native service to pass to JS notification data
+            # Note: Sending the full log_details can make the native code simpler for event emission,
+            # but ensure you're comfortable sending this data back to the app process.
+        }
+
+        return jsonify(response_payload), 200
+
+    except Exception as e:
+        print(f"Error in scan_email endpoint: {e}", exc_info=True) # Log full traceback server-side
+        # Return an error response, but maybe not crash the native service
+        return jsonify({"error": "Failed to process email scan on server", "details": str(e)}), 500
+
+
+# New endpoint for native service to refresh tokens
+@app.route("/google/refresh-token", methods=["POST"])
+@login_required # Assuming this endpoint is called by the service and needs user context
+def google_refresh_token():
+    try:
+        data = request.get_json()
+        # Native service sends refresh_token and perhaps user_id if not using session
+        refresh_token_from_app = data.get('refresh_token')
+        # user_id_from_app = data.get('user_id') # Alternative to session
+
+        user_id = session.get('user_id')
+        # If using user_id from app instead of session:
+        # user_id = user_id_from_app
+
+        if not user_id:
+             return jsonify({"error": "Authentication required"}), 401
+
+        user = users_collection.find_one({'_id': user_id})
+        if not user or 'google_credentials' not in user:
+             return jsonify({"error": "User not found or no linked credentials"}), 404
+
+        creds_data = user['google_credentials']
+        # Ensure the refresh token matches the one stored, as a basic check
+        if creds_data.get('refresh_token') != refresh_token_from_app:
+             print(f"Warning: Refresh token mismatch for user {user_id}")
+             # This could be an error, or just using an old token. Let the refresh process handle if it works.
+             # return jsonify({"error": "Refresh token mismatch"}), 400 # Or just proceed? Proceeding might be better.
+
+
+        # Use the stored credentials structure
+        creds = Credentials.from_authorized_user_info(creds_data)
+
+        # Force refresh even if not technically expired, or check creds.expired explicitly
+        if not creds.refresh_token:
+             print(f"No refresh token available for user {user_id}")
+             # Invalidate credentials in DB? Notify user?
+             return jsonify({"error": "No refresh token available for this account"}), 400
+
+        print(f"Attempting server-side refresh via /google/refresh-token for user {user_id}")
+        creds.refresh(Request()) # This uses the stored client ID/Secret implicitly if set up correctly
+
+        # Update credentials in DB
+        users_collection.update_one(
+            {'_id': user_id},
+            {'$set': {'google_credentials': json.loads(creds.to_json())}} # Store updated creds
+        )
+
+        # Return new access token and expiry to the native service
+        # Expiry comes from creds.expiry which is a datetime object. Convert to milliseconds since epoch.
+        expiry_timestamp_ms = int(creds.expiry.timestamp() * 1000) if creds.expiry else 0
+
+        return jsonify({
+            'access_token': creds.token,
+            'expiry_timestamp_ms': expiry_timestamp_ms,
+            'status': 'success'
+        }), 200
+
+    except Exception as e:
+        print(f"Error in google_refresh_token endpoint: {e}", exc_info=True)
+        # Decide how to handle refresh failures (e.g., invalid_grant means token revoked, needs re-link)
+        return jsonify({"error": "Failed to refresh token", "details": str(e)}), 500
+    
+    
+    
+# --- Main Execution ---
+if __name__ == "__main__":
+    host = os.getenv("FLASK_RUN_HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", 5000))
+    debug_mode = app.config["DEBUG"]
+    print(f"Starting Flask server on {host}:{port} (Debug: {debug_mode})...")
+    app.run(host=host, port=port, debug=debug_mode)
+
+
+    
+    

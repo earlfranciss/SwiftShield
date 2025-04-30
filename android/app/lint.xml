@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- Disable the MissingPermission check specifically for the react-native-push-notification module -->
+    <issue
+        id="MissingPermission"
+        severity="ignore">
+        <location
+            file="**/node_modules/react-native-push-notification/android/src/main/java/com/dieam/reactnativepushnotification/**/*.java"
+            regexp="sendBroadcast\(new Intent\(Intent\.ACTION_CLOSE_SYSTEM_DIALOGS\)\);" />
+    </issue>
+
+    <!-- Keep other checks enabled -->
+    <issue id="all" severity="warning" />
+</lint>

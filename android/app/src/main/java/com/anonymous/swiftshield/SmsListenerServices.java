@@ -18,7 +18,7 @@ import androidx.core.app.NotificationCompat;
 import com.facebook.react.HeadlessJsTaskService;
 import org.json.JSONObject;
 
-public class SmsListenerService extends Service {
+public class SmsListenerServices extends Service {
     private static final int NOTIFICATION_ID = 1;
     private static final String CHANNEL_ID = "SwiftShieldSmsMonitor";
     private SmsReceiver smsReceiver;
@@ -120,4 +120,4 @@ public class SmsListenerService extends Service {
             }
         }
     }
-}  
+} 

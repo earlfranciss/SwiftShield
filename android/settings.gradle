@@ -7,21 +7,32 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode = RepositoriesMode.PREFER_PROJECT // New syntax
+    // Change this back to prefer project repositories (or combine them)
+    repositoriesMode = RepositoriesMode.PREFER_PROJECT // <-- CHANGE THIS LINE BACK
+    // repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS) // Comment this out
+
 
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://www.jitpack.io' }
-        maven { url 'https://maven.google.com' }
-        maven { url 'https://repo.maven.apache.org/maven2' }
+        maven { url 'https://www.jitpack.io' } // Keep if needed for other dependencies
+        maven { url 'https://maven.google.com' } // Redundant with google(), but harmless
+        maven { url 'https://repo.maven.apache.org/maven2' } // Redundant with mavenCentral(), but harmless
+        // This repository is crucial for React Native native modules
         maven { url("$rootDir/../node_modules/react-native/android") }
+        maven {
+            url "https://www.googleapis.com/download/storage/v1/b/maven-central/o"
+            content {
+                includeGroup("com.google.apis")
+            }
+        }
     }
 }
 
-
+// Include the React Native Gradle plugin project itself
 includeBuild('../node_modules/@react-native/gradle-plugin')
 
+// Include all your native modules
 include ':react-native-async-storage_async-storage'
 project(':react-native-async-storage_async-storage').projectDir = new File(rootProject.projectDir, '../node_modules/@react-native-async-storage/async-storage/android')
 
@@ -53,21 +64,19 @@ include ':react-native-vector-icons'
 project(':react-native-vector-icons').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-vector-icons/android')
 
 include ':react-native-fs'
-project(':react-native-fs').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-fs/android') 
+project(':react-native-fs').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-fs/android')
 
 include ':react-native-image-picker'
-project(':react-native-image-picker').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-image-picker/android') 
+project(':react-native-image-picker').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-image-picker/android')
 
 include ':react-native-webview'
-project(':react-native-webview').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-webview/android') 
+project(':react-native-webview').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-webview/android')
 
 include ':react-native-clipboard_clipboard'
 project(':react-native-clipboard_clipboard').projectDir = new File(rootProject.projectDir, '../node_modules/@react-native-clipboard/clipboard/android')
 
 // include ':react-native-make'
-// project(':react-native-make').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-make/android') 
-
-
+// project(':react-native-make').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-make/android')
 
 rootProject.name = "SwiftShield"
 

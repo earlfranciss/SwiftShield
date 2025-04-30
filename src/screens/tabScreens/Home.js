@@ -12,16 +12,23 @@ import {
   Alert,
   Linking,
   ActivityIndicator,
+  StatusBar,
 } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
-import config from "../../config/config";
+import config from "../../config/config"; // Assuming config is available
 import DetailsModal from '../../components/DetailsModal';
-import SmsListener from 'react-native-android-sms-listener';
-import { useNotifications } from "../../utils/NotificationContext"; 
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "@react-navigation/native"; 
+// Removed SmsListener import - BackgroundTaskHandler handles the native listener
+// import SmsListener from 'react-native-android-sms-listener';
+import { useNotifications } from "../../utils/NotificationContext";
+// Removed AsyncStorage import - BackgroundTaskHandler manages AsyncStorage keys internally now
+// import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import BackgroundTaskHandler from '../../services/BackgroundTaskHandler';
 
-// Instead of importing RNFS directly, create a wrapper with safety checks
+// --- IMPORTANT: Add the Gmail icon import if you want to use it in Gmail section ---
+// const DUMMY_ICON_GMAIL = require('../../../assets/images/gmail_icon.png'); // Uncomment if you use it
+
+// Placeholder for RNFS (keeping as per your original code)
 const SafeRNFS = {
   isAvailable: false,
   fs: null,
@@ -40,34 +47,47 @@ const SafeRNFS = {
     }
   },
   readFile: async function(path, options) {
+      if (!this.isAvailable || !this.fs.readFile) {
+          console.warn('RNFS readFile not available or initialized.');
+          return null;
+      }
+      return this.fs.readFile(path, options);
   }
 };
 
 // --- Component ---
-export default function Home({ navigation }) {
+export default function Home({ route }) {
+  const navigation = useNavigation();
   const [url, setUrl] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedLog, setSelectedLog] = useState(null);
-  const [fontsLoaded, setFontsLoaded] = useState(false);
-  const [inputError, setInputError] = useState(""); 
+  const [selectedLog, setSelectedLog] = useState(null); // Still useful? Or just use scanResultForModal?
+  const [fontsLoaded, setFontsLoaded] = useState(false); // Keeping font loading
+  const [inputError, setInputError] = useState("");
   const [scanResultForModal, setScanResultForModal] = useState(null);
-  const [isLoadingScan, setIsLoadingScan] = useState(false); 
-  const [isProtectionEnabled, setIsProtectionEnabled] = useState(false); 
-  const [isTogglingProtection, setIsTogglingProtection] = useState(false);
-  const {handleNewScanResult } = useNotifications(); 
-  const [isProtectionActive, setIsProtectionActive] = useState(false);
-  const [isSmsListening, setIsSmsListening] = useState(false);
-  // This state tracks if CORE SMS permissions are granted
-  const [smsPermissionGranted, setSmsPermissionGranted] = useState(false);
-  const smsSubscriptionRef = useRef(null);
+  const [isLoadingScan, setIsLoadingScan] = useState(false); // For manual URL scan
 
+  const [isTogglingProtection, setIsTogglingProtection] = useState(false); // For the main toggle button loading
+
+  const [isProtectionActive, setIsProtectionActive] = useState(false); // Overall protection state (true if SMS OR Gmail intended active)
+  const [isSmsMonitoringEnabled, setIsSmsMonitoringEnabled] = useState(false); // Intended SMS state from AsyncStorage
+  const [isGmailMonitoringEnabled, setIsGmailMonitoringEnabled] = useState(false); // Intended Gmail state from AsyncStorage
+   // Note: The UI status should probably reflect the *intended* state from AsyncStorage,
+   // while BackgroundTaskHandler internally checks if native service actually started.
+   // Let's use these states to reflect the AsyncStorage state.
+
+  const [isGmailLinked, setIsGmailLinked] = useState(false); // Gmail account linked status (from backend)
+  const [isConnectingGmail, setIsConnectingGmail] = useState(false); // Loading state for Gmail OAuth flow
+
+  const [smsPermissionGranted, setSmsPermissionGranted] = useState(false); // SMS permission status (from Android OS)
+
+  // Removed local SMS listener state/ref - managed by native BackgroundTaskHandler
 
   // Initialize SafeRNFS
   useEffect(() => {
     SafeRNFS.initialize();
   }, []);
 
-  // Load fonts
+  // Load fonts (keep if needed)
   useEffect(() => {
     const loadFonts = async () => {
       setTimeout(() => {
@@ -77,57 +97,74 @@ export default function Home({ navigation }) {
     loadFonts();
   }, []);
 
-  useEffect(() => {
-    checkPermissions(); 
-  }, []);
+
+  // --- UseFocusEffect for checking permissions and monitoring status when screen is active ---
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log("Home screen focused: Checking state...");
+      const checkAppState = async () => {
+        // 1. Check/Update SMS permission status (from Android OS)
+        const smsGranted = await checkSmsPermissionsBasic();
+        setSmsPermissionGranted(smsGranted);
+
+        // 2. Check/Update Gmail link status (from backend via BackgroundTaskHandler)
+        try {
+            const gmailStatus = await BackgroundTaskHandler.checkGmailLinkStatus();
+            console.log("Home screen focused: Gmail Linked Status:", gmailStatus.linked);
+            setIsGmailLinked(gmailStatus.linked);
+             // Optionally, backend might return intended monitoring status, sync it here too
+             // setIsGmailMonitoringEnabled(gmailStatus.gmail_monitoring_enabled || false);
+        } catch (error) {
+            console.error("Home screen focused: Error checking Gmail link status:", error);
+            setIsGmailLinked(false); // Assume not linked on error
+        }
+
+        // 3. Sync UI monitoring states (intended states from AsyncStorage via BackgroundTaskHandler)
+        try {
+           const monitoringStatus = await BackgroundTaskHandler.getMonitoringStatus();
+           console.log("Home screen focused: Monitoring Status (from AsyncStorage):", monitoringStatus);
+           setIsProtectionActive(monitoringStatus.isActive); // Overall active if either is intended
+           setIsSmsMonitoringEnabled(monitoringStatus.sms); // Intended SMS state
+           setIsGmailMonitoringEnabled(monitoringStatus.gmail); // Intended Gmail state
+
+        } catch (error) {
+            console.error("Home screen focused: Error getting monitoring status:", error);
+             // Set states to false on error
+             setIsProtectionActive(false);
+             setIsSmsMonitoringEnabled(false);
+             setIsGmailMonitoringEnabled(false);
+        }
+      };
+
+      checkAppState();
+
+      // Optional: Cleanup logic if needed when screen blurs
+      return () => {
+        console.log("Home screen blurred.");
+      };
+    }, []) // Empty dependency array means this runs on mount and every time the screen focuses
+  );
 
 
-
-
-  const checkPermissions = async () => {
-    try {
-      const permissions = await PermissionsAndroid.requestMultiple([
-        PermissionsAndroid.PERMISSIONS.READ_SMS,
-        PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
-        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-      ]);
-  
-      console.log('Permission Request Result:', permissions);
-  
-      const readSmsStatus = permissions[PermissionsAndroid.PERMISSIONS.READ_SMS];
-      const receiveSmsStatus = permissions[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS];
-      const notificationStatus = permissions[PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS];
-  
-      const coreSmsGranted = readSmsStatus === PermissionsAndroid.RESULTS.GRANTED;
-      const notificationsGranted = notificationStatus === PermissionsAndroid.RESULTS.GRANTED;
-  
-      console.log('Core SMS Granted:', coreSmsGranted, 'Notification Granted:', notificationsGranted);
-  
-      if (readSmsStatus === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-        Alert.alert(
-          'SMS Permission Blocked',
-          'To enable SMS reading, go to Settings > Apps > YourApp > Permissions and allow SMS access.',
-          [
-            { text: 'Open Settings', onPress: () => Linking.openSettings() },
-            { text: 'Cancel', style: 'cancel' },
-          ],
-          { cancelable: true }
-        );
-      }
-
-      setSmsPermissionGranted(coreSmsGranted);
-  
-    } catch (err) {
-      console.warn('Permission check failed:', err);
-    }
+   // --- Basic SMS Permission Check Helper (used in useFocusEffect) ---
+   const checkSmsPermissionsBasic = async () => {
+     if (Platform.OS !== 'android') return false; // Or true, depending on your logic for other platforms
+     try {
+         const readStatus = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS);
+         const receiveStatus = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECEIVE_SMS);
+         return readStatus && receiveStatus;
+     } catch (err) {
+         console.warn("SMS Basic Permission check failed:", err);
+         return false;
+     }
   };
-  
 
-  
-  // --- Combined Permission Request Logic ---
+
+  // --- Full Combined Permission Request Logic (used by toggle button) ---
   const requestAllPermissions = async () => {
     if (Platform.OS !== 'android') {
-      return { smsGranted: false, notificationGranted: true }; // Assume non-android doesn't need special permission
+      console.log("Requesting All Permissions - Non-Android");
+      return { smsGranted: true, notificationGranted: true }; // Assume non-Android handles permissions differently
     }
 
     try {
@@ -137,7 +174,6 @@ export default function Home({ navigation }) {
       ];
 
       if (Platform.Version >= 33) { // Android 13+ requires notification permission
-        console.log("Requesting POST_NOTIFICATIONS permission (Android 13+)")
         permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
       }
 
@@ -151,326 +187,405 @@ export default function Home({ navigation }) {
       const coreSmsGranted = smsReadGranted && smsReceiveGranted;
 
       // Evaluate Notification permission (if requested)
-      let notificationPermissionGranted = true; // Default true for older Android
+      let notificationPermissionGranted = true;
       if (Platform.Version >= 33) {
         notificationPermissionGranted = granted[PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS] === PermissionsAndroid.RESULTS.GRANTED;
       }
 
       console.log(`Core SMS Granted: ${coreSmsGranted}, Notification Granted: ${notificationPermissionGranted}`);
 
-      // Update state based on CORE SMS permissions only
+      // Update state based on CORE SMS permissions only for immediate UI feedback
       setSmsPermissionGranted(coreSmsGranted);
 
-      // Log if notification permission was denied (doesn't affect listener start)
-      if (!notificationPermissionGranted && Platform.Version >= 33) {
-          console.log("Notification permission denied. Background alerts may not show.");
-      }
-
-      // Check if user permanently denied permission
+      // If core SMS permissions were denied permanently, inform the user
       if (!coreSmsGranted) {
-        Alert.alert(
-          "Permissions Required",
-          "Please enable SMS and Notification permissions from Settings.",
-          [
-            { text: "Cancel", style: "cancel" },
-            { text: "Open Settings", onPress: () => Linking.openSettings() }
-          ]
-        );
+         const readSmsStatus = granted[PermissionsAndroid.PERMISSIONS.READ_SMS];
+         const receiveSmsStatus = granted[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS];
+         if (readSmsStatus === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN || receiveSmsStatus === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+            Alert.alert(
+             'Permissions Blocked',
+             'To enable full protection, please grant SMS and Notification permissions in your phone settings.',
+             [
+               { text: 'Cancel', style: 'cancel' },
+               { text: 'Open Settings', onPress: () => Linking.openSettings() }
+             ]
+           );
+         } else {
+             Alert.alert(
+             "Permissions Required",
+             "Please grant SMS permissions to enable SMS monitoring.",
+             [{ text: "OK" }]
+           );
+         }
       }
-
 
       return { smsGranted: coreSmsGranted, notificationGranted: notificationPermissionGranted };
 
     } catch (err) {
       console.warn('Permission Request Error:', err);
-      setSmsPermissionGranted(false); // Ensure state reflects failure
+      setSmsPermissionGranted(false);
       return { smsGranted: false, notificationGranted: false };
     }
   };
 
-  // --- Run Permission Request on Mount ---
-  useEffect(() => {
-    requestAllPermissions(); // Request permissions when screen loads
 
-    // Cleanup listener on unmount
-    return () => {
-      stopSmsListening();
+  // --- GMail Connect Handler ---
+  // This is called to START the OAuth flow, NOT to start monitoring.
+  const handleConnectGmail = async () => {
+      if (isGmailLinked) {
+          Alert.alert("Gmail", "Gmail is already linked.\n\nDisconnect functionality is not yet implemented.");
+          // TODO: If disconnect is implemented, call BackgroundTaskHandler.disconnectGmail()
+          // and update isGmailLinked state based on the result.
+          return;
+      }
+
+      if (isConnectingGmail) {
+         console.log("Gmail connection process already in progress.");
+         return;
+      }
+
+      setIsConnectingGmail(true); // Start loading indicator for the connection process
+      console.log("Initiating Gmail OAuth flow...");
+
+      // The final redirect URI your backend or deep link handler listens to
+      const finalRedirect = encodeURIComponent('swiftshield://google/auth/success');
+      // Assuming your backend has an endpoint to start the OAuth flow
+      const googleLoginUrl = `${config.BASE_URL}/google-login?final_redirect=${finalRedirect}`;
+
+      console.log("Opening Google Login URL:", googleLoginUrl);
+
+      try {
+        const supported = await Linking.canOpenURL(googleLoginUrl);
+
+        if (supported) {
+          await Linking.openURL(googleLoginUrl);
+          // App goes to background. isConnectingGmail remains true until user returns or timeout.
+        } else {
+          Alert.alert("Error", "Cannot open the Google sign-in page. Please check the URL or your device configuration.");
+          console.error("Failed to open URL: Not supported", googleLoginUrl);
+          setIsConnectingGmail(false); // Hide spinner if opening failed
+        }
+      } catch (err) {
+         console.error("Failed to open URL", err);
+         Alert.alert("Error", `Could not open the connection page: ${err.message}`);
+         setIsConnectingGmail(false); // Hide spinner if opening failed
+      }
+       // The spinner should hide either when the user returns (useFocusEffect updates isConnectingGmail indirectly)
+       // or after a long timeout if they abandon the flow.
+       // Let's set a timeout as a fallback to hide the spinner.
+       setTimeout(() => {
+            if (isConnectingGmail) { // Only hide if it's still true
+                console.log("Gmail connection spinner timeout.");
+                setIsConnectingGmail(false);
+            }
+       }, 30000); // Hide after 30 seconds as a fallback
     };
-  }, []); // Run only once on mount
 
 
-  // --- SMS Listener Control Functions ---
-  const startSmsListening = () => {
-    // This function should ONLY be called if smsPermissionGranted is true
-    if (!smsPermissionGranted) {
-       // This situation indicates a logic error in handleProtectionToggle
-       console.error("Attempted to start listener without SMS permissions!");
-       Alert.alert('Permissions Error', 'Cannot start listener, SMS permissions are missing.');
-       return;
-    }
-
-    if (!isSmsListening && !smsSubscriptionRef.current) {
-      console.log('Starting SMS listener (Permissions OK)...');
-      try {
-        smsSubscriptionRef.current = SmsListener.addListener(message => {
-          console.log('(Home Screen) SMS Received:', JSON.stringify(message));
-          // Alert(`New SMS from ${message.originatingAddress || 'Unknown'}`, `Body: ${message.body || 'No body'}`, [{ text: 'OK' }]); // Keep commented for prod
-          console.log(`Potential SMS from ${message.originatingAddress}`);
-          // Call the correct function to handle incoming SMS
-          sendSmsToBackendForProcessing({ // Renamed for clarity
-             sender: message.originatingAddress,
-             body: message.body,
-             timestamp: message.timestamp
-          });
-        });
-        setIsSmsListening(true);
-        console.log('SMS Listener Started.');
-        Alert.alert('Protection Enabled', 'Actively monitoring incoming SMS.');
-      } catch (error) {
-         console.error('Error starting SMS listener:', error);
-         Alert.alert('Error', 'Could not start SMS protection.');
-      }
-    } else {
-      console.log('SMS listener is already active.');
-    }
-  };
-
-  const stopSmsListening = () => {
-     if (isSmsListening && smsSubscriptionRef.current) {
-      console.log('Stopping SMS listener...');
-      try {
-        smsSubscriptionRef.current.remove();
-        smsSubscriptionRef.current = null;
-        setIsSmsListening(false);
-        console.log('SMS Listener Stopped.');
-        Alert.alert('Protection Disabled', 'No longer monitoring incoming SMS.');
-      } catch (error) {
-         console.error('Error stopping SMS listener:', error);
-         Alert.alert('Error', 'Could not stop SMS protection.');
-      }
-    }
-  };
-
-  // --- Toggle Function for the Button ---
-  const handleProtectionToggle = async () => { 
-    if (isTogglingProtection) return;
+  // --- Toggle Function for the main Protection Button ---
+  const handleProtectionToggle = async () => {
+    // Disable the button immediately and show spinner
+    if(isTogglingProtection) return;
     setIsTogglingProtection(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    console.log('Attempting to toggle protection...');
+
 
     try {
-      if (isSmsListening) {
-        stopSmsListening();
-      } else {
-        let permissionsOk = smsPermissionGranted; 
-        if (!permissionsOk) {
-          console.log("SMS permissions not granted, requesting via button...");
+      if (!isProtectionActive) { // User wants to ENABLE protection
 
-          const result = await requestAllPermissions(); 
-          permissionsOk = result.smsGranted;
+        // 1. Check/Request SMS Permissions first
+        console.log('Checking permissions...');
+        const { smsGranted, notificationGranted } = await requestAllPermissions();
+
+        // If SMS permissions are not granted, we cannot start SMS monitoring. Stop the enable process.
+        // requestAllPermissions already shows an alert.
+        if (!smsGranted) {
+           console.log('SMS permissions denied. Cannot enable protection.');
+           // Update UI status based on current permissions (already done by setSmsPermissionGranted in requestAllPermissions)
+           // Also update overall state based on current AsyncStorage states
+           const currentStatus = await BackgroundTaskHandler.getMonitoringStatus();
+           setIsProtectionActive(currentStatus.isActive);
+           setIsSmsMonitoringEnabled(currentStatus.sms);
+           setIsGmailMonitoringEnabled(currentStatus.gmail);
+           return; // Exit function
+        }
+        // Notification permission failure doesn't block starting monitoring, just affects alerts.
+
+
+        // 2. Check Gmail Link Status from backend
+        console.log('Checking Gmail link status...');
+        let gmailStatusLinked = false;
+        try {
+            const gmailStatus = await BackgroundTaskHandler.checkGmailLinkStatus();
+            gmailStatusLinked = gmailStatus.linked;
+            setIsGmailLinked(gmailStatusLinked); // Update UI state based on backend
+        } catch (error) {
+             console.error('Error checking Gmail link status during toggle:', error);
+             setIsGmailLinked(false); // Assume not linked on error
         }
 
-        // Proceed if Permission are now OK
-        if (permissionsOk) {
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          startSmsListening(); 
+        // 3. Determine which services should be ENABLED based on permissions and linking
+        const shouldEnableSms = smsGranted; // Enable SMS if permissions are granted
+        const shouldEnableGmail = gmailStatusLinked; // Enable Gmail ONLY if linked
+
+        // 4. Prompt if Gmail is not linked AND user wants full protection (which is the default intention of tapping "Enable")
+        if (!gmailStatusLinked) {
+          Alert.alert(
+            "Complete Protection",
+            "To monitor emails, please link your Gmail account.\n\nWould you like to do that now, or proceed with SMS monitoring only?",
+            [
+              {
+                text: "Link Gmail Now",
+                onPress: () => {
+                  console.log('User chose to link Gmail.');
+                  handleConnectGmail(); // Initiate the connection flow
+                   // Do NOT call enableProtection here. The user will return after linking
+                   // and might tap "Enable" again or useFocusEffect will update the state.
+                   // Optionally, you could save an "intent to enable after linking" flag in AsyncStorage.
+                }
+              },
+               { text: "Continue Anyway (SMS Only)", onPress: async () => {
+                    console.log("User chose to continue with SMS only. Enabling SMS...");
+                     // User chose to enable SMS only. Update AsyncStorage accordingly.
+                     await BackgroundTaskHandler.setMonitoringStates(true, false); // Set intended states in AsyncStorage
+                     // Now start the monitoring based on the states we just set.
+                    await startNativeMonitoring();
+               }},
+              { text: "Cancel", style: "cancel" } // Cancel the whole process
+            ]
+          );
+          // Stop here. The user's choice in the alert determines the next action.
+          console.log('Prompting user about linking Gmail...');
+
         } else {
-          Alert.alert('Permissions Required', 'SMS read/receive permissions are needed to enable protection. Please grant them when prompted or check App Settings.');
+           // Gmail is already linked and SMS permissions granted - Proceed to enable both
+           console.log("Gmail is already linked and SMS permissions granted. Enabling both services...");
+            // Set intended states in AsyncStorage accordingly.
+           await BackgroundTaskHandler.setMonitoringStates(true, true);
+            // Now start the monitoring based on the states we just set.
+           await startNativeMonitoring();
         }
+
+      } else { // User wants to DISABLE protection
+        console.log('Attempting to disable protection...');
+        // User wants to disable all monitoring. Update AsyncStorage first.
+        await BackgroundTaskHandler.setMonitoringStates(false, false);
+        // Now stop the native services based on the states we just set (all false).
+        await stopNativeMonitoring();
       }
 
-      setIsProtectionEnabled(prevState => !prevState);
+    } catch (error) {
+      console.error('Error toggling protection:', error);
+      Alert.alert(
+        "Error",
+        "Failed to toggle protection. Please try again."
+      );
+       // Attempt to sync UI state based on what's currently in AsyncStorage after the error
+       try {
+         const status = await BackgroundTaskHandler.getMonitoringStatus();
+         setIsProtectionActive(status.isActive);
+         setIsSmsMonitoringEnabled(status.sms);
+         setIsGmailMonitoringEnabled(status.gmail);
+       } catch(e) { console.error("Failed to get status after toggle error", e); }
+    } finally {
+      // Hide the toggle button loading indicator
+      setIsTogglingProtection(false);
+       console.log('Protection toggle process finished.');
+    }
+  };
+
+  // Renamed from enableProtection to be clearer it starts the native side
+  const startNativeMonitoring = async () => {
+    console.log('Calling BackgroundTaskHandler.startMonitoring to launch native services...');
+    try {
+      // BackgroundTaskHandler.startMonitoring reads AsyncStorage to decide which services to start
+      const finalStatus = await BackgroundTaskHandler.startMonitoring(); // Returns the final status from AsyncStorage
+
+      console.log('BackgroundTaskHandler.startMonitoring finished. Final state:', finalStatus);
+
+      // Sync UI state with the handler's current state (which reads AsyncStorage)
+      setIsProtectionActive(finalStatus.isActive);
+      setIsSmsMonitoringEnabled(finalStatus.sms);
+      setIsGmailMonitoringEnabled(finalStatus.gmail);
+
+      if (finalStatus.isActive) {
+         let enabledServices = [];
+         if(finalStatus.sms) enabledServices.push("SMS");
+         if(finalStatus.gmail) enabledServices.push("Gmail");
+         const serviceList = enabledServices.length > 0 ? enabledServices.join(" and ") : "no services";
+
+         Alert.alert(
+           "Protection Enabled",
+           `SwiftShield is now actively monitoring ${serviceList}.`
+         );
+      } else {
+          // If handler reported not active after attempting start (meaning neither service could start)
+          Alert.alert("Enable Failed", "Could not start monitoring. Please check permissions, Gmail linking, and try again.");
+      }
 
     } catch (error) {
-      console.error("Error toggling protection:", error);
-      // Optionally show an error message to the user
-      // setInputError("Failed to toggle protection state."); // Example using existing error state
-    } finally {
-      setIsTogglingProtection(false); // Stop loading indicator regardless of success/error
+      console.error('Error starting native monitoring:', error);
+       // Sync state based on AsyncStorage even on error
+       try {
+         const status = await BackgroundTaskHandler.getMonitoringStatus();
+         setIsProtectionActive(status.isActive);
+         setIsSmsMonitoringEnabled(status.sms);
+         setIsGmailMonitoringEnabled(status.gmail);
+       } catch(e) { console.error("Failed to get status after start error", e); }
+
+      throw error; // Re-throw so handleProtectionToggle can catch it
+    }
+  };
+
+  // Renamed from disableProtection
+  const stopNativeMonitoring = async () => {
+    console.log('Calling BackgroundTaskHandler.stopMonitoring to stop native services...');
+    try {
+      // BackgroundTaskHandler.stopMonitoring sets AsyncStorage to false and then attempts to stop native services
+      const finalStatus = await BackgroundTaskHandler.stopMonitoring(); // Returns the final status from AsyncStorage
+      console.log('BackgroundTaskHandler.stopMonitoring finished. Final state:', finalStatus);
+
+      // Sync UI state with the handler's current state (which reads AsyncStorage)
+      setIsProtectionActive(finalStatus.isActive); // Should be false
+      setIsSmsMonitoringEnabled(finalStatus.sms); // Should be false
+      setIsGmailMonitoringEnabled(finalStatus.gmail); // Should be false
+
+
+      Alert.alert(
+        "Protection Disabled",
+        "SwiftShield monitoring has been stopped."
+      );
+    } catch (error) {
+      console.error('Error stopping native monitoring:', error);
+      Alert.alert("Error", "Failed to stop monitoring.");
+       // Sync state based on AsyncStorage even on error
+       try {
+         const status = await BackgroundTaskHandler.getMonitoringStatus();
+         setIsProtectionActive(status.isActive);
+         setIsSmsMonitoringEnabled(status.sms);
+         setIsGmailMonitoringEnabled(status.gmail);
+       } catch(e) { console.error("Failed to get status after stop error", e); }
+      throw error; // Re-throw so handleProtectionToggle can catch it
     }
   };
 
 
-  // --- Backend Interaction Functions ---
+  // --- Backend Interaction Functions (Keep handleUrlScan and unifiedScan) ---
 
-  // Function for manual URL scan input
+  // Function for manual URL scan input (Keep as is)
   const handleUrlScan = async () => {
-    setInputError(""); 
+    setInputError("");
     const trimmedUrl = url.trim();
-  
-    // --- Frontend Validation ---
+
     if (!trimmedUrl) {
       setInputError("Please enter a URL to scan.");
       return;
     }
-    const urlPattern = /^(https?:\/\/)?(?!localhost)(?!.*:\d{2,5})([\w.-]+\.[a-zA-Z]{2,})(\/[^\s#]*)?$/;
+    const urlPattern = /^(https?:\/\/)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(\/[^\s]*)?$/i;
     if (!urlPattern.test(trimmedUrl)) {
       setInputError("Please enter a valid URL format (e.g., example.com or https://example.com).");
       return;
     }
 
-    // --- Proceed with Fetch ---
+    setIsLoadingScan(true);
+
     try {
       console.log(`Scanning explicit URL: ${trimmedUrl}`);
-      const response = await fetch(`${config.BASE_URL}/scan`, {
-        method: 'POST',
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ url: trimmedUrl }),
-      });
+      // Call unifiedScan for manual input
+      await unifiedScan({ url: trimmedUrl });
+      setUrl("");
+      setInputError("");
 
-      // --- Check Backend Response Status ---
-      if (!response.ok) {
-        let backendErrorMsg = `Backend error: ${response.status}`; 
-        try {
-           const errorData = await response.json();
-           if (errorData && errorData.error) {
-               backendErrorMsg = errorData.error;
-           }
-        } catch (jsonError) {
-          //setInputError(jsonError.message || "An error occurred while scanning for phishing.");
-        }
-        //setInputError(backendErrorMsg);
-        return;
-      }
-
-      // --- Process Successful Response ---
-      const data = await response.json();
-
-      // Check for error field even in success response (less likely now)
-      if (data.error) {
-        setInputError(`Scan failed: ${data.error}`);
-        return;
-      }
-
-      // Success
-      console.log("Scan Result:", data);
-      // Add sender info back if it came from an SMS payload for notification context
-      // const resultDataForNotification = { ...data };
-      // if (payload.sender) {
-      //     resultDataForNotification.sender = payload.sender;
-      // }
-
-      // Call the context handler with the backend result (and added sender if applicable)
-      // handleNewScanResult(resultDataForNotification);
-      // setUrl("");
-      showModal(data);
-
-    } catch (error) { 
-      setInputError(error.message || "An error occurred. Check connection or URL.");
+    } catch (error) {
+       console.error("Manual URL Scan Failed:", error.message);
+       setInputError(`Scan failed: ${error.message}`);
+    } finally {
+       setIsLoadingScan(false);
     }
   };
-  
 
-  // Function called ONLY by the SMS listener callback
-  const sendSmsToBackendForProcessing = async (smsData) => {
-    const extractionEndpoint = `${config.BASE_URL}/classify-sms`;
-    const payload = { 
-      body: smsData.body,
-      sender: smsData.sender
+
+  // --- Unified Scan Function (Called by handleUrlScan) ---
+  // This version is specifically for triggering a scan and showing a modal.
+  // Background scanning logic in BackgroundTaskHandler should NOT use this; they call backend directly.
+  const unifiedScan = async (payload) => {
+    // 'payload' for manual scan: { url: "..." }
+    const endpoint = `${config.BASE_URL}/scan`; // Endpoint for scanning a URL
+
+    const backendPayload = {
+        url: payload.url,
+        // No sender or emailId needed for manual URL scan payload
     };
 
-    console.log(`Requesting URL extraction from ${extractionEndpoint}`);
-    // await unifiedScan({ url: smsData.body }); 
-
-    try {
-      const textResponse = await fetch(extractionEndpoint, {
-           method: 'POST',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify(payload)
-      });
-      if (!textResponse.ok) {
-           const errorText = await textResponse.text();
-           console.error(`SMS Text Classification Error (${textResponse.status}):`, errorText);
-           let errorJson = { error: `Backend error: ${response.status}` };
-           try { errorJson = JSON.parse(errorText); } catch (e) {}
-           throw new Error(errorJson.error || `Backend error: ${response.status}`);
-      } 
-      
-      const data = await textResponse.json();
-      console.log("SMS Text Classification Result:", data);
-
-      const resultDataForNotification = { ...data };
-      if (payload.sender) {
-        resultDataForNotification.sender = payload.sender;
-      }
-
-      //handleNewScanResult(resultDataForNotification);
-
-      showModal(data);
-
-
-  } catch(textError) {
-      console.error("Error calling SMS text classification endpoint:", textError);
-  }
-  };
-
-
-  // --- Unified Scan Function (Called by handleUrlScan and sendSmsToBackendForProcessing) ---
-  const unifiedScan = async (payload) => {
-    // 'payload' will be either { url: "..." }
-    // OR { url: "...", sender: "..." } <- from extracted SMS URL
-    const endpoint = `${config.BASE_URL}/scan`;
-    console.log(`Sending to ${endpoint} for scanning:`, JSON.stringify({ url: payload.url }));
+    console.log(`Sending manual URL scan to ${endpoint}:`, JSON.stringify(backendPayload));
 
     try {
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: payload.url }), // Send ONLY {url: ...}
+            body: JSON.stringify(backendPayload),
+            credentials: 'include', // Include user auth credentials if required by backend
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error(`Backend Scan Error (${response.status}):`, errorText);
-             let errorJson = { error: `Backend error: ${response.status}` };
-             try { errorJson = JSON.parse(errorText); } catch (e) {}
-            throw new Error(errorJson.error || `Backend error: ${response.status}`);
+            console.error(`Backend Scan HTTP Error (${response.status}):`, errorText);
+             let errorJson = { error: `Backend HTTP error: ${response.status}` };
+             try { errorJson = JSON.parse(errorText); } catch (e) {
+                errorJson.error = `Backend HTTP error: ${response.status}. Response: ${errorText.substring(0, Math.min(errorText.length, 100))}...`;
+             }
+            throw new Error(errorJson.error || `Backend HTTP error: ${response.status}`);
         }
 
         const data = await response.json();
-        console.log("Unified Scan Result:", data);
+        console.log("Manual Scan Result Data:", data);
 
-        // Add sender info back if it came from an SMS payload for notification context
-        const resultDataForNotification = { ...data };
-        if (payload.sender) {
-            resultDataForNotification.sender = payload.sender;
+        if (data && data.error) {
+             console.error("Backend Scan Logic Error:", data.error);
+             throw new Error(data.error);
         }
 
-        // Call the context handler with the backend result (and added sender if applicable)
-        handleNewScanResult(resultDataForNotification);
+        // Success: Backend returned a result. Assume data structure includes log_details
+        if (data && data.log_details) {
+           // Add the result to the notification context log list
+           // The notification context handles displaying the log entry on the logs screen
+           handleNewScanResult(data.log_details); // Notify context
 
-        // Show modal only for direct URL scans (when sender is NOT in original payload)
-        // if (payload.url && !payload.sender && data.log_details) {
-        //     showModal(data.log_details);
-        // }
+           // Show the modal with the log details for manual scans
+           showModal(data.log_details);
+
+        } else {
+            console.warn("Backend returned success but missing expected data structure for manual scan:", data);
+             Alert.alert("Scan Result", data.message || "Scan complete, no specific threat details found.");
+        }
+
 
     } catch (error) {
-        console.error("Error during unified scan:", error.message);
-        if (payload.url && !payload.sender) { // Only show alert for manual URL scans
-           Alert.alert('Scan Error', `Scan failed: ${error.message}`);
-        }
+        console.error("Error during manual unified scan:", error.message);
+        throw error;
     }
   };
 
-  // --- Modal Functions ---
+
+  // --- Modal Functions (Keep as is) ---
   const showModal = (log) => {
-    setScanResultForModal(log); 
+    setScanResultForModal(log);
     setSelectedLog(log);
     setModalVisible(true);
   };
   const closeModal = () => {
     setModalVisible(false);
     setSelectedLog(null);
+    setScanResultForModal(null);
   };
 
   const handleClearInput = () => {
-    setUrl("");            
-    setInputError("");   
+    setUrl("");
+    setInputError("");
   };
-  
 
-  // Delete Handler 
+
+  // Delete Handler (Keep as is, used by Modal)
   const handleDeleteLog = async (logId) => {
     if (!logId) {
       console.error("Delete failed: No log ID provided.");
@@ -478,21 +593,23 @@ export default function Home({ navigation }) {
       return;
     }
     console.log("Attempting to delete log:", logId);
-    setIsLoadingScan(true); 
+    setIsLoadingScan(true); // Reuse loading state, maybe rename?
     try {
       const deleteUrl = `${config.BASE_URL}/logs/${logId}`;
-      const response = await fetch(deleteUrl, { method: "DELETE" });
-      const result = await response.json(); 
+      const response = await fetch(deleteUrl, {
+          method: "DELETE",
+          credentials: 'include', // Include user auth credentials
+      });
+      const result = await response.json();
 
-      if (!response.ok || result.error) {
-        throw new Error(
-          result.error || `Failed to delete (Status: ${response.status})`
-        );
+      if (!response.ok || (result && result.error)) {
+          const errorMessage = (result && result.error) || `Failed to delete (Status: ${response.status})`;
+          throw new Error(errorMessage);
       }
 
       Alert.alert("Success", "Log deleted successfully.");
-      closeModal(); 
-      // Optionally: Refresh any log lists displayed elsewhere in the app
+      closeModal();
+      // Optionally: Trigger a refresh of the logs list in NotificationContext or other relevant screen
     } catch (err) {
       console.error("Delete failed:", err);
       Alert.alert("Error", `Could not delete log: ${err.message}`);
@@ -503,56 +620,125 @@ export default function Home({ navigation }) {
 
   // --- Render Logic ---
   if (!fontsLoaded) {
-    return <SafeAreaView style={styles.container}><Text>Loading...</Text></SafeAreaView>;
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+         <StatusBar barStyle="light-content" />
+        <ActivityIndicator size="large" color="#31EE9A" />
+        <Text style={{ color: '#fff', marginTop: 10 }}>Loading...</Text>
+      </SafeAreaView>
+    );
   }
+
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Power Icon and Protection Status - Make Icon Touchable */}
-      <View style={styles.iconContainer}>
-        {isTogglingProtection ? (
-          <View style={styles.imagePlaceholder}>
-            <ActivityIndicator
-              size="large"
-              color="#3AED97"
-              style={{ transform: [{ scale: 2.5 }] }}
-            />
-          </View>
-        ) : (
-          <TouchableOpacity
-            onPress={handleProtectionToggle}
-            style={styles.iconContainer}
-            disabled={isTogglingProtection}
-          >
-            <Image
-              source={
-                isProtectionEnabled
-                  ? require("../../assets/images/enableButton.png")
-                  : require("../../assets/images/disableButton.png")
-              }
-              style={styles.powerIcon}
-            />
-            <Text style={styles.protectionText}>SMS Protection</Text>
-            <Text
-              style={[
-                styles.statusText,
-                { color: isSmsListening ? "#31EE9A" : "#AAAAAA" },
-              ]}
-            >
-              {isSmsListening ? "Enabled" : "Disabled"}
-            </Text>
+       <StatusBar barStyle="light-content" />
 
-            {!smsPermissionGranted && Platform.OS === "android" && (
-              <Text style={styles.warningText}>Tap to grant SMS permissions</Text>
+      {/* Power Icon and Protection Status */}
+      <View style={styles.iconContainer}>
+         <TouchableOpacity
+           onPress={handleProtectionToggle}
+           style={styles.powerIconTouchableArea}
+           disabled={isTogglingProtection} // Disable while the toggle process is running
+         >
+            {isTogglingProtection ? ( // Show spinner ONLY for the protection toggle button area
+               <View style={styles.powerIconSpinnerPlaceholder}>
+                  <ActivityIndicator
+                    size="large"
+                    color="#3AED97"
+                    style={{ transform: [{ scale: 2.5 }] }}
+                  />
+                </View>
+            ) : (
+               <Image
+                 source={
+                   isProtectionActive // Use isProtectionActive state for the icon
+                     ? require("../../assets/images/enableButton.png")
+                     : require("../../assets/images/disableButton.png")
+                 }
+                 style={styles.powerIcon}
+               />
             )}
-          </TouchableOpacity>
-        )}
+
+           <Text style={styles.protectionText}>Automatic Protection</Text>
+           {isTogglingProtection ? (
+               <Text style={styles.statusTextLoading}>Toggling...</Text>
+           ) : (
+              <Text
+                 style={[
+                   styles.statusText,
+                   { color: isProtectionActive ? "#31EE9A" : "#AAAAAA" },
+                 ]}
+              >
+                 {isProtectionActive ? "Enabled" : "Disabled"}
+              </Text>
+           )}
+
+           {/* Display status of individual services */}
+           <View style={styles.serviceStatusContainer}>
+                <Text style={styles.serviceStatusText}>
+                    SMS Monitoring: <Text style={{ color: isSmsMonitoringEnabled ? "#31EE9A" : "#AAAAAA" }}>{isSmsMonitoringEnabled ? "Enabled" : "Disabled"}</Text>
+                </Text>
+                 <Text style={styles.serviceStatusText}>
+                    Gmail Monitoring: <Text style={{ color: isGmailMonitoringEnabled ? "#31EE9A" : (isGmailLinked ? "#AAAAAA" : "#AAAAAA") }}>
+                      {isGmailMonitoringEnabled ? "Enabled" : (isGmailLinked ? "Disabled" : "Not Linked")}
+                    </Text>
+                </Text>
+           </View>
+
+
+           {/* Warning/Call to action below status */}
+           {!smsPermissionGranted && Platform.OS === "android" && (
+             <Text style={styles.warningText}>SMS permissions required. Tap above to grant.</Text>
+           )}
+           {/* Optionally, add a warning if protection is active but some services are not enabled */}
+            {isProtectionActive && (!isSmsMonitoringEnabled || (isGmailLinked && !isGmailMonitoringEnabled)) && (
+                 <Text style={styles.warningText}>Protection active, but some services are not fully enabled. Check statuses above.</Text>
+            )}
+         </TouchableOpacity>
+      </View>
+
+
+      {/* GMail Connect Section */}
+      <View style={styles.gmailConnectContainer}>
+          <Text style={styles.gmailConnectLabel}>Gmail Status:</Text>
+          <View style={styles.gmailStatusRow}>
+               {/* Optional: Add Gmail icon */}
+               {/* <Image source={DUMMY_ICON_GMAIL} style={styles.gmailIcon} /> */}
+              <Text style={[styles.gmailStatusText, { color: isGmailLinked ? "#31EE9A" : "#AAAAAA" }]}>
+                 {isGmailLinked ? "Connected" : "Not Linked"}
+              </Text>
+
+              {/* Button to connect/disconnect */}
+              {!isGmailLinked && !isConnectingGmail && (
+                 <TouchableOpacity style={styles.gmailConnectButton} onPress={handleConnectGmail}>
+                    <Text style={styles.gmailConnectButtonText}>Link Gmail</Text>
+                 </TouchableOpacity>
+              )}
+               {isConnectingGmail && (
+                   <View style={styles.gmailConnectButton}>
+                       <ActivityIndicator size="small" color="#000000" />
+                   </View>
+               )}
+              {/* Disconnect button - Placeholder */}
+              {isGmailLinked && (
+                   <TouchableOpacity style={styles.gmailDisconnectButton} onPress={() => Alert.alert("Disconnect", "Disconnect functionality not yet implemented.")}>
+                       <Text style={styles.gmailDisconnectButtonText}>Disconnect</Text>
+                   </TouchableOpacity>
+              )}
+          </View>
+           {!isGmailLinked && (
+             <Text style={styles.gmailHintText}>Link Gmail for email protection.</Text>
+           )}
+            {isGmailLinked && (
+                <Text style={styles.gmailHintText}>Monitoring is active when Automatic Protection is Enabled.</Text>
+            )}
       </View>
 
 
       {/* Input and Scan Button */}
       <View style={styles.inputContainer}>
-        <Text style={styles.scanLabel}>Scan URL:</Text>
+        <Text style={styles.scanLabel}>Manual URL Scan:</Text>
         <TextInput
           style={[
             styles.textInput,
@@ -571,17 +757,13 @@ export default function Home({ navigation }) {
           autoCapitalize="none"
           keyboardType="url"
         />
-      
 
-
-        {/* --- Display Error Message Below Input --- */}
          {inputError ? <Text style={styles.errorText}>{inputError}</Text> : null}
 
-        {/* Show ActivityIndicator instead of button while loading */}
         {isLoadingScan ? (
-          <View style={styles.loadingContainer}>
+          <View style={styles.manualScanLoadingContainer}>
             <ActivityIndicator size="small" color="#3AED97" />
-            <Text style={styles.loadingText}>Scanning...</Text>
+            <Text style={styles.manualScanLoadingText}>Scanning...</Text>
           </View>
         ) : (
           <TouchableOpacity style={styles.scanButton} onPress={handleUrlScan}>
@@ -603,7 +785,7 @@ export default function Home({ navigation }) {
               end={{ x: 1, y: 1 }}
               style={styles.gradientButton}
             >
-              <Text style={styles.clearButtonText}>Clear</Text>
+              <Text style={styles.clearButtonText}>Clear Input</Text>
             </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -624,40 +806,62 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    backgroundColor: "#000000",
   },
   iconContainer: {
     alignItems: "center",
-    marginBottom: 50,
+    marginBottom: 30,
+    width: '100%',
   },
+   powerIconTouchableArea: {
+      alignItems: 'center',
+      padding: 10,
+   },
   powerIcon: {
     width: 130,
     height: 140,
     resizeMode: "contain",
   },
-  imagePlaceholder: {
+  powerIconSpinnerPlaceholder: {
     width: 130,
-    height: 140, 
+    height: 140,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  protectionText: {                         
+  protectionText: {
     color: "#31EE9A",
-    // fontFamily: "Poppins-ExtraBold", 
     fontSize: 20,
     fontWeight: "600",
     marginTop: 10,
   },
   statusText: {
     color: "#31EE9A",
-    // fontFamily: "Poppins-ExtraBold", 
     fontSize: 16,
     fontWeight: "400",
     marginTop: 5,
   },
+   statusTextLoading: {
+     fontSize: 16,
+     fontWeight: "400",
+     marginTop: 5,
+     color: '#BCE26E',
+   },
+   serviceStatusContainer: {
+     marginTop: 10,
+     alignSelf: 'stretch',
+     paddingHorizontal: 10,
+   },
+   serviceStatusText: {
+      color: "#AAAAAA",
+      fontSize: 14,
+      marginBottom: 3,
+   },
   inputContainer: {
-    width: "80%",
+    width: "100%",
     alignItems: "flex-start",
+    marginTop: 30,
   },
   scanLabel: {
     color: "#31EE9A",
@@ -674,28 +878,29 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 10,
     color: "#ffffff",
-    //backgroundColor: "rgba(0, 43, 54, 0.8)", 
-    marginBottom: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    marginBottom: 10,
+    fontSize: 16,
   },
   inputErrorBorder: {
     borderColor: '#FF0000',
   },
   inputTextError: {
-    color: '#FF0000', 
+    color: '#FF0000',
   },
   errorText: {
-    color: '#FF0000', 
+    color: '#FF0000',
     fontSize: 12,
-    marginBottom: 15,
+    marginBottom: 10,
     marginLeft: 5,
   },
   scanButton: {
     width: "100%",
-    height: 40,
+    height: 45,
     borderRadius: 8,
     overflow: "hidden",
-    marginTop: 10,
-    marginBottom: 20,
+    marginTop: 5,
+    marginBottom: 15,
   },
   gradientButton: {
     flex: 1,
@@ -704,98 +909,111 @@ const styles = StyleSheet.create({
   },
   scanButtonText: {
     color: "#000000",
-    // fontFamily: "Inter", // Make sure font is linked
-    fontSize: 16, // Slightly smaller
+    fontSize: 16,
     fontWeight: "800",
-    letterSpacing: 3, // Less spacing
+    letterSpacing: 2,
   },
   clearButton: {
     width: "100%",
-    height: 40,
+    height: 45,
     borderRadius: 8,
     overflow: "hidden",
-    marginTop: 10,
     marginBottom: 20,
   },
   clearButtonText: {
     color: "#000000",
-    // fontFamily: "Inter", // Make sure font is linked
-    fontSize: 16, // Slightly smaller
+    fontSize: 16,
     fontWeight: "800",
-    letterSpacing: 3, // Less spacing
+    letterSpacing: 2,
   },
-  loadingContainer: {
-    // Applied additionally to container when loading
-    flex: 1,
+  manualScanLoadingContainer: {
+    width: "100%",
+    height: 45,
     justifyContent: "center",
     alignItems: "center",
-    padding: 0, // Override padding when only showing loader
+    marginTop: 5,
+    marginBottom: 15,
   },
-   warningText: { // Added style
+  manualScanLoadingText: {
+      color: "#BCE26E",
+      marginTop: 5,
+      fontSize: 14,
+  },
+   warningText: {
      marginTop: 10,
      color: 'orange',
      fontSize: 12,
+     textAlign: 'center',
+     paddingHorizontal: 10,
+   },
+   gmailConnectContainer: {
+     width: '100%',
+     marginTop: 20,
+     paddingTop: 15,
+     paddingBottom: 10,
+     borderTopWidth: 1,
+     borderTopColor: '#222',
+     borderBottomWidth: 1,
+     borderBottomColor: '#222',
+     paddingHorizontal: 10,
+   },
+   gmailConnectLabel: {
+     color: '#31EE9A',
+     fontSize: 14,
+     fontWeight: 'semibold',
+     marginBottom: 10,
+     marginLeft: 5,
+   },
+    gmailStatusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 5,
+    },
+   gmailIcon: {
+       width: 24,
+       height: 24,
+       resizeMode: 'contain',
+       marginRight: 10,
+   },
+   gmailStatusText: {
+     fontSize: 16,
+     flex: 1,
+     marginLeft: 5,
+     color: '#AAAAAA',
+   },
+   gmailConnectButton: {
+     backgroundColor: '#BCE26E',
+     paddingVertical: 8,
+     paddingHorizontal: 15,
+     borderRadius: 20,
+     alignItems: 'center',
+     justifyContent: 'center',
+     minWidth: 100,
+   },
+   gmailConnectButtonText: {
+     color: '#000000',
+     fontSize: 14,
+     fontWeight: 'bold',
+   },
+   gmailDisconnectButton: {
+     backgroundColor: '#FF6347',
+     paddingVertical: 8,
+     paddingHorizontal: 15,
+     borderRadius: 20,
+      alignItems: 'center',
+     justifyContent: 'center',
+      minWidth: 100,
+   },
+   gmailDisconnectButtonText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: 'bold',
+   },
+   gmailHintText: {
+       color: '#AAAAAA',
+       fontSize: 12,
+       marginTop: 5,
+       marginLeft: 5,
    }
 });
-
-  // --- Backend Interaction Functions ---
-  // const handleUrlScan = async () => { 
-  //   if (!url) {
-  //       Alert.alert('Input Needed', 'Please enter a URL to scan.');
-  //       return;
-  //   }
-  //   try {
-  //     const response = await fetch(`${config.BASE_URL}/predict/scan`, {
-  //       method: 'POST',
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ url }),
-  //     });
-
-  //     if (!response.ok) throw new Error(`Backend error: ${response.status}`);
-  //     const data = await response.json();
-  //     if (data.error) throw new Error(data.error);
-  //     console.log("URL Scan Result:", data);
-      
-  //     // Show Result
-  //     handleNewScanResult(data)
-
-  //   } catch (error) {
-  //     console.error("Error scanning URL:", error);
-  //     Alert.alert('Scan Error', `Failed to scan URL: ${error.message}`);
-  //   }
-  // };
-
-  // const sendSmsToBackendForScan = async (smsData) => {
-  //   console.log('Sending SMS to backend for scan:', smsData);
-  //   if (!smsData || !smsData.body) return; 
-
-  //   const endpoint = `${config.BASE_URL}/sms/classify_content`;
-  //   //NEED TO CHANGE
-  //   const payload = { 
-  //     body: smsData.body,
-  //     sender: smsData.sender 
-  //   };
-
-
-  //   try {
-  //     setLoading(true);
-      
-  //     console.log("SMS Data:", smsData.body);
-  //     const response = await fetch(`${config.BASE_URL}/predict/scan`, { 
-  //       method: 'POST',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify(payload),
-  //     });
-
-  //     if (!response.ok) throw new Error(`Backend error: ${response.status}`);
-      
-  //     const data = await response.json();
-  //     console.log("SMS Scan Result:", data);
-  //     // Show result
-  //     handleNewScanResult(data)
-
-  //   } catch (error) {
-  //     setLoading(false);
-  //     console.error("Error sending SMS to backend:", error);
-  //   }
-  // };

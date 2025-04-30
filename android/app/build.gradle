@@ -1,166 +1,238 @@
-// Apply essential plugins
-apply plugin: "com.android.application"
-apply plugin: "com.facebook.react"
-apply plugin: "org.jetbrains.kotlin.android" // Needed because some dependencies use Kotlin
+    // Apply essential plugins using the modern plugins block at the very top
+    plugins {
+        id "com.android.application"
+        id "com.facebook.react" // Use the plugin ID here
+        id "org.jetbrains.kotlin.android" // Use the plugin ID here
+    }
 
-/**
- * This is the configuration block to customize your React Native Android app.
- * By default you don't need to apply any configuration, just uncomment the lines you need.
- */
-react {
-    /* Folders */
-    // root = file("../../")
-    // reactNativeDir = file("../../node_modules/react-native")
-    // codegenDir = file("../../node_modules/@react-native/codegen")
-    // cliFile = file("../../node_modules/react-native/cli.js")
+    // --- REPOSITORIES BLOCK RESTORED AT TOP LEVEL ---
+    // This block explicitly defines repositories for this module's dependencies.
+    // With repositoriesMode = RepositoriesMode.PREFER_PROJECT in settings.gradle,
+    // this block will be used/preferred for resolving dependencies in this module.
+    repositories {
+        google() // Google's Maven repository
+        mavenCentral() // Maven Central repository
+        // Add any other custom repositories your project might need below this
+        // e.g., maven { url 'https://www.jitpack.io' } // If jitpack deps are only in this module
+    }
+    // --- END REPOSITORIES BLOCK ---
 
-    /* Variants */
-    // debuggableVariants = ["liteDebug", "prodDebug"]
 
-    /* Bundling */
-    bundleAssetName = "index.android.bundle" // Your custom setting
-    entryFile = file("../../index.js") // Your custom setting
-    // nodeExecutableAndArgs = ["node"]
-    // bundleCommand = "ram-bundle"
-    // bundleConfig = file(../rn-cli.config.js)
-    // extraPackagerArgs = []
+    /**
+    * This is the configuration block to customize your React Native Android app.
+    * By default you don't need to apply any configuration, just uncomment the lines you need.
+    */
+    react {
+        /* Folders */
+        // root = file("../../")
+        // reactNativeDir = file("../../node_modules/react-native")
+        // codegenDir = file("../../node_modules/@react-native/codegen")
+        // cliFile = file("../../node_modules/react-native/cli.js")
 
-    /* Hermes Commands */
-    // hermesCommand = "$rootDir/my-custom-hermesc/bin/hermesc"
-    // hermesFlags = ["-O", "-output-source-map"]
+        /* Variants */
+        // debuggableVariants = ["liteDebug", "prodDebug"]
 
-    /* Autolinking */
-    // autolinkLibrariesWithApp() // <-- REMOVED - Deprecated in RN 0.71+
+        /* Bundling */
+        bundleAssetName = "index.android.bundle" // Your custom setting
+        entryFile = file("../../index.js") // Your custom setting
+        // nodeExecutableAndArgs = ["node"]
+        // bundleCommand = "ram-bundle"
+        // bundleConfig = file(../rn-cli.config.js)
+        // extraPackagerArgs = []
+
+        /* Hermes Commands */
+        // hermesCommand = "$rootDir/my-custom-hermesc/bin/hermesc"
+        // hermesFlags = ["-O", "-output-source-map"]
+
+        /* Autolinking */
+        // autolinkLibrariesWithApp() // <-- REMOVED - Deprecated in RN 0.71+
+    }
+
+
+    /**
+    * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
+    */
+    def enableProguardInReleaseBuilds = false
+
+    /**
+    * The preferred build flavor of JavaScriptCore (JSC)
+    */
+    def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+' // Check if this version is appropriate for RN 0.73
+
+    // Define hermesEnabled based on gradle.properties (ensures consistency)
+    //def hermesEnabled = project.ext.react.get("enableHermes", true)
+
+    android {
+        // Use versions from rootProject.ext for consistency
+        // Ensure these ext properties are defined in your root build.gradle or elsewhere
+        ndkVersion rootProject.ext.ndkVersion
+        compileSdkVersion rootProject.ext.compileSdkVersion // Ensure this is 31 or higher
+        buildToolsVersion rootProject.ext.buildToolsVersion
+
+        namespace "com.anonymous.swiftshield" // Make sure this matches your package structure
+
+        // REMOVED: repositories block was moved out of here
+
+        defaultConfig {
+            applicationId "com.anonymous.swiftshield"
+            minSdkVersion rootProject.ext.minSdkVersion
+            targetSdkVersion rootProject.ext.targetSdkVersion
+            versionCode 1
+            versionName "1.0"
+            // Removed externalNativeBuild block from here based on user's backup
+        }
+
+        signingConfigs {
+            debug {
+                storeFile file('debug.keystore')
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+            release {
+                storeFile file(MYAPP_RELEASE_STORE_FILE)
+                storePassword MYAPP_RELEASE_STORE_PASSWORD
+                keyAlias MYAPP_RELEASE_KEY_ALIAS
+                keyPassword MYAPP_RELEASE_KEY_PASSWORD
+            }
+            // release { // You should configure a proper release signing config later
+            //     signingConfig signingConfigs.debug // Using debug for now
+            //     minifyEnabled enableProguardInReleaseBuilds
+            //     proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            // }
+        }
+
+        buildTypes {
+            debug {
+                signingConfig signingConfigs.debug
+                buildConfigField "String", "BASE_URL", "\"http://10.0.2.2:5000\""
+            }
+            release {
+                signingConfig signingConfigs.release
+                minifyEnabled false // or true if using Proguard
+                shrinkResources false
+                proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                buildConfigField "String", "BASE_URL", "\"https://swiftshield.onrender.com\""
+            }
+        }
+
+        lintOptions {
+            abortOnError false
+            disable 'MissingPermission'
+            checkOnly 'all-warnings'
+            lintConfig file("${rootDir}/lint.xml")
+        }
+
+        // Add sourceSets block to include generated code
+        // This might help once the generation task runs correctly
+        sourceSets {
+            main.java.srcDirs += [
+                // Use the correct path where PackageList was found
+                "$buildDir/generated/autolinking/src/main/java"
+            ]
+        }
+
+        packagingOptions { // Keep these, they often prevent crashes
+            pickFirst '**/libc++_shared.so'
+            pickFirst '**/libfbjni.so'
+            // Add other pickFirst rules if needed based on build errors
+            resources {
+                excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/NOTICE']
+            }
+        }
+
+        // Add externalNativeBuild if you have custom C++ code in src/main/cpp
+        //  externalNativeBuild {
+        //      cmake {
+        //          path file('src/main/cpp/CMakeLists.txt') // Assuming this path exists
+        //      }
+        //  }
+
+        // Enable Java 8 features (required by some libs like Google API client >= 1.27.0)
+        compileOptions {
+            sourceCompatibility JavaVersion.VERSION_1_8
+            targetCompatibility JavaVersion.VERSION_1_8
+
+            coreLibraryDesugaringEnabled true 
+        }
+        kotlinOptions {
+            jvmTarget = '1.8'
+        }
+    }
+
+    dependencies {
+        // The version of react-native is set by the React Native Gradle Plugin
+        implementation("com.facebook.react:react-android") // Keep this
+
+        // Hermes or JSC
+        if (project.hasProperty('hermesEnabled') && project.property('hermesEnabled').toBoolean()) {
+            implementation("com.facebook.react:hermes-android")
+        } else {
+            implementation jscFlavor
+        }
+
+        implementation 'androidx.core:core:1.9.0' // Use a stable version compatible with compileSdk 34
+
+        // Autolinked Native Modules (Gradle finds these via settings.gradle)
+        implementation project(':react-native-async-storage_async-storage')
+        implementation project(':react-native-android-sms-listener')
+        implementation project(':react-native-gesture-handler')
+        implementation project(':react-native-linear-gradient')
+        implementation project(':react-native-push-notification')
+        implementation project(':react-native-reanimated')
+        implementation project(':react-native-safe-area-context')
+        implementation project(':react-native-screens')
+        implementation project(':react-native-svg')
+        implementation project(':react-native-vector-icons')
+        implementation project(':react-native-webview')
+        implementation project(':react-native-clipboard_clipboard')
+        implementation project(':react-native-image-picker') // Added previously
+        implementation project(':react-native-fs') 
+
+
+        // --- Google API Dependencies (NO { force = true } here) ---
+        implementation 'com.google.api-client:google-api-client-android:2.2.0'
+        implementation 'com.google.oauth-client:google-oauth-client-jetty:1.34.1'
+        implementation 'com.google.apis:google-api-services-gmail:v1-rev20220404-2.0.0' // Or try v1-rev2023... if needed
+        implementation 'com.google.http-client:google-http-client-gson:1.43.3' // Use resolved version
+        implementation 'com.google.auth:google-auth-library-oauth2-http:1.22.0' // Use resolved version
+
+        // --- Other needed libraries ---
+        implementation 'com.google.code.gson:gson:2.10.1'
+        implementation 'com.squareup.okhttp3:okhttp:4.11.0' // Often needed by other libs or RN itself
+        // Javax mail -> AndroidX mail migration
+        implementation 'com.sun.mail:android-mail:1.6.7'
+        implementation 'com.sun.mail:android-activation:1.6.7'
+
+        // --- Security & Desugaring ---
+        def security_version = "1.1.0-alpha06" // Or latest stable
+        implementation "androidx.security:security-crypto:$security_version"
+        coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.3' 
+    }
+
+
+
+
+    configurations.all {
+        resolutionStrategy {
+            // Force specific versions for potentially conflicting core libraries
+            // Use versions known to be compatible or the ones resolved in your previous 'dependencies' output
+            force 'com.google.guava:guava:32.0.0-android'
+            force 'com.google.code.findbugs:jsr305:3.0.2'
+            // Add forces for the specific Google API client libs
+            force 'com.google.api-client:google-api-client:2.2.0' // Force base client version if needed
+            force 'com.google.http-client:google-http-client:1.43.3' // Force base http client
+            force 'com.google.apis:google-api-services-gmail:v1-rev20220404-2.0.0' // Force Gmail service
+            // You could re-force the specific API clients here too if needed
+            // force 'com.google.api-client:google-api-client:2.2.0' // Base client (check if -android is needed)
+            // force 'com.google.apis:google-api-services-gmail:v1-rev20220404-2.0.0'
+        }
 }
+    // Apply React Native specific gradle script (like font handling)
+    // This script often applies the 'com.facebook.react.app' or equivalent plugin internally
+    // and configures dependencies based on node_modules/react-native.
+    // KEEP this line. It's part of the React Native build system.
+    apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
 
-/**
- * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
- */
-def enableProguardInReleaseBuilds = false
-
-/**
- * The preferred build flavor of JavaScriptCore (JSC)
- */
-def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+' // Check if this version is appropriate for RN 0.73
-
-// Define hermesEnabled based on gradle.properties (ensures consistency)
-//def hermesEnabled = project.ext.react.get("enableHermes", true)
-
-android {
-    // Use versions from rootProject.ext for consistency
-    ndkVersion rootProject.ext.ndkVersion
-    compileSdkVersion rootProject.ext.compileSdkVersion
-    buildToolsVersion rootProject.ext.buildToolsVersion
-
-    namespace "com.anonymous.swiftshield" // Make sure this matches your package structure
-
-    defaultConfig {
-        applicationId "com.anonymous.swiftshield"
-        minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
-        // Removed externalNativeBuild block from here based on user's backup
-    }
-
-    signingConfigs {
-        debug {
-            storeFile file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
-        }
-        release {
-            storeFile file(MYAPP_RELEASE_STORE_FILE)
-            storePassword MYAPP_RELEASE_STORE_PASSWORD
-            keyAlias MYAPP_RELEASE_KEY_ALIAS
-            keyPassword MYAPP_RELEASE_KEY_PASSWORD
-        }
-        // release { // You should configure a proper release signing config later
-        //     signingConfig signingConfigs.debug // Using debug for now
-        //     minifyEnabled enableProguardInReleaseBuilds
-        //     proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
-        // }
-    }
-
-    buildTypes {
-        debug {
-            signingConfig signingConfigs.debug
-        }
-        // release {
-        //     signingConfig signingConfigs.debug // Using debug for now, configure properly later
-        //     minifyEnabled enableProguardInReleaseBuilds
-        //     proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
-        // }
-        release {
-            signingConfig signingConfigs.release
-            minifyEnabled false // or true if using Proguard
-            shrinkResources false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-
-    lintOptions {
-        abortOnError false
-    }
-
-    // Add sourceSets block to include generated code
-    // This might help once the generation task runs correctly
-    sourceSets {
-        main.java.srcDirs += [
-            // Use the correct path where PackageList was found
-            "$buildDir/generated/autolinking/src/main/java"
-        ]
-    }
-
-    packagingOptions { // Keep these, they often prevent crashes
-        pickFirst '**/libc++_shared.so'
-        pickFirst '**/libfbjni.so'
-        // Add other pickFirst rules if needed based on build errors
-    }
-
-    // Add externalNativeBuild if you have custom C++ code in src/main/cpp
-    //  externalNativeBuild {
-    //      cmake {
-    //          path file('src/main/cpp/CMakeLists.txt') // Assuming this path exists
-    //      }
-    //  }
-}
-
-dependencies {
-    // The version of react-native is set by the React Native Gradle Plugin
-    implementation("com.facebook.react:react-android")
-
-    // Hermes or JSC
-    if (project.hasProperty('hermesEnabled') && project.property('hermesEnabled').toBoolean()) {
-        implementation("com.facebook.react:hermes-android")
-    } else {
-        implementation jscFlavor
-    }
-
-    implementation 'androidx.core:core:1.9.0' // Use a stable version compatible with compileSdk 34
-
-    // Autolinked Native Modules (Gradle finds these via settings.gradle)
-    implementation project(':react-native-async-storage_async-storage')
-    implementation project(':react-native-android-sms-listener')
-    implementation project(':react-native-gesture-handler')
-    implementation project(':react-native-linear-gradient')
-    implementation project(':react-native-push-notification')
-    implementation project(':react-native-reanimated')
-    implementation project(':react-native-safe-area-context')
-    implementation project(':react-native-screens')
-    implementation project(':react-native-svg')
-    implementation project(':react-native-vector-icons')
-    implementation project(':react-native-webview')
-    implementation project(':react-native-clipboard_clipboard')
-    // implementation project(':react-native-make')
-
-    // SoLoader (required by React Native) - Check compatibility if needed
-    implementation('com.facebook.soloader:soloader:0.10.5') // Example version
-}
-
-// Apply React Native specific gradle script (like font handling)
-apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
-
-// Apply Vector Icons font handling script
-apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
+    // Apply Vector Icons font handling script
+    apply from: "../../node_modules/react-native-vector-icons/fonts.gradle" // Keep this

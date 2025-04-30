@@ -14,7 +14,10 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import config from '../../../config/config';
 import ConnectedAppItem from '../components/ConnectedAppItem';
- 
+import startSmsListening from '../../tabScreens/Home';
+import stopSmsListening from '../../tabScreens/Home';
+import requestAllPermissions from '../../tabScreens/Home';
+
 // Color constant 
 const APP_GREEN_COLOR = '#31EE9A'; 
 const BACKGROUND_COLOR = '#000000'; 
@@ -118,10 +121,10 @@ const ConnectedAppsScreen = ({ navigation }) => {
     if (newValue === true) { // User wants to ENABLE SMS listening
        console.log("Attempting to enable SMS listener...");
         // 1. Check/Request Permissions
-        let permissionsOk = await checkOrRequestSmsPermissions(); // Implement this helper
+        let permissionsOk = await checkOrRequestSmsPermissions(); 
         if (!permissionsOk) {
             Alert.alert('Permissions Required', 'Cannot enable SMS protection without SMS read/receive permissions.');
-            return; // Don't change switch state if permissions fail
+            return; 
         }
         // 2. Start the Listener (Import or get from context)
         console.log("TODO: Call startSmsListening()");
@@ -135,6 +138,7 @@ const ConnectedAppsScreen = ({ navigation }) => {
         setIsSmsEnabled(false); // Update state
     }
  };
+
 
    // --- Permission Helper (Example) ---
    const checkOrRequestSmsPermissions = async () => {
