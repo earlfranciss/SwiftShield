@@ -153,8 +153,12 @@ dependencies {
     implementation project(':react-native-vector-icons')
     implementation project(':react-native-webview')
     implementation project(':react-native-clipboard_clipboard')
+    implementation project(':react-native-google-signin')
     // implementation project(':react-native-make')
-
+    implementation 'com.google.android.gms:play-services-auth:20.7.0'
+    // implementation project(':react-native-background-fetch')
+    // implementation "com.transistorsoft:tsbackgroundfetch:4.2.7"
+    // implementation 'com.transistorsoft:tsbackgroundfetch:4.0.0' 
     // SoLoader (required by React Native) - Check compatibility if needed
     implementation('com.facebook.soloader:soloader:0.10.5') // Example version
 }

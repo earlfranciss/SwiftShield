@@ -8,6 +8,7 @@ import './FeatureFlagsSetup';
 //import handleBackgroundTask from './BackgroundTaskHandler';
 
 AppRegistry.registerComponent("SwiftShield", () => App);
+// AppRegistry.registerComponent(appName, () => App);
 
 //AppRegistry.registerHeadlessTask('SwiftShieldBackgroundTask', () => handleBackgroundTask);
 

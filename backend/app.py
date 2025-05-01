@@ -1080,6 +1080,126 @@ def classify_sms_text():
 
 
 
+# === SMS TEXT CLASSIFICATION ROUTE ===
+@app.route("/classify-gmail", methods=["POST"])
+#@login_required
+def classify_sms_text():
+    """
+    Classifies the provided SMS text body using the spam detection model.
+    """
+    # Check if model and vectorizer loaded successfully
+    if spam_model is None or spam_vectorizer is None:
+        return jsonify({"error": "SMS classification model is not available."}), 503 # Service Unavailable
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data received"}), 400
+
+        sms_body = data.get("body")
+        sender = data.get("sender", "Unknown")
+
+        if sms_body is None: # Check for None explicitly
+            return jsonify({"error": "Missing 'body' key in request"}), 400
+        if not isinstance(sms_body, str) or not sms_body.strip():
+             return jsonify({"error": "'body' must be a non-empty string"}), 400
+
+        print(f"DEBUG /sms/classify-text: Received text from {sender}: '{sms_body[:100]}...'")
+
+        # 1. Transform the input text using the loaded vectorizer
+        text_transformed = spam_vectorizer.transform([sms_body])
+
+        # 2. Predict using the loaded spam model
+        prediction = spam_model.predict(text_transformed)
+        probabilities = spam_model.predict_proba(text_transformed)
+
+        # Assuming class 1 is SPAM and class 0 is NOT SPAM (HAM)
+        # Verify this based on your model training!
+        prob_spam = probabilities[0][1]
+        prob_not_spam = probabilities[0][0]
+        y_pred = prediction[0] # Should be 0 or 1
+
+        print(f"DEBUG: SMS Text Prediction: {y_pred} (Assuming 1=Spam, 0=Not Spam)")
+        print(f"DEBUG: SMS Text Probabilities: NotSpam={prob_not_spam:.4f}, Spam={prob_spam:.4f}")
+
+        # Determine classification string and severity (example logic)
+        classification = "spam" if y_pred == 1 else "safe" # Or "ham"
+        severity = "UNKNOWN"
+        if y_pred == "spam":
+             if prob_spam >= 0.9: severity = "CRITICAL"
+             if prob_spam >= 0.7: severity = "HIGH"
+             elif prob_spam >= 0.65: severity = "MEDIUM" 
+             else: severity = "LOW"
+        else: 
+             severity = "SAFE" 
+
+        print(f"✅ Final Classification: {classification}, Severity: {severity}")
+
+        # --- Store Results (Optional but recommended) ---
+        extracted_urls = []
+        extracted_urls = extract_urls_from_text(sms_body) 
+        # You might want a separate collection for text detections or add to Logs
+        detect_id = str(uuid.uuid4()) # Generate an ID for this detection event
+        current_time_ph = datetime.now(pytz.timezone('Asia/Manila'))
+
+        # Example: Log to Detection collection (adapt fields as needed)
+        detection_data = {
+            "detect_id": detect_id,
+            "user_id": session.get('user_id'), 
+            # "url": extracted_urls,
+            "url": sms_body,
+            "text": sms_body,
+            "sender": sender,
+            "timestamp": current_time_ph,
+            "model_prediction": y_pred,
+            "spam_probability": float(prob_spam),
+            "phishing_percentage": prob_spam * 100,
+            "severity": severity,
+            "metadata": {"source": "SMS Text Scan"}
+        }
+        detection_collection.insert_one(detection_data)
+
+         # Example: Log to Logs collection
+        log_data = {
+            "log_id": str(uuid.uuid4()),
+            "detect_id": detect_id,
+            "user_id": session.get('user_id'),
+            "probability": float(prob_spam),
+            "severity": severity,
+            "platform": "SMS",
+            "verdict": classification.capitalize(), 
+            "timestamp": current_time_ph,
+        }
+        log_insert_result = logs_collection.insert_one(log_data)
+        log_data["_id"] = str(log_insert_result.inserted_id)
+        # --- End Storing Results ---
+
+
+        # --- Prepare Response ---
+        response = {
+            "text_preview": sms_body[:100] + "...",
+            # "url": extracted_urls,
+            "url": sms_body,
+            "prediction": y_pred,
+            "classification": classification,
+            "spam_probability": prob_spam * 100,
+            "safe_probability": prob_not_spam * 100,
+            "phishing_percentage": prob_spam * 100,
+            "severity": severity,
+            "detect_id": detect_id, 
+            "date_scanned": current_time_ph,
+            "recommended_action": 'Block Number' if prob_spam > 0.6 else 'Stay Vigilant',
+            "log_details": log_data 
+        }
+
+        print(f"✅ Response: {response}")
+        
+        return jsonify(response), 200
+
+    except Exception as e:
+        print(f"🔥 Error in /sms/classify-text: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({"error": "An internal server error occurred during SMS classification."}), 500
 
 
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   SafeAreaView,
@@ -17,9 +17,14 @@ import LinearGradient from "react-native-linear-gradient";
 import config from "../../config/config";
 import DetailsModal from '../../components/DetailsModal';
 import SmsListener from 'react-native-android-sms-listener';
-import { useNotifications } from "../../utils/NotificationContext"; 
+import { useNotifications } from "../../utils/NotificationContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "@react-navigation/native"; 
+import { useFocusEffect } from "@react-navigation/native";
+import { scanGmail } from "../../services/GmailService";
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { GOOGLE_CLIENT_ID } from '@env';
+
+
 
 // Instead of importing RNFS directly, create a wrapper with safety checks
 const SafeRNFS = {
@@ -49,18 +54,22 @@ export default function Home({ navigation }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
   const [fontsLoaded, setFontsLoaded] = useState(false);
-  const [inputError, setInputError] = useState(""); 
-  const [inputValue, setInputValue] = useState(''); 
+  const [inputError, setInputError] = useState("");
+  const [inputValue, setInputValue] = useState('');
   const [scanResultForModal, setScanResultForModal] = useState(null);
-  const [isLoadingScan, setIsLoadingScan] = useState(false); 
-  const [isProtectionEnabled, setIsProtectionEnabled] = useState(false); 
+  const [isLoadingScan, setIsLoadingScan] = useState(false);
+  const [isProtectionEnabled, setIsProtectionEnabled] = useState(false);
   const [isTogglingProtection, setIsTogglingProtection] = useState(false);
-  const {handleNewScanResult } = useNotifications(); 
+  const {handleNewScanResult } = useNotifications();
   const [isProtectionActive, setIsProtectionActive] = useState(false);
   const [isSmsListening, setIsSmsListening] = useState(false);
   // This state tracks if CORE SMS permissions are granted
   const [smsPermissionGranted, setSmsPermissionGranted] = useState(false);
   const smsSubscriptionRef = useRef(null);
+
+  //For the sign in
+  const [gmailLoading, setGmailLoading] = useState(false);
+  const [gmailError, setGmailError] = useState(null);
 
 
   // Initialize SafeRNFS
@@ -79,9 +88,16 @@ export default function Home({ navigation }) {
   }, []);
 
   useEffect(() => {
-    checkPermissions(); 
+    checkPermissions();
   }, []);
 
+  
+  useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: GOOGLE_CLIENT_ID,
+      offlineAccess: true,
+    });
+  }, []);
 
 
 
@@ -92,18 +108,18 @@ export default function Home({ navigation }) {
         PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
         PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
       ]);
-  
+
       console.log('Permission Request Result:', permissions);
-  
+
       const readSmsStatus = permissions[PermissionsAndroid.PERMISSIONS.READ_SMS];
       const receiveSmsStatus = permissions[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS];
       const notificationStatus = permissions[PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS];
-  
+
       const coreSmsGranted = readSmsStatus === PermissionsAndroid.RESULTS.GRANTED;
       const notificationsGranted = notificationStatus === PermissionsAndroid.RESULTS.GRANTED;
-  
+
       console.log('Core SMS Granted:', coreSmsGranted, 'Notification Granted:', notificationsGranted);
-  
+
       if (readSmsStatus === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
         Alert.alert(
           'SMS Permission Blocked',
@@ -117,14 +133,14 @@ export default function Home({ navigation }) {
       }
 
       setSmsPermissionGranted(coreSmsGranted);
-  
+
     } catch (err) {
       console.warn('Permission check failed:', err);
     }
   };
-  
 
-  
+
+
   // --- Combined Permission Request Logic ---
   const requestAllPermissions = async () => {
     if (Platform.OS !== 'android') {
@@ -253,7 +269,10 @@ export default function Home({ navigation }) {
   };
 
   // --- Toggle Function for the Button ---
-  const handleProtectionToggle = async () => { 
+  const handleProtectionToggle = async () => {
+    setGmailLoading(true);
+    setGmailError(null);
+
     if (isTogglingProtection) return;
     setIsTogglingProtection(true);
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -262,18 +281,18 @@ export default function Home({ navigation }) {
       if (isSmsListening) {
         stopSmsListening();
       } else {
-        let permissionsOk = smsPermissionGranted; 
+        let permissionsOk = smsPermissionGranted;
         if (!permissionsOk) {
           console.log("SMS permissions not granted, requesting via button...");
 
-          const result = await requestAllPermissions(); 
+          const result = await requestAllPermissions();
           permissionsOk = result.smsGranted;
         }
 
         // Proceed if Permission are now OK
         if (permissionsOk) {
           await new Promise(resolve => setTimeout(resolve, 1500));
-          startSmsListening(); 
+          startSmsListening();
         } else {
           Alert.alert('Permissions Required', 'SMS read/receive permissions are needed to enable protection. Please grant them when prompted or check App Settings.');
         }
@@ -288,16 +307,36 @@ export default function Home({ navigation }) {
     } finally {
       setIsTogglingProtection(false); // Stop loading indicator regardless of success/error
     }
+
+    try {
+      console.log("Attempting to scan Gmail...");
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      console.log('User Info -> ', userInfo);
+      const { accessToken } = await GoogleSignin.getTokens();
+      console.log("Access Token:", accessToken);
+
+
+      const gmailData = await scanGmail();
+      console.log("GmailData: ", gmailData)
+    } catch (error) {
+      console.error("Google Sign-In Error:", error.code, error.message);
+      setGmailError(error.message || "Failed to scan Gmail. Check console logs.");
+      Alert.alert("Gmail Scanning Failed", "Check your connection or permissions.");
+    } finally {
+      setGmailLoading(false);
+    }
+
+
   };
 
 
-  // --- Backend Interaction Functions ---
 
   // Function for manual URL scan input
   const handleUrlScan = async () => {
-    setInputError(""); 
+    setInputError("");
     const trimmedUrl = url.trim();
-     
+
     // --- Frontend Validation ---
     if (!trimmedUrl) {
       setInputError("Please enter a URL to scan.");
@@ -322,7 +361,7 @@ export default function Home({ navigation }) {
 
       // --- Check Backend Response Status ---
       if (!response.ok) {
-        let backendErrorMsg = `Backend error: ${response.status}`; 
+        let backendErrorMsg = `Backend error: ${response.status}`;
         try {
            const errorData = await response.json();
            if (errorData && errorData.error) {
@@ -357,27 +396,20 @@ export default function Home({ navigation }) {
       // setUrl("");
       showModal(data);
 
-    } catch (error) { 
+    } catch (error) {
       setInputError(error.message || "An error occurred. Check connection or URL.");
     }
   };
 
-  // Handler function to clear the input
- /* const handleClearInput = () => {
-    setUrl(''); // Clear the state variable tied to the TextInput
-    setInputError(''); // Also clear any existing input error message
-  };*/
-  
   // Function called ONLY by the SMS listener callback
   const sendSmsToBackendForProcessing = async (smsData) => {
     const extractionEndpoint = `${config.BASE_URL}/classify-sms`;
-    const payload = { 
+    const payload = {
       body: smsData.body,
       sender: smsData.sender
     };
 
     console.log(`Requesting URL extraction from ${extractionEndpoint}`);
-    // await unifiedScan({ url: smsData.body }); 
 
     try {
       const textResponse = await fetch(extractionEndpoint, {
@@ -391,8 +423,8 @@ export default function Home({ navigation }) {
            let errorJson = { error: `Backend error: ${response.status}` };
            try { errorJson = JSON.parse(errorText); } catch (e) {}
            throw new Error(errorJson.error || `Backend error: ${response.status}`);
-      } 
-      
+      }
+
       const data = await textResponse.json();
       console.log("SMS Text Classification Result:", data);
 
@@ -400,8 +432,6 @@ export default function Home({ navigation }) {
       if (payload.sender) {
         resultDataForNotification.sender = payload.sender;
       }
-
-      //handleNewScanResult(resultDataForNotification);
 
       showModal(data);
 
@@ -445,12 +475,6 @@ export default function Home({ navigation }) {
 
         // Call the context handler with the backend result (and added sender if applicable)
         handleNewScanResult(resultDataForNotification);
-
-        // Show modal only for direct URL scans (when sender is NOT in original payload)
-        // if (payload.url && !payload.sender && data.log_details) {
-        //     showModal(data.log_details);
-        // }
-
     } catch (error) {
         console.error("Error during unified scan:", error.message);
         if (payload.url && !payload.sender) { // Only show alert for manual URL scans
@@ -461,7 +485,7 @@ export default function Home({ navigation }) {
 
   // --- Modal Functions ---
   const showModal = (log) => {
-    setScanResultForModal(log); 
+    setScanResultForModal(log);
     setSelectedLog(log);
     setModalVisible(true);
   };
@@ -471,12 +495,11 @@ export default function Home({ navigation }) {
   };
 
   const handleClearInput = () => {
-    setUrl("");            
-    setInputError("");   
+    setUrl("");
+    setInputError("");
   };
-  
 
-  // Delete Handler 
+
   const handleDeleteLog = async (logId) => {
     if (!logId) {
       console.error("Delete failed: No log ID provided.");
@@ -484,11 +507,11 @@ export default function Home({ navigation }) {
       return;
     }
     console.log("Attempting to delete log:", logId);
-    setIsLoadingScan(true); 
+    setIsLoadingScan(true);
     try {
       const deleteUrl = `${config.BASE_URL}/logs/${logId}`;
       const response = await fetch(deleteUrl, { method: "DELETE" });
-      const result = await response.json(); 
+      const result = await response.json();
 
       if (!response.ok || result.error) {
         throw new Error(
@@ -497,7 +520,7 @@ export default function Home({ navigation }) {
       }
 
       Alert.alert("Success", "Log deleted successfully.");
-      closeModal(); 
+      closeModal();
       // Optionally: Refresh any log lists displayed elsewhere in the app
     } catch (err) {
       console.error("Delete failed:", err);
@@ -507,10 +530,14 @@ export default function Home({ navigation }) {
     }
   };
 
+
   // --- Render Logic ---
   if (!fontsLoaded) {
     return <SafeAreaView style={styles.container}><Text>Loading...</Text></SafeAreaView>;
   }
+
+
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -569,7 +596,7 @@ export default function Home({ navigation }) {
           placeholderTextColor="#6c757d"
           onChangeText={(text) => {
               setUrl(text);
-              if (inputError) { 
+              if (inputError) {
                   setInputError("");
               }
               if (inputValue) {
@@ -581,7 +608,7 @@ export default function Home({ navigation }) {
           autoCapitalize="none"
           keyboardType="url"
         />
-      
+
 
 
         {/* --- Display Error Message Below Input --- */}
@@ -603,27 +630,31 @@ export default function Home({ navigation }) {
               >
                 <Text style={styles.scanButtonText}>SCAN</Text>
               </LinearGradient>
-            </TouchableOpacity></>   
+            </TouchableOpacity></>
         )}
 
-        <TouchableOpacity style={styles.clearButton} onPress={handleClearInput}>
-            <LinearGradient
-              colors={["#3AED97", "#BCE26E", "#FCDE58"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.gradientButton}
-            >
-              <Text style={styles.clearButtonText}>Clear</Text>
-            </LinearGradient>
-        </TouchableOpacity>
-      </View>
+       </View>
+{/* 
+            New Button for Gmail Scan
+             <TouchableOpacity style={styles.scanButton} onPress={handleGmailScan}>
+               <LinearGradient
+                colors={["#3AED97", "#BCE26E", "#FCDE58"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.gradientButton}
+               >
+               <Text style={styles.scanButtonText}>Scan Gmail</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+           {gmailLoading && <ActivityIndicator size="small" color="#00ff00" />}
+           {gmailError && <Text style={styles.errorText}>{gmailError}</Text>} */}
 
       <DetailsModal
         navigation={navigation}
         visible={modalVisible}
         onClose={closeModal}
         scanResult={scanResultForModal}
-        //onDeletePress={handleDeleteLog}
       />
     </SafeAreaView>
   );
@@ -647,20 +678,18 @@ const styles = StyleSheet.create({
   },
   imagePlaceholder: {
     width: 130,
-    height: 140, 
+    height: 140,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  protectionText: {                         
+  protectionText: {
     color: "#31EE9A",
-    // fontFamily: "Poppins-ExtraBold", 
     fontSize: 20,
     fontWeight: "600",
     marginTop: 10,
   },
   statusText: {
     color: "#31EE9A",
-    // fontFamily: "Poppins-ExtraBold", 
     fontSize: 16,
     fontWeight: "400",
     marginTop: 5,
@@ -684,17 +713,16 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 10,
     color: "#ffffff",
-    //backgroundColor: "rgba(0, 43, 54, 0.8)", 
     marginBottom: 20,
   },
   inputErrorBorder: {
     borderColor: '#FF0000',
   },
   inputTextError: {
-    color: '#FF0000', 
+    color: '#FF0000',
   },
   errorText: {
-    color: '#FF0000', 
+    color: '#FF0000',
     fontSize: 12,
     marginBottom: 15,
     marginLeft: 5,
@@ -714,10 +742,9 @@ const styles = StyleSheet.create({
   },
   scanButtonText: {
     color: "#000000",
-    // fontFamily: "Inter", // Make sure font is linked
-    fontSize: 16, // Slightly smaller
+    fontSize: 16,
     fontWeight: "800",
-    letterSpacing: 3, // Less spacing
+    letterSpacing: 3,
   },
   clearButton: {
     width: "100%",
@@ -729,83 +756,19 @@ const styles = StyleSheet.create({
   },
   clearButtonText: {
     color: "#000000",
-    // fontFamily: "Inter", // Make sure font is linked
-    fontSize: 16, // Slightly smaller
+    fontSize: 16,
     fontWeight: "800",
-    letterSpacing: 3, // Less spacing
+    letterSpacing: 3,
   },
   loadingContainer: {
-    // Applied additionally to container when loading
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 0, // Override padding when only showing loader
+    padding: 0,
   },
-   warningText: { // Added style
+   warningText: {
      marginTop: 10,
      color: 'orange',
      fontSize: 12,
    }
 });
-
-  // --- Backend Interaction Functions ---
-  // const handleUrlScan = async () => { 
-  //   if (!url) {
-  //       Alert.alert('Input Needed', 'Please enter a URL to scan.');
-  //       return;
-  //   }
-  //   try {
-  //     const response = await fetch(`${config.BASE_URL}/predict/scan`, {
-  //       method: 'POST',
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ url }),
-  //     });
-
-  //     if (!response.ok) throw new Error(`Backend error: ${response.status}`);
-  //     const data = await response.json();
-  //     if (data.error) throw new Error(data.error);
-  //     console.log("URL Scan Result:", data);
-      
-  //     // Show Result
-  //     handleNewScanResult(data)
-
-  //   } catch (error) {
-  //     console.error("Error scanning URL:", error);
-  //     Alert.alert('Scan Error', `Failed to scan URL: ${error.message}`);
-  //   }
-  // };
-
-  // const sendSmsToBackendForScan = async (smsData) => {
-  //   console.log('Sending SMS to backend for scan:', smsData);
-  //   if (!smsData || !smsData.body) return; 
-
-  //   const endpoint = `${config.BASE_URL}/sms/classify_content`;
-  //   //NEED TO CHANGE
-  //   const payload = { 
-  //     body: smsData.body,
-  //     sender: smsData.sender 
-  //   };
-
-
-  //   try {
-  //     setLoading(true);
-      
-  //     console.log("SMS Data:", smsData.body);
-  //     const response = await fetch(`${config.BASE_URL}/predict/scan`, { 
-  //       method: 'POST',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify(payload),
-  //     });
-
-  //     if (!response.ok) throw new Error(`Backend error: ${response.status}`);
-      
-  //     const data = await response.json();
-  //     console.log("SMS Scan Result:", data);
-  //     // Show result
-  //     handleNewScanResult(data)
-
-  //   } catch (error) {
-  //     setLoading(false);
-  //     console.error("Error sending SMS to backend:", error);
-  //   }
-  // };

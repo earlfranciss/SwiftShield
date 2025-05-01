@@ -1,0 +1,13 @@
+diff --git a/node_modules/google-logging-utils/build/src/logging-utils.js b/node_modules/google-logging-utils/build/src/logging-utils.js
+index 1f205b9..9283e81 100644
+--- a/node_modules/google-logging-utils/build/src/logging-utils.js
++++ b/node_modules/google-logging-utils/build/src/logging-utils.js
+@@ -43,7 +43,7 @@ exports.getStructuredBackend = getStructuredBackend;
+ exports.setBackend = setBackend;
+ exports.log = log;
+ const node_events_1 = require("node:events");
+-const process = __importStar(require("node:process"));
++const process = __importStar(require("process"));
+ const util = __importStar(require("node:util"));
+ const colours_1 = require("./colours");
+ // Some functions (as noted) are based on the Node standard library, from
