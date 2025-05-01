@@ -115,6 +115,7 @@ export default function Home({ navigation }) {
   useEffect(
     useCallback(() => {
       const linkingSubscription = Linking.addEventListener('url', (event) => {
+        console.log('Using Event URL', event.url);
         handleDeepLink(event.url);
       });
 
@@ -122,6 +123,7 @@ export default function Home({ navigation }) {
       const getInitialURL = async () => {
         const initialURL = await Linking.getInitialURL();
         if (initialURL) {
+          console.log('Using Initial URL');
           handleDeepLink(initialURL);
         }
       };
@@ -512,7 +514,7 @@ export default function Home({ navigation }) {
             authCode = value;
             break;
           }
-        }
+        } 
       }
       console.log("Extracted authCode: ", authCode);
 

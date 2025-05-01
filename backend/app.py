@@ -2442,8 +2442,19 @@ def google_callback():
         print(f"SUCCESS: Stored Google refresh token for SwiftShield user: {app_user_id} ({google_user_email})")
 
         # 8. --- Redirect Back to Frontend App (Success) ---
-        final_redirect = session.pop('final_redirect_uri', 'swiftshield://google/auth/success') # Get success URL
-        return redirect(final_redirect)
+        # final_redirect = session.pop('final_redirect_uri', 'swiftshield://google/auth/success') # Get success URL
+        # return redirect(final_redirect)
+
+        final_redirect_base = session.pop('final_redirect_uri', 'swiftshield://google/auth/success')
+
+        # Re-attach the code and state to the deep link
+        code = request.args.get('code')
+        state = received_state
+
+        # Make sure to add them as query parameters
+        redirect_url = f"{final_redirect_base}?code={code}&state={state}"
+        return redirect(redirect_url)
+
 
     except Exception as e:
         # Catch any errors during token exchange, user info fetch, or DB update
