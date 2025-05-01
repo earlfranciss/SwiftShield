@@ -2275,7 +2275,7 @@ def google_login():
             scopes=scopes,
             redirect_uri=redirect_uri
         )
-        
+        print(f"DEBUG: /google/login - Flow:  {flow}")
         # Generate the URL the user needs to visit to grant permission
         # access_type='offline' is crucial to get a refresh_token
         # prompt='consent' ensures the user sees the consent screen even if previously granted,
@@ -2286,6 +2286,8 @@ def google_login():
             include_granted_scopes='true'
         )
 
+        print(f"DEBUG: /google/login - authorization_url {authorization_url}")
+        
         # Store the 'state' value in the user's session.
         # This is a security measure to prevent Cross-Site Request Forgery (CSRF).
         # The same state value must be returned by Google in the callback.
