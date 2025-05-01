@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react'; 
+import React, { useState, useEffect, useRef } from 'react'; 
 import { View, Text, StyleSheet, TouchableOpacity, Image, Animated } from 'react-native';
 import DetailsModal from './DetailsModal'; 
-import NotificationSounds from 'react-native-notification-sounds';
+import Sound from 'react-native-sound';
+
+// Configure sound to work with iOS and Android
+Sound.setCategory('Playback');
 
 // Import icons from your assets
 const iconMap = {
@@ -9,7 +12,7 @@ const iconMap = {
   "safe-icon": require("../assets/images/safe-icon.png"),
 };
 
-// Helper function to format time (same as in Notifications.js)
+// Helper function to format time
 const formatTimeAgo = (timestamp) => {
   try {
     // Check if timestamp is valid
@@ -43,56 +46,73 @@ const formatTimeAgo = (timestamp) => {
     return "Unknown time";
   }
 };
-let soundsInitialized = false;
 
 const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => {
-  const slideAnim = new Animated.Value(-100);
+  // Proper hook order: state first, then refs, then effects
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
-  const [sounds, setSounds] = useState([]); 
+  const [soundLoaded, setSoundLoaded] = useState(false);
+  const slideAnim = useRef(new Animated.Value(-100)).current;
+  const soundRef = useRef(null);
 
+  // Initialize sound when component mounts
   useEffect(() => {
-    // Slide in
+    // Create the sound instance just once
+    const sound = new Sound(
+      require('../assets/sounds/notification.wav'),
+      Sound.MAIN_BUNDLE,
+      (error) => {
+        if (error) {
+          console.error('Failed to load the sound', error);
+        } else {
+          // Store the successfully loaded sound in the ref
+          soundRef.current = sound;
+          setSoundLoaded(true);
+        }
+      }
+    );
+
+    // Cleanup when component unmounts
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.release();
+      }
+    };
+  }, []);
+
+  // Play sound effect when notification appears
+  useEffect(() => {
+    if (soundLoaded && soundRef.current) {
+      // Reset to the beginning before playing (in case it was already played)
+      soundRef.current.stop();
+      soundRef.current.play((success) => {
+        if (!success) {
+          console.error('Sound playback failed');
+        }
+      });
+    }
+  }, [soundLoaded, notification]);
+
+  // Animation effect
+  useEffect(() => {
+    // Animation logic
     Animated.timing(slideAnim, {
       toValue: 0,
       duration: 300,
       useNativeDriver: true,
     }).start();
 
-  // CORRECT HOOK PLACEMENT - KEEP HOOKS AT TOP LEVEL
-  useEffect(() => {
-    // Initialize sounds
-    NotificationSounds.getNotifications()
-      .then(soundList => setSounds(soundList))
-      .catch(console.error);
-  }, []);
-  
-    // Play sound when notification arrives
-    if (sounds && sounds.length > 0) {
-      try {
-        // Find default notification sound
-        const defaultSound = sounds.find(s => s.soundType === 3); // NOTIFICATION type
-        if (defaultSound) {
-          NotificationSounds.playSound(defaultSound);
-        }
-      } catch (error) {
-        console.log('Sound playback error:', error);
-      }
-    }
-
-    // Auto dismiss after 5 seconds
+    // Auto-dismiss timer
     const timer = setTimeout(() => {
       Animated.timing(slideAnim, {
         toValue: -100,
         duration: 300,
         useNativeDriver: true,
-      }).start(() => {
-        if (onDismiss) onDismiss();
-      });
+      }).start(() => onDismiss?.());
     }, 5000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [notification, slideAnim, onDismiss]);
 
   const isMalicious = notification.icon === "suspicious-icon";
   const title = isMalicious ? "Warning: Malicious Link Detected" : "Safe Link Verified";
@@ -100,9 +120,6 @@ const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => 
   
   // Handle notification press to open the modal
   const handleNotificationPress = () => {
-    // Stop auto-dismiss timer when the notification is pressed
-    clearTimeout(slideAnim._startTime);
-    
     // Convert notification to format expected by DetailsModal
     const scanResult = {
       log_id: notification.id,
@@ -118,7 +135,7 @@ const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => 
     setSelectedNotification({ ...notification, ...scanResult, read: true });
     setModalVisible(true);
     
-    // Call the original onPress if needed (you can disable this if you only want the modal)
+    // Call the original onPress if needed
     if (onPress) onPress(notification);
   };
 
@@ -210,7 +227,7 @@ const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => 
 const styles = StyleSheet.create({
   toastContainer: {
     position: 'absolute',
-    top: 15, // Adjust this value to move it higher (was likely 60 or more)
+    top: 15,
     left: 0,
     right: 0,
     backgroundColor: '#3AED97',

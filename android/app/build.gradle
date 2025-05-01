@@ -107,10 +107,14 @@ android {
     // Add sourceSets block to include generated code
     // This might help once the generation task runs correctly
     sourceSets {
-        main.java.srcDirs += [
-            // Use the correct path where PackageList was found
-            "$buildDir/generated/autolinking/src/main/java"
-        ]
+        main {
+            java.srcDirs += [
+                "$buildDir/generated/autolinking/src/main/java"
+            ]
+            // Add these lines for sound files
+            res.srcDirs += ['src/main/res']
+            assets.srcDirs += ['src/main/assets', '../../assets/sounds']
+        }
     }
 
     packagingOptions { // Keep these, they often prevent crashes
@@ -125,7 +129,7 @@ android {
     //          path file('src/main/cpp/CMakeLists.txt') // Assuming this path exists
     //      }
     //  }
-}
+}  
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
@@ -153,6 +157,8 @@ dependencies {
     implementation project(':react-native-vector-icons')
     implementation project(':react-native-webview')
     implementation project(':react-native-clipboard_clipboard')
+    implementation project(':react-native-notification-sounds')
+    implementation project(':react-native-sound')
     // implementation project(':react-native-make')
 
     // SoLoader (required by React Native) - Check compatibility if needed
