@@ -8,6 +8,7 @@ import {
   PermissionsAndroid,
   StatusBar, 
   Pressable, 
+  PermissionsAndroid,
   Alert,
   Linking,
 } from 'react-native';
@@ -125,17 +126,15 @@ const ConnectedAppsScreen = ({ navigation }) => {
         if (!permissionsOk) {
             Alert.alert('Permissions Required', 'Cannot enable SMS protection without SMS read/receive permissions.');
             return; 
+            return; 
         }
-        // 2. Start the Listener (Import or get from context)
-        console.log("TODO: Call startSmsListening()");
-        startSmsListening(); // Replace with actual call
-        setIsSmsEnabled(true); // Update state only after starting successfully
-    } else { // User wants to DISABLE SMS listening
+
+        startSmsListening(); 
+        setIsSmsEnabled(true);
+    } else { 
         console.log("Attempting to disable SMS listener...");
-        // 1. Stop the Listener (Import or get from context)
-        console.log("TODO: Call stopSmsListening()");
-        stopSmsListening(); // Replace with actual call
-        setIsSmsEnabled(false); // Update state
+         stopSmsListening();
+        setIsSmsEnabled(false);
     }
  };
 

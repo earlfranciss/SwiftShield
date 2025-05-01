@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 from flask_caching import Cache
 from flask_session import Session
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 from google_auth_oauthlib.flow import Flow 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build 
@@ -60,6 +61,7 @@ load_dotenv(dotenv_path=dotenv_path)
 
 # --- Flask App Configuration ---
 app = Flask(__name__) 
+
 
 
 # --- App Configuration ---
@@ -684,6 +686,125 @@ def extract_urls_from_text(text_body):
     
     
 
+
+def check_emails_job():
+    try:
+        print("Starting email check job...")
+        
+        # Get all users with Gmail monitoring enabled
+        users = users_collection.find({
+            'gmail_monitoring_enabled': True,
+            'google_credentials': {'$exists': True}
+        })
+        
+        for user in users:
+            try:
+                user_id = user['_id']
+                credentials = get_google_credentials(user_id)
+                
+                if not credentials or credentials.expired:
+                    print(f"User {user_id} has invalid or expired credentials")
+                    continue
+                
+                # Get Gmail service
+                service = get_gmail_service(user_id)
+                if not service:
+                    print(f"Failed to get Gmail service for user {user_id}")
+                    continue
+                
+                # List new messages
+                messages = list_new_messages(user_id)
+                if not messages:
+                    continue
+                
+                for message in messages:
+                    try:
+                        # Get email details
+                        email_details = get_email_details(user_id, message['id'])
+                        if not email_details:
+                            continue
+                        
+                        # Extract content
+                        subject = email_details.get('subject', '')
+                        body = email_details.get('body', '')
+                        sender = email_details.get('from', '')
+                        
+                        # Classify content
+                        classification_result = classify_text(body)
+                        urls = extract_urls(body)
+                        suspicious_urls = []
+                        
+                        # Check URLs
+                        for url in urls:
+                            url_result = classify_url(url)
+                            if url_result.get('is_phishing', False):
+                                suspicious_urls.append({
+                                    'url': url,
+                                    'is_phishing': True,
+                                    'confidence': url_result.get('confidence', 0)
+                                })
+                        
+                        # Create detection if phishing
+                        if classification_result.get('is_phishing', False) or suspicious_urls:
+                            detection_id = str(ObjectId())
+                            detection = {
+                                '_id': detection_id,
+                                'type': 'gmail',
+                                'severity': 'high' if classification_result.get('is_phishing', False) else 'low',
+                                'source': sender,
+                                'subject': subject,
+                                'content': body,
+                                'urls': suspicious_urls,
+                                'timestamp': datetime.now().isoformat(),
+                                'user_id': user_id,
+                                'classification': classification_result
+                            }
+                            
+                            # Save to database
+                            detection_collection.insert_one(detection)
+                            
+                            print(f"Created detection {detection_id} for user {user_id}")
+                    
+                    except Exception as e:
+                        print(f"Error processing email for user {user_id}: {str(e)}")
+                        continue
+            
+            except Exception as e:
+                print(f"Error processing user {user['_id']}: {str(e)}")
+                continue
+        
+        print("Email check job completed")
+    
+    except Exception as e:
+        print(f"Error in check_emails_job: {str(e)}")
+        traceback.print_exc()
+        
+        
+scheduler = BackgroundScheduler()
+# Schedule job to run e.g., every 5 minutes
+scheduler.add_job(check_emails_job, 'interval', minutes=5)
+
+def start_scheduler():
+    try:
+        # Initialize scheduler
+        scheduler = BackgroundScheduler()
+        
+        # Add email check job (runs every 5 minutes)
+        scheduler.add_job(
+            check_emails_job,
+            'interval',
+            minutes=5,
+            id='email_check_job',
+            replace_existing=True
+        )
+        
+        # Start scheduler
+        scheduler.start()
+        print("Scheduler started successfully")
+        
+    except Exception as e:
+        print(f"Error getting message {message_id} for user {app_user_id}: {e}")
+        return None
 
 def check_emails_job():
     try:

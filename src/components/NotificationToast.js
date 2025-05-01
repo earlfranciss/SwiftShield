@@ -11,6 +11,23 @@ const iconMap = {
   "safe-icon": require("../assets/images/safe-icon.png"),
 };
 
+const getBackgroundColor = (type, severity) => {
+  if (severity === 'high') {
+    return '#FF4D4D'; // Red for high severity
+  }
+  
+  switch (type) {
+    case 'sms':
+      return '#FFB74D'; // Orange for SMS
+    case 'gmail':
+      return '#4285F4'; // Google Blue for Gmail
+    case 'url':
+      return '#FF8F00'; // Dark Orange for URLs
+    default:
+      return '#757575'; // Grey for unknown types
+  }
+};
+
 // Helper function to format time (same as in Notifications.js)
 const formatTimeAgo = (timestamp) => {
   try {
@@ -91,141 +108,70 @@ const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => 
     return () => clearTimeout(timer);
   }, []);
 
-  const backgroundColor = getBackgroundColor(notification.type, notification.severity);
-  
-  // Handle notification press to open the modal
-  const handleNotificationPress = () => {
-    // Stop auto-dismiss timer when the notification is pressed
-    clearTimeout(slideAnim._startTime);
-    
-    // Convert notification to format expected by DetailsModal
-    const scanResult = {
-      log_id: notification.id,
-      url: notification.url || notification.link,
-      date_scanned: notification.timestamp ? new Date(notification.timestamp).toISOString() : null,
-      severity: notification.severity || (notification.icon === "safe-icon" ? "safe" : "critical"),
-      phishing_percentage: notification.phishing_percentage || (notification.icon === "safe-icon" ? 5 : 95),
-      recommended_action: notification.recommended_action || 
-                      (notification.icon === "safe-icon" ? "Safe to visit" : "Do not visit this site"),
-      platform: notification.platform || notification.title || "Unknown"
-    };
-    
-    setSelectedNotification({ ...notification, ...scanResult, read: true });
-    setModalVisible(true);
-    
-    // Call the original onPress if needed (you can disable this if you only want the modal)
-    if (onPress) onPress(notification);
-  };
-
-  // Handle modal close
-  const handleCloseModal = () => {
-    setModalVisible(false);
-    setSelectedNotification(null);
-    
-    // Dismiss the toast after modal is closed
-    Animated.timing(slideAnim, {
-      toValue: -100,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
-      if (onDismiss) onDismiss();
-    });
-  };
-  
-  // Handle delete from modal
-  const handleDeleteNotification = () => {
-    // Close modal first
-    setModalVisible(false);
-    
-    // Then dismiss the toast
-    Animated.timing(slideAnim, {
-      toValue: -100,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
-      if (onDismiss) onDismiss();
-    });
-  };
+  const isMalicious = notification.icon === "suspicious-icon";
+  const title = isMalicious ? "Warning: Malicious Link Detected" : "Safe Link Verified";
+  const body = notification.url || notification.link || "";
   
   return (
-    <>
-      <Animated.View 
-        style={[
-          styles.toastContainer, 
-          isMalicious ? styles.toastContainerWarning : styles.toastContainerInfo,
-          { transform: [{ translateY: slideAnim }] }
-        ]}
+    <Animated.View 
+      style={[
+        styles.toastContainer, 
+        isMalicious ? styles.toastContainerWarning : styles.toastContainerInfo,
+        { transform: [{ translateY: slideAnim }] }
+      ]}
+    >
+      <TouchableOpacity 
+        style={styles.toastContent} 
+        onPress={() => onPress && onPress(notification)}
       >
-        <TouchableOpacity 
-          style={styles.toastContent} 
-          onPress={handleNotificationPress}
-        >
-          <Image 
-            source={iconMap[notification.icon || "safe-icon"]} 
-            style={[
-              styles.toastIcon,
-              notification.icon === "safe-icon" && { tintColor: "black" }
-            ]} 
-            resizeMode="contain"
-          />
-          <View style={styles.toastTextContainer}>
-            <Text style={styles.toastTitle}>{title}</Text>
-            <Text style={styles.toastMessage} numberOfLines={1}>{body}</Text>
-          </View>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.dismissButton} 
-          onPress={() => {
-            Animated.timing(slideAnim, {
-              toValue: -100,
-              duration: 300,
-              useNativeDriver: true,
-            }).start(() => {
-              if (onDismiss) onDismiss();
-            });
-          }}
-        >
-          <Text style={{ color: '#fff', fontWeight: 'bold' }}>×</Text>
-        </TouchableOpacity>
-      </Animated.View>
-      
-      {/* Details Modal */}
-      <DetailsModal
-        visible={modalVisible}
-        onClose={handleCloseModal}
-        onDeletePress={handleDeleteNotification}
-        scanResult={selectedNotification}
-        navigation={navigation}
-        loading={false}
-      />
-    </>
+        <Image 
+          source={iconMap[notification.icon || "safe-icon"]} 
+          style={[
+            styles.toastIcon,
+            notification.icon === "safe-icon" && { tintColor: "black" }
+          ]} 
+          resizeMode="contain"
+        />
+        <View style={styles.toastTextContainer}>
+          <Text style={styles.toastTitle}>{title}</Text>
+          <Text style={styles.toastMessage} numberOfLines={1}>{body}</Text>
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={styles.dismissButton} 
+        onPress={() => {
+          Animated.timing(slideAnim, {
+            toValue: -100,
+            duration: 300,
+            useNativeDriver: true,
+          }).start(() => {
+            if (onDismiss) onDismiss();
+          });
+        }}
+      >
+        <Text style={{ color: '#fff', fontWeight: 'bold' }}>×</Text>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  toastContainer: {
-    position: 'absolute',
-
-    top: 15, // Adjust this value to move it higher (was likely 60 or more)
-    left: 0,
-    right: 0,
-    backgroundColor: '#3AED97',
-// =======
-//     top: 15,
-//     left: 16,
-//     right: 16,
-//     borderRadius: 12,
-// >>>>>>> Stashed changes
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    zIndex: 1000,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-  },
+    toastContainer: {
+        position: 'absolute',
+        top: 15, // Adjust this value to move it higher (was likely 60 or more)
+        left: 0,
+        right: 0,
+        backgroundColor: '#3AED97',
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        zIndex: 1000,
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+      },
   toastContainerWarning: {
     backgroundColor: '#FFF8E1',
   },
