@@ -2396,10 +2396,15 @@ def google_callback():
         if not google_user_email:
              raise ValueError("Could not retrieve user email from Google API.")
 
+        print(f"DEBUG: /google-callback - User ID: {session.get('user_id')}")
+
+
         # 6. --- Retrieve *Your* Application's User ID from Flask Session ---
         # This is the user who was logged into SwiftShield when they clicked "Connect Gmail"
         app_user_id = session.get('user_id') # Reads the 'user_id' stored by your /auth/Login route
 
+        print(f"DEBUG: /google-callback - App User ID: {app_user_id}")
+        
         if not app_user_id:
             # If the user's SwiftShield session expired or is missing
             print("ERROR: /google-callback - SwiftShield user_id not found in Flask session.")
