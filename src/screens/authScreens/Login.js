@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  ActivityIndicator,
 } from "react-native";
 // Replace Expo vector icons with React Native vector icons
 import Ionicons from "react-native-vector-icons/Ionicons";
@@ -14,6 +15,7 @@ import GradientScreen from "../../components/GradientScreen";
 // Replace expo-linear-gradient with react-native-linear-gradient
 import LinearGradient from "react-native-linear-gradient";
 import config from "../../config/config";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 const logoPath = require("../../assets/images/logo.png");
 
 export default function Login({ navigation }) {
@@ -21,9 +23,32 @@ export default function Login({ navigation }) {
   const passwordRef = useRef(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true); // Default to true for persistence
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Check for existing login session when component mounts
+  useEffect(() => {
+    const checkExistingSession = async () => {
+      try {
+        const userData = await AsyncStorage.getItem('userData');
+        
+        if (userData) {
+          // User data exists, auto login
+          const parsedUserData = JSON.parse(userData);
+          console.log('Existing session found, auto-login');
+          navigation.replace('Tabs');
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkExistingSession();
+  }, [navigation]);
 
   // Load fonts using useEffect instead of expo-font
   useEffect(() => {
@@ -39,12 +64,20 @@ export default function Login({ navigation }) {
     loadFonts();
   }, []);
    
-  if (!fontsLoaded) {
-    return null; // Wait until the font is loaded
+  if (!fontsLoaded || isLoading) {
+    return (
+      <GradientScreen>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#3AED97" />
+        </View>
+      </GradientScreen>
+    );
   }
   
   const handleLogin = async () => {
     try {
+      setIsLoading(true);
+      
       const response = await fetch(`${config.BASE_URL}/Login`, {
         method: 'POST',
         headers: {
@@ -61,8 +94,21 @@ export default function Login({ navigation }) {
       if (response.ok) {
         // Login successful
         console.log('Login successful:', data);
-        // Store user information if needed
-        // AsyncStorage.setItem('userToken', data.userId);
+        
+        // Store user information for persistence if rememberMe is checked
+        if (rememberMe) {
+          const userDataToStore = {
+            userId: data.userId,
+            email: data.email,
+            firstName: data.firstName,
+            role: data.role,
+            // Include a timestamp for token expiry if needed
+            timestamp: new Date().getTime(),
+          };
+          
+          await AsyncStorage.setItem('userData', JSON.stringify(userDataToStore));
+        }
+        
         navigation.replace('Tabs');
       } else {
         // Login failed
@@ -73,6 +119,8 @@ export default function Login({ navigation }) {
     } catch (error) {
       console.error('Error during login:', error);
       alert('Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -127,14 +175,22 @@ export default function Login({ navigation }) {
         </View>
 
         {/* Login Button */}
-        <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+        <TouchableOpacity 
+          style={styles.loginButton} 
+          onPress={handleLogin}
+          disabled={isLoading}
+        >
           <LinearGradient
             colors={["#3AED97", "#BCE26E", "#FCDE58"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.gradientButton}
           >
-            <Text style={styles.loginButtonText}>LOGIN</Text>
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#000" />
+            ) : (
+              <Text style={styles.loginButtonText}>LOGIN</Text>
+            )}
           </LinearGradient>
         </TouchableOpacity>
 
@@ -175,6 +231,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 30,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   logo: {
     width: 280, // Adjust width as needed
