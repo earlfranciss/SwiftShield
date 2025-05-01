@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'; 
 import { View, Text, StyleSheet, TouchableOpacity, Image, Animated } from 'react-native';
 import DetailsModal from './DetailsModal'; 
-import Sound from 'react-native-sound';
-
-// Configure sound to work with iOS and Android
-Sound.setCategory('Playback');
 
 // Import icons from your assets
 const iconMap = {
@@ -48,50 +44,10 @@ const formatTimeAgo = (timestamp) => {
 };
 
 const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => {
-  // Proper hook order: state first, then refs, then effects
+  // State for modal visibility and animation
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
-  const [soundLoaded, setSoundLoaded] = useState(false);
   const slideAnim = useRef(new Animated.Value(-100)).current;
-  const soundRef = useRef(null);
-
-  // Initialize sound when component mounts
-  useEffect(() => {
-    // Create the sound instance just once
-    const sound = new Sound(
-      require('../assets/sounds/notification.wav'),
-      Sound.MAIN_BUNDLE,
-      (error) => {
-        if (error) {
-          console.error('Failed to load the sound', error);
-        } else {
-          // Store the successfully loaded sound in the ref
-          soundRef.current = sound;
-          setSoundLoaded(true);
-        }
-      }
-    );
-
-    // Cleanup when component unmounts
-    return () => {
-      if (soundRef.current) {
-        soundRef.current.release();
-      }
-    };
-  }, []);
-
-  // Play sound effect when notification appears
-  useEffect(() => {
-    if (soundLoaded && soundRef.current) {
-      // Reset to the beginning before playing (in case it was already played)
-      soundRef.current.stop();
-      soundRef.current.play((success) => {
-        if (!success) {
-          console.error('Sound playback failed');
-        }
-      });
-    }
-  }, [soundLoaded, notification]);
 
   // Animation effect
   useEffect(() => {

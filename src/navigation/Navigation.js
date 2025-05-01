@@ -46,10 +46,13 @@ import Entypo from "react-native-vector-icons/Entypo";
 import Octicons from "react-native-vector-icons/Octicons";
 import FontAwesome6 from "react-native-vector-icons/FontAwesome6";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import Sound from 'react-native-sound';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 const SettingsStackNav = createNativeStackNavigator();
+
+Sound.setCategory('Playback');
 
 // Create a global navigation variable to store the navigation prop
 let globalNavigation = null;
@@ -319,6 +322,48 @@ export default function Navigation() {
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const appState = useRef(AppState.currentState);
   const lastNotifiedIdRef = useRef(null);
+  const notificationSoundRef = useRef(null);
+
+  useEffect(() => {
+    // Preload the notification sound
+    const notificationSound = new Sound(
+      'notification', // Android: no extension, iOS: require('../assets/sounds/notification.wav')
+      Sound.MAIN_BUNDLE,
+      (error) => {
+        if (error) {
+          console.error('❌ Sound INIT Error:', error);
+          notificationSoundRef.current = null;
+        } else {
+          console.log('🔊 Sound INIT Success! Duration:', notificationSound.getDuration());
+          notificationSoundRef.current = notificationSound;
+        }
+      }
+    );
+  
+    return () => {
+      if (notificationSoundRef.current) {
+        notificationSoundRef.current.release();
+      }
+    };
+  }, []);
+    
+
+    // Play sound when notification state changes
+    useEffect(() => {
+      // Play sound when a new notification arrives
+      if (inAppNotification && notificationSoundRef.current) {
+        console.log('Attempting to play sound');
+        notificationSoundRef.current.stop(() => {
+          notificationSoundRef.current.play((success) => {
+            if (success) {
+              console.log('Sound played successfully');
+            } else {
+              console.error('Sound playback failed');
+            }
+          });
+        });
+      }
+    }, [inAppNotification]);
 
   useEffect(() => {
     requestNotificationPermissions();
@@ -406,12 +451,13 @@ export default function Navigation() {
   
     console.log('Processing notification:', newNotification);
 
-    // **** Core Logic: Check if the ID is new ****
+    // Core Logic: Check if the ID is new
     if (newNotification.id !== lastNotifiedIdRef.current) {
       console.log(`New notification ID: ${newNotification.id}`);
       setHasUnreadNotifications(true);
 
       if (appState.current === "active") {
+        // Set the notification which will trigger the sound in the useEffect
         setInAppNotification(newNotification);
         lastNotifiedIdRef.current = newNotification.id;
       } else {
@@ -426,6 +472,7 @@ export default function Navigation() {
       }
     }
   };
+
 
   // Function to navigate to notifications screen using the global navigation variable
   const navigateToNotificationsScreen = (data) => {
@@ -446,6 +493,31 @@ export default function Navigation() {
         hasUnreadNotifications={hasUnreadNotifications}
         onNotificationRead={() => setHasUnreadNotifications(false)}
       />
+      {/* Temporary test button - Add this
+      <TouchableOpacity 
+        style={{
+          position: 'absolute',
+          bottom: 20,
+          right: 20,
+          backgroundColor: 'red',
+          padding: 15,
+          borderRadius: 50,
+          zIndex: 9999
+        }}
+        onPress={() => {
+          if (notificationSoundRef.current) {
+            console.log('Testing sound playback');
+            notificationSoundRef.current.stop(() => {
+              notificationSoundRef.current.play((success) => {
+                if (success) console.log('Test sound played');
+                else console.log('Test sound failed');
+              });
+            });
+          }
+        }}  
+      >
+        <Text style={{ color: 'white' }}>Test Sound</Text>
+      </TouchableOpacity> */}
 
       {inAppNotification && (
         <NotificationToast
