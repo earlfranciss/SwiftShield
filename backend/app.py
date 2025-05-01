@@ -2473,7 +2473,7 @@ def exchange_auth_code():
     """
     try:
         data = request.get_json()
-        auth_code = data.get('code')
+        auth_code = data.get('authCode')
         if not auth_code:
             return jsonify({"success": False, "error": "Missing authorization code"}), 400
 

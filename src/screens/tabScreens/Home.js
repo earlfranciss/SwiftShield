@@ -534,7 +534,7 @@ export default function Home({ navigation }) {
         const response = await fetch(`${config.BASE_URL}/exchange-auth-code`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: authCode }),
+          body: JSON.stringify({ authCode }),
         });
         console.log("Received response from /exchange-auth-code. Status:", response.status);
 
