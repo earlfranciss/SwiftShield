@@ -61,7 +61,7 @@ export default function Settings({ navigation, isDarkMode }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Profile Section - NOW CLICKABLE */}
+      {/* Profile Section - NOW CLICKABLE 
       <TouchableOpacity
         style={styles.profileSection}
         onPress={handleProfilePress}
@@ -72,7 +72,7 @@ export default function Settings({ navigation, isDarkMode }) {
           <Text style={styles.name}>John Doe</Text>
           <Text style={styles.email}>johndoe@email.com</Text>
         </View>
-      </TouchableOpacity>
+      </TouchableOpacity>*/}
 
       {/* Options Section */}
       <TouchableOpacity
@@ -99,7 +99,7 @@ export default function Settings({ navigation, isDarkMode }) {
       )}
 
       {/* Options Footer Section */}
-      <View style={styles.footer}>
+      
         {/* *** ADDED: How to use the app Button *** */}
         <TouchableOpacity
           style={styles.optionButton}
@@ -136,7 +136,7 @@ export default function Settings({ navigation, isDarkMode }) {
           <Text style={styles.optionText}>Privacy Policy</Text>
         </TouchableOpacity>*/}
 
-
+        <View style={styles.footer}>
         {/* Sign-out Section */}
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
            {/* Corrected text to match image */}

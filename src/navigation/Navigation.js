@@ -31,7 +31,7 @@ import Notifications from "../screens/stackScreens/Notifications";
 import Login from "../screens/authScreens/Login";
 import Registration from "../screens/authScreens/Registration";
 import ForgotPassword from "../screens/authScreens/ForgotPassword";
-import EditProfile from "../screens/authScreens/EditProfile";
+//import EditProfile from "../screens/authScreens/EditProfile";
 //Reports Page 
 import Reports from "../screens/reportsPage/Reports";
 import CreateReport from "../screens/reportsPage/CreateReport";
@@ -282,7 +282,7 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
       <Stack.Screen name="Login" component={Login} />
       <Stack.Screen name="Register" component={Registration} />
       <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
-      <Stack.Screen name="EditProfile" component={EditProfile} />
+      {/*<Stack.Screen name="EditProfile" component={EditProfile} />*/}
       <Stack.Screen name="OnboardingScreen" component={OnboardingScreen} />
       <Stack.Screen name="Tabs">
         {(props) => (
