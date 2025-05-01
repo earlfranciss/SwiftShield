@@ -29,7 +29,7 @@ const getBaseURL = () => {
   if (__DEV__) {
     if (Platform.OS === "android") {
       // Replace this with your actual local IP address (same one Flask runs on)
-      baseURL = "http://192.168.0.169:5000";
+      baseURL = "http://10.0.2.2:5000";
     } else {
       baseURL = "http://localhost:5000";
     }
