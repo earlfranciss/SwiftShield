@@ -1,4 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, flash, Blueprint, current_app
+import io
+import csv
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, flash, Blueprint, current_app, Response, session
 from difflib import SequenceMatcher
 from pytz import timezone
 from pymongo import MongoClient
@@ -677,6 +679,166 @@ def extract_urls_from_text(text_body):
     
     
 # --- ENDPOINT DEFINITIONS  ---
+
+# --- NEW EXPORT ENDPOINT ---
+@app.route('/api/export/report', methods=['GET'])
+@login_required # Uncomment if you have login setup
+def export_analytics_report_xlsx(): # Renamed slightly for clarity
+    # --- Simulate session for testing if login_required is commented out ---
+    if 'user_id' not in session:
+         session['user_id'] = 'test_user_id' # Replace with actual logic
+         session['role'] = 'admin' # Or 'user'
+         session['email'] = 'test@example.com'
+    # --- End simulation ---
+
+    user_id = session.get('user_id', 'unknown')
+    role = session.get('role', 'unknown')
+    email = session.get('email', user_id)
+    print(f"DEBUG /api/export/report: User: {email}, Role: {role}")
+
+    try:
+        # --- 1. Fetch ALL the data needed for the report (Same queries as before) ---
+        base_query = {}
+        if role == 'user':
+            base_query['user_id'] = user_id
+
+        total_urls_scanned = detection_collection.count_documents(base_query)
+        threats_blocked_query = {**base_query, "severity": {"$in": ["HIGH", "CRITICAL"]}}
+        total_threats_blocked = detection_collection.count_documents(threats_blocked_query)
+
+        severity_levels = ["SAFE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        severity_match_stage = {"severity": {"$in": severity_levels}}
+        if role == 'user': severity_match_stage['user_id'] = user_id
+        severity_pipeline = [ {"$match": severity_match_stage}, {"$group": {"_id": "$severity", "count": {"$sum": 1}}} ]
+        severity_results = list(detection_collection.aggregate(severity_pipeline))
+        severity_counts = {level: 0 for level in severity_levels}
+        for result in severity_results: severity_counts[result.get("_id", "N/A")] = result.get("count", 0)
+
+        sources_to_count = ["User Scan", "SMS", "Email"]
+        source_display_names = {"User Scan": "Manual Scans", "SMS": "SMS Scans", "Email": "Email Scans"}
+        source_counts = {}
+        for source in sources_to_count:
+            count = detection_collection.count_documents({**base_query, "metadata.source": source})
+            source_counts[source_display_names.get(source, source)] = count # Use display name as key
+
+        ph_tz = pytz.timezone("Asia/Manila")
+        today = datetime.now(ph_tz).date()
+        start_date = today - timedelta(days=6)
+        start_datetime = datetime.combine(start_date, datetime.min.time(), tzinfo=ph_tz)
+        weekly_match_stage = {"timestamp": {"$gte": start_datetime}}
+        if role == 'user': weekly_match_stage['user_id'] = user_id
+        weekly_pipeline = [
+            {"$match": weekly_match_stage},
+            {"$project": {"dayOfWeek": {"$dayOfWeek": {"date": "$timestamp", "timezone": "Asia/Manila"}}}},
+            {"$group": {"_id": "$dayOfWeek", "scan_count": {"$sum": 1}}},
+            {"$sort": {"_id": 1}} ]
+        weekly_results = list(detection_collection.aggregate(weekly_pipeline))
+        days_map = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"}
+        weekly_data_dict = {days_map[i]: 0 for i in range(1, 8)}
+        for entry in weekly_results: weekly_data_dict[days_map.get(entry["_id"])] = entry.get("scan_count", 0)
+        weekly_data_list = []
+        for i in range(7):
+            current_day = start_datetime + timedelta(days=i)
+            day_abbr = current_day.strftime("%a") # e.g., "Mon"
+            weekly_data_list.append({'Day': day_abbr, 'Scans': weekly_data_dict.get(day_abbr, 0)})
+
+        # Fetch recent logs (ensure fetch_logs_rb exists and works)
+        try:
+            # Assuming fetch_logs_rb is defined elsewhere and handles RBAC
+            recent_logs = fetch_logs_rb(user_id=user_id, role=role, limit=100)
+             # Select and rename columns for the report for clarity
+            logs_for_report = []
+            log_headers = ['Timestamp', 'URL', 'Platform', 'Severity', 'Verdict', 'Probability (%)']
+            for log in recent_logs:
+                prob_score = log.get('phishing_probability_score', 0.0)
+                prob_percent = round(prob_score * 100, 1) if isinstance(prob_score, (int, float)) else 'N/A'
+                logs_for_report.append({
+                    'Timestamp': log.get('date_scanned', 'N/A'),
+                    'URL': log.get('url', 'N/A'),
+                    'Platform': log.get('platform', 'N/A'),
+                    'Severity': log.get('severity', 'N/A'),
+                    'Verdict': log.get('title', 'N/A'), # Using title as verdict
+                    'Probability (%)': prob_percent
+                })
+        except NameError:
+             print("WARNING: fetch_logs_rb function not found. Skipping recent logs.")
+             logs_for_report = [] # Set empty list if function doesn't exist
+             log_headers = []
+
+
+        # --- 2. Format the data using Pandas DataFrames ---
+
+        # Summary DataFrame
+        summary_data = [
+            {'Metric': 'Report Generated For', 'Value': email},
+            {'Metric': 'Report Generated At', 'Value': datetime.now(ph_tz).strftime('%Y-%m-%d %H:%M:%S %Z')},
+            {'Metric': 'Total URLs Scanned', 'Value': total_urls_scanned},
+            {'Metric': 'Total Threats Detected (High/Critical)', 'Value': total_threats_blocked},
+        ]
+        for level in severity_levels:
+            summary_data.append({'Metric': f'Severity - {level.capitalize()}', 'Value': severity_counts.get(level, 0)})
+        for source_name, count in source_counts.items():
+             summary_data.append({'Metric': f'Source - {source_name}', 'Value': count})
+        summary_df = pd.DataFrame(summary_data)
+
+        # Weekly Scans DataFrame
+        weekly_df = pd.DataFrame(weekly_data_list) if weekly_data_list else pd.DataFrame(columns=['Day', 'Scans'])
+
+        # Recent Logs DataFrame
+        logs_df = pd.DataFrame(logs_for_report) if logs_for_report else pd.DataFrame(columns=log_headers)
+
+
+        # --- 3. Write DataFrames to an in-memory XLSX file ---
+        output_buffer = io.BytesIO() # Use BytesIO for binary XLSX data
+
+        # Use ExcelWriter context manager (automatically saves)
+        with pd.ExcelWriter(output_buffer, engine='openpyxl') as writer:
+            summary_df.to_excel(writer, sheet_name='Summary', index=False)
+            weekly_df.to_excel(writer, sheet_name='Weekly Scans', index=False)
+            if not logs_df.empty:
+                 logs_df.to_excel(writer, sheet_name='Recent Logs', index=False)
+            # You could add more sheets or formatting here using writer.sheets['SheetName'] and openpyxl
+
+        # Get the XLSX data from the buffer
+        xlsx_data = output_buffer.getvalue()
+
+        # Save the generated file locally on the server for inspection
+        temp_filename = "temp_debug_report.xlsx"
+        try:
+            with open(temp_filename, "wb") as f: # Use 'wb' for binary write
+                f.write(xlsx_data)
+            print(f"DEBUG: Successfully saved temporary file: {os.path.abspath(temp_filename)}")
+            print(f"DEBUG: Temporary file size: {len(xlsx_data)} bytes") # Log size
+            if len(xlsx_data) == 0:
+                 print("ERROR: Generated XLSX data is empty!")
+        except Exception as save_err:
+            print(f"ERROR: Could not save temporary debug file: {save_err}")
+        # --- *** END TEMPORARY DEBUGGING STEP *** ---
+
+        # Check if data is empty before sending
+        if not xlsx_data:
+             print("ERROR: xlsx_data is empty before creating Response!")
+             return jsonify({"error": "Generated report data is empty."}), 500
+
+
+        # --- Return the XLSX data in a Flask Response ---
+        return Response(
+            xlsx_data,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition":
+                     "attachment; filename=SwiftShield_Analytics_Report.xlsx"}
+        )
+
+    except pymongo.errors.PyMongoError as dbe:
+        print(f"🔥 Database error generating XLSX report: {str(dbe)}")
+        traceback.print_exc()
+        return jsonify({"error": f"Database error generating report: {str(dbe)}"}), 500
+    except Exception as e:
+        print(f"🔥 Unexpected error generating XLSX report: {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"Error generating report: {e}"}), 500
+
+# --- End of endpoint ---
 
 @app.route("/scan", methods=["POST"])
 def index():
