@@ -499,8 +499,10 @@ export default function Home({ navigation }) {
 
     if (url && url.startsWith('swiftshield://google/auth/success')) {
       console.log("Deep Link URL matches expected pattern.");
+      console.log("Extracted url: ", url);
 
       const queryString = url.split('?')[1];
+      console.log("Extracted queryString: ", queryString);
       let authCode = null;
       if (queryString) {
         const params = queryString.split('&');
@@ -512,7 +514,7 @@ export default function Home({ navigation }) {
           }
         }
       }
-      console.log("Extracted authCode (manual):", authCode);
+      console.log("Extracted authCode: ", authCode);
 
 
       if (!authCode) {

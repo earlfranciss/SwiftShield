@@ -69,6 +69,8 @@ if not app.config["SECRET_KEY"]:
 app.config["SESSION_TYPE"] = "mongodb" 
 app.config["SESSION_PERMANENT"] = True
 app.config["SESSION_USE_SIGNER"] = True 
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Or 'Strict' depending on your needs
+app.config['SESSION_COOKIE_SECURE'] = True  # Only set to True in production over HTTPS
 # If using mongodb session type:
 app.config["SESSION_MONGODB_DB"] = 'SwiftShield'
 app.config["SESSION_MONGODB_COLLECT"] = 'sessions'
@@ -1333,7 +1335,8 @@ def Login():
     session['role'] = user.get('role', 'user') # Get role, default to 'user' if missing
     session['email'] = user['email']
     session['firstName'] = user.get('firstName', '') # Store first name if available
-
+    session.permanent = True  
+    
     # Update last login time
     users_collection.update_one(
         {'_id': user['_id']},
@@ -2244,6 +2247,7 @@ if __name__ == "__main__":
 @app.route("/google-login")
 def google_login():
     try:
+        print(f"DEBUG: /google/login")
         """
         Initiates the Google OAuth 2.0 flow.
         Redirects the user to Google's consent screen.

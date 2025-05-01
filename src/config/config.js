@@ -29,9 +29,11 @@ const getBaseURL = () => {
   if (__DEV__) {
     if (Platform.OS === "android") {
       // Replace this with your actual local IP address (same one Flask runs on)
-      baseURL = "http://10.0.2.2:5000";
+      // baseURL = "http://10.0.2.2:5000";
+      baseURL = "https://swiftshield.onrender.com";
     } else {
-      baseURL = "http://localhost:5000";
+      // baseURL = "http://localhost:5000";
+      baseURL = "https://swiftshield.onrender.com";
     }
   } else {
     baseURL = "https://swiftshield.onrender.com"; // Production
