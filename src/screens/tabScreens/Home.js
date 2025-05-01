@@ -518,6 +518,10 @@ export default function Home({ navigation }) {
       }
       console.log("Extracted authCode: ", authCode);
 
+      // const parsed = new URL(url);
+      // const authCode = parsed.searchParams.get('code');
+      // const state = parsed.searchParams.get('state');
+      // console.log("Extracted authCode: ", authCode);
 
       if (!authCode) {
         console.error("Missing authCode in deep link URL");

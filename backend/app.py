@@ -2479,10 +2479,10 @@ def exchange_auth_code():
 
         # 1. --- Get the Google OAuth Flow Object ---
         # Use the same OAuth configuration as in the /google-login and /google-callback routes
-        client_id = current_app.config.get('GOOGLE_CLIENT_ID')
-        client_secret = current_app.config.get('GOOGLE_CLIENT_SECRET')
-        redirect_uri = current_app.config.get('GOOGLE_REDIRECT_URI')
-        scopes = current_app.config.get('GOOGLE_SCOPES')
+        client_id = app.config.get('GOOGLE_CLIENT_ID')
+        client_secret = app.config.get('GOOGLE_CLIENT_SECRET')
+        redirect_uri = app.config.get('GOOGLE_REDIRECT_URI')
+        scopes = app.config.get('GOOGLE_SCOPES')
 
         if not client_id or not client_secret or not redirect_uri or not scopes:
             print("ERROR: Google OAuth configuration missing in /exchange-auth-code")
