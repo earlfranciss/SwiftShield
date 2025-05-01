@@ -2396,6 +2396,16 @@ def google_callback():
         if not google_user_email:
              raise ValueError("Could not retrieve user email from Google API.")
 
+
+        user = users_collection.find_one({'email': google_user_email})
+
+        if not user:
+            print(f"DEBUG: Login failed - No user found with email: {google_user_email}")
+            return jsonify({"error": "Invalid email or password"}), 401 # Use generic error for security
+
+        # --- Login Successful - Set Session ---
+        session['user_id'] = str(user['_id'])
+    
         print(f"DEBUG: /google-callback - User ID: {session.get('user_id')}")
 
 
