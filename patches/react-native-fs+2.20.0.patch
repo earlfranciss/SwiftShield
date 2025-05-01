@@ -1,3 +1,15 @@
+diff --git a/node_modules/react-native-fs/android/build.gradle b/node_modules/react-native-fs/android/build.gradle
+index ddef857..cd58d9c 100644
+--- a/node_modules/react-native-fs/android/build.gradle
++++ b/node_modules/react-native-fs/android/build.gradle
+@@ -17,6 +17,7 @@ apply plugin: 'com.android.library'
+ android {
+     compileSdkVersion safeExtGet('compileSdkVersion', 26)
+     buildToolsVersion safeExtGet('buildToolsVersion', '26.0.3')
++    namespace "com.rnfs"
+ 
+     defaultConfig {
+         minSdkVersion safeExtGet('minSdkVersion', 19)
 diff --git a/node_modules/react-native-fs/android/build/.transforms/0afdaf3c6abdf32445b19cd9fbab4270/results.bin b/node_modules/react-native-fs/android/build/.transforms/0afdaf3c6abdf32445b19cd9fbab4270/results.bin
 new file mode 100644
 index 0000000..4c288ce
@@ -21,120 +33,91 @@ index 0000000..5ff383e
 +o/debug
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/BuildConfig.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/BuildConfig.dex
 new file mode 100644
-index 0000000..6e8c60d
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/BuildConfig.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadParams$OnDownloadBegin.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadParams$OnDownloadBegin.dex
 new file mode 100644
-index 0000000..fead858
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadParams$OnDownloadBegin.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadParams$OnDownloadProgress.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadParams$OnDownloadProgress.dex
 new file mode 100644
-index 0000000..a0b6491
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadParams$OnDownloadProgress.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadParams$OnTaskCompleted.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadParams$OnTaskCompleted.dex
 new file mode 100644
-index 0000000..3f3b053
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadParams$OnTaskCompleted.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadParams.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadParams.dex
 new file mode 100644
-index 0000000..6dd9150
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadParams.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadResult.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadResult.dex
 new file mode 100644
-index 0000000..a96ff1b
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/DownloadResult.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/Downloader$1.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/Downloader$1.dex
 new file mode 100644
-index 0000000..a316b4e
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/Downloader$1.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/Downloader.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/Downloader.dex
 new file mode 100644
-index 0000000..ca9b0c8
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/Downloader.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/IORejectionException.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/IORejectionException.dex
 new file mode 100644
-index 0000000..6f3323c
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/IORejectionException.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$1.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$1.dex
 new file mode 100644
-index 0000000..7a7ce7a
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$1.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$2.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$2.dex
 new file mode 100644
-index 0000000..7f300e5
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$2.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$3.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$3.dex
 new file mode 100644
-index 0000000..3173e69
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$3.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$4.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$4.dex
 new file mode 100644
-index 0000000..85e6b46
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$4.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$5.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$5.dex
 new file mode 100644
-index 0000000..4d83bc9
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$5.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$6.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$6.dex
 new file mode 100644
-index 0000000..b26e0d1
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$6.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$7.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$7.dex
 new file mode 100644
-index 0000000..35aa9ab
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$7.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$8.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$8.dex
 new file mode 100644
-index 0000000..063c6fb
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$8.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$9.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$9.dex
 new file mode 100644
-index 0000000..4e76f2f
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$9.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$CopyFileTask.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$CopyFileTask.dex
 new file mode 100644
-index 0000000..5bdf010
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager$CopyFileTask.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager.dex
 new file mode 100644
-index 0000000..8ce68b1
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSManager.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSPackage.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSPackage.dex
 new file mode 100644
-index 0000000..37f7e77
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/RNFSPackage.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadParams$onUploadBegin.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadParams$onUploadBegin.dex
 new file mode 100644
-index 0000000..c7ce235
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadParams$onUploadBegin.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadParams$onUploadComplete.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadParams$onUploadComplete.dex
 new file mode 100644
-index 0000000..4f2c16d
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadParams$onUploadComplete.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadParams$onUploadProgress.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadParams$onUploadProgress.dex
 new file mode 100644
-index 0000000..defb887
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadParams$onUploadProgress.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadParams.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadParams.dex
 new file mode 100644
-index 0000000..a550ed9
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadParams.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadResult.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadResult.dex
 new file mode 100644
-index 0000000..0b29567
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/UploadResult.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/Uploader$1.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/Uploader$1.dex
 new file mode 100644
-index 0000000..8ecc5c8
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/Uploader$1.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/Uploader.dex b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/Uploader.dex
 new file mode 100644
-index 0000000..1b50289
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/debug_dex/com/rnfs/Uploader.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/desugar_graph.bin b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/desugar_graph.bin
 new file mode 100644
-index 0000000..e5a0078
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/42b303fc151cc037a600b16706bcbda6/transformed/debug/desugar_graph.bin differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/91885c31e17fda96bd9809b7254ec436/results.bin b/node_modules/react-native-fs/android/build/.transforms/91885c31e17fda96bd9809b7254ec436/results.bin
 new file mode 100644
 index 0000000..e3f0ff0
@@ -151,8 +134,7 @@ index 0000000..0d259dd
 +o/classes
 diff --git a/node_modules/react-native-fs/android/build/.transforms/923c85d03b70c8471104b5c175fe1eee/transformed/classes/classes_dex/classes.dex b/node_modules/react-native-fs/android/build/.transforms/923c85d03b70c8471104b5c175fe1eee/transformed/classes/classes_dex/classes.dex
 new file mode 100644
-index 0000000..e21ef43
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/.transforms/923c85d03b70c8471104b5c175fe1eee/transformed/classes/classes_dex/classes.dex differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/.transforms/a1ef70d79395681f065571d62b27312d/results.bin b/node_modules/react-native-fs/android/build/.transforms/a1ef70d79395681f065571d62b27312d/results.bin
 new file mode 100644
 index 0000000..1ed65e0
@@ -178,7 +160,7 @@ index 0000000..e0cffd4
 +}
 diff --git a/node_modules/react-native-fs/android/build/intermediates/aapt_friendly_merged_manifests/debug/aapt/AndroidManifest.xml b/node_modules/react-native-fs/android/build/intermediates/aapt_friendly_merged_manifests/debug/aapt/AndroidManifest.xml
 new file mode 100644
-index 0000000..29496b1
+index 0000000..748b577
 --- /dev/null
 +++ b/node_modules/react-native-fs/android/build/intermediates/aapt_friendly_merged_manifests/debug/aapt/AndroidManifest.xml
 @@ -0,0 +1,9 @@
@@ -194,7 +176,7 @@ index 0000000..29496b1
 \ No newline at end of file
 diff --git a/node_modules/react-native-fs/android/build/intermediates/aapt_friendly_merged_manifests/debug/aapt/output-metadata.json b/node_modules/react-native-fs/android/build/intermediates/aapt_friendly_merged_manifests/debug/aapt/output-metadata.json
 new file mode 100644
-index 0000000..9502bfe
+index 0000000..9052b2e
 --- /dev/null
 +++ b/node_modules/react-native-fs/android/build/intermediates/aapt_friendly_merged_manifests/debug/aapt/output-metadata.json
 @@ -0,0 +1,18 @@
@@ -231,7 +213,7 @@ index 0000000..1211b1e
 +coreLibraryDesugaringEnabled=false
 diff --git a/node_modules/react-native-fs/android/build/intermediates/annotation_processor_list/debug/annotationProcessors.json b/node_modules/react-native-fs/android/build/intermediates/annotation_processor_list/debug/annotationProcessors.json
 new file mode 100644
-index 0000000..9e26dfe
+index 0000000..8372b41
 --- /dev/null
 +++ b/node_modules/react-native-fs/android/build/intermediates/annotation_processor_list/debug/annotationProcessors.json
 @@ -0,0 +1 @@
@@ -239,12 +221,10 @@ index 0000000..9e26dfe
 \ No newline at end of file
 diff --git a/node_modules/react-native-fs/android/build/intermediates/compile_library_classes_jar/debug/classes.jar b/node_modules/react-native-fs/android/build/intermediates/compile_library_classes_jar/debug/classes.jar
 new file mode 100644
-index 0000000..f40690c
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/compile_library_classes_jar/debug/classes.jar differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/compile_r_class_jar/debug/R.jar b/node_modules/react-native-fs/android/build/intermediates/compile_r_class_jar/debug/R.jar
 new file mode 100644
-index 0000000..bee12a0
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/compile_r_class_jar/debug/R.jar differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/compile_symbol_list/debug/R.txt b/node_modules/react-native-fs/android/build/intermediates/compile_symbol_list/debug/R.txt
 new file mode 100644
 index 0000000..e69de29
@@ -257,7 +237,7 @@ index 0000000..ea15e11
 +#Thu Apr 03 22:48:39 SGT 2025
 diff --git a/node_modules/react-native-fs/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml b/node_modules/react-native-fs/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
 new file mode 100644
-index 0000000..26efaa0
+index 0000000..d122f52
 --- /dev/null
 +++ b/node_modules/react-native-fs/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
 @@ -0,0 +1,2 @@
@@ -266,7 +246,7 @@ index 0000000..26efaa0
 \ No newline at end of file
 diff --git a/node_modules/react-native-fs/android/build/intermediates/incremental/mergeDebugJniLibFolders/merger.xml b/node_modules/react-native-fs/android/build/intermediates/incremental/mergeDebugJniLibFolders/merger.xml
 new file mode 100644
-index 0000000..044cb43
+index 0000000..72d7380
 --- /dev/null
 +++ b/node_modules/react-native-fs/android/build/intermediates/incremental/mergeDebugJniLibFolders/merger.xml
 @@ -0,0 +1,2 @@
@@ -275,7 +255,7 @@ index 0000000..044cb43
 \ No newline at end of file
 diff --git a/node_modules/react-native-fs/android/build/intermediates/incremental/mergeDebugShaders/merger.xml b/node_modules/react-native-fs/android/build/intermediates/incremental/mergeDebugShaders/merger.xml
 new file mode 100644
-index 0000000..985e812
+index 0000000..f236e1c
 --- /dev/null
 +++ b/node_modules/react-native-fs/android/build/intermediates/incremental/mergeDebugShaders/merger.xml
 @@ -0,0 +1,2 @@
@@ -284,7 +264,7 @@ index 0000000..985e812
 \ No newline at end of file
 diff --git a/node_modules/react-native-fs/android/build/intermediates/incremental/packageDebugAssets/merger.xml b/node_modules/react-native-fs/android/build/intermediates/incremental/packageDebugAssets/merger.xml
 new file mode 100644
-index 0000000..5e85a4c
+index 0000000..d3cdfd5
 --- /dev/null
 +++ b/node_modules/react-native-fs/android/build/intermediates/incremental/packageDebugAssets/merger.xml
 @@ -0,0 +1,2 @@
@@ -293,116 +273,88 @@ index 0000000..5e85a4c
 \ No newline at end of file
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/BuildConfig.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/BuildConfig.class
 new file mode 100644
-index 0000000..9c2c530
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/BuildConfig.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadParams$OnDownloadBegin.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadParams$OnDownloadBegin.class
 new file mode 100644
-index 0000000..4e93a0e
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadParams$OnDownloadBegin.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadParams$OnDownloadProgress.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadParams$OnDownloadProgress.class
 new file mode 100644
-index 0000000..0b1649c
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadParams$OnDownloadProgress.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadParams$OnTaskCompleted.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadParams$OnTaskCompleted.class
 new file mode 100644
-index 0000000..89340f3
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadParams$OnTaskCompleted.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadParams.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadParams.class
 new file mode 100644
-index 0000000..f8d9475
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadParams.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadResult.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadResult.class
 new file mode 100644
-index 0000000..7f806a6
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/DownloadResult.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/Downloader$1.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/Downloader$1.class
 new file mode 100644
-index 0000000..ad48c0f
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/Downloader$1.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/Downloader.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/Downloader.class
 new file mode 100644
-index 0000000..917bd74
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/Downloader.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/IORejectionException.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/IORejectionException.class
 new file mode 100644
-index 0000000..89c26af
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/IORejectionException.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$1.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$1.class
 new file mode 100644
-index 0000000..fd24dc1
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$1.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$2.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$2.class
 new file mode 100644
-index 0000000..df9d734
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$2.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$3.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$3.class
 new file mode 100644
-index 0000000..7cfd978
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$3.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$4.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$4.class
 new file mode 100644
-index 0000000..7b53183
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$4.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$5.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$5.class
 new file mode 100644
-index 0000000..2562c74
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$5.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$6.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$6.class
 new file mode 100644
-index 0000000..b7ed28f
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$6.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$7.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$7.class
 new file mode 100644
-index 0000000..42a603d
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$7.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$8.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$8.class
 new file mode 100644
-index 0000000..30c82b1
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$8.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$9.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$9.class
 new file mode 100644
-index 0000000..2949f51
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$9.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$CopyFileTask.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$CopyFileTask.class
 new file mode 100644
-index 0000000..1129cf7
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager$CopyFileTask.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager.class
 new file mode 100644
-index 0000000..287c0ff
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSManager.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSPackage.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSPackage.class
 new file mode 100644
-index 0000000..2a6d402
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/RNFSPackage.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadParams$onUploadBegin.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadParams$onUploadBegin.class
 new file mode 100644
-index 0000000..727771e
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadParams$onUploadBegin.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadParams$onUploadComplete.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadParams$onUploadComplete.class
 new file mode 100644
-index 0000000..713d093
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadParams$onUploadComplete.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadParams$onUploadProgress.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadParams$onUploadProgress.class
 new file mode 100644
-index 0000000..556c3b6
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadParams$onUploadProgress.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadParams.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadParams.class
 new file mode 100644
-index 0000000..ebb9eda
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadParams.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadResult.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadResult.class
 new file mode 100644
-index 0000000..a6b022a
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/UploadResult.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/Uploader$1.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/Uploader$1.class
 new file mode 100644
-index 0000000..8fcc4d6
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/Uploader$1.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/Uploader.class b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/Uploader.class
 new file mode 100644
-index 0000000..37d676f
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/javac/debug/classes/com/rnfs/Uploader.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/local_only_symbol_list/debug/R-def.txt b/node_modules/react-native-fs/android/build/intermediates/local_only_symbol_list/debug/R-def.txt
 new file mode 100644
 index 0000000..78ac5b8
@@ -430,7 +382,7 @@ index 0000000..5d48743
 +9</manifest>
 diff --git a/node_modules/react-native-fs/android/build/intermediates/merged_manifest/debug/AndroidManifest.xml b/node_modules/react-native-fs/android/build/intermediates/merged_manifest/debug/AndroidManifest.xml
 new file mode 100644
-index 0000000..29496b1
+index 0000000..748b577
 --- /dev/null
 +++ b/node_modules/react-native-fs/android/build/intermediates/merged_manifest/debug/AndroidManifest.xml
 @@ -0,0 +1,9 @@
@@ -446,7 +398,7 @@ index 0000000..29496b1
 \ No newline at end of file
 diff --git a/node_modules/react-native-fs/android/build/intermediates/navigation_json/debug/navigation.json b/node_modules/react-native-fs/android/build/intermediates/navigation_json/debug/navigation.json
 new file mode 100644
-index 0000000..0637a08
+index 0000000..8d3f940
 --- /dev/null
 +++ b/node_modules/react-native-fs/android/build/intermediates/navigation_json/debug/navigation.json
 @@ -0,0 +1 @@
@@ -454,120 +406,91 @@ index 0000000..0637a08
 \ No newline at end of file
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/BuildConfig.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/BuildConfig.class
 new file mode 100644
-index 0000000..9c2c530
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/BuildConfig.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadParams$OnDownloadBegin.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadParams$OnDownloadBegin.class
 new file mode 100644
-index 0000000..4e93a0e
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadParams$OnDownloadBegin.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadParams$OnDownloadProgress.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadParams$OnDownloadProgress.class
 new file mode 100644
-index 0000000..0b1649c
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadParams$OnDownloadProgress.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadParams$OnTaskCompleted.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadParams$OnTaskCompleted.class
 new file mode 100644
-index 0000000..89340f3
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadParams$OnTaskCompleted.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadParams.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadParams.class
 new file mode 100644
-index 0000000..f8d9475
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadParams.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadResult.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadResult.class
 new file mode 100644
-index 0000000..7f806a6
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/DownloadResult.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/Downloader$1.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/Downloader$1.class
 new file mode 100644
-index 0000000..ad48c0f
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/Downloader$1.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/Downloader.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/Downloader.class
 new file mode 100644
-index 0000000..917bd74
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/Downloader.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/IORejectionException.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/IORejectionException.class
 new file mode 100644
-index 0000000..89c26af
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/IORejectionException.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$1.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$1.class
 new file mode 100644
-index 0000000..fd24dc1
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$1.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$2.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$2.class
 new file mode 100644
-index 0000000..df9d734
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$2.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$3.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$3.class
 new file mode 100644
-index 0000000..7cfd978
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$3.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$4.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$4.class
 new file mode 100644
-index 0000000..7b53183
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$4.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$5.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$5.class
 new file mode 100644
-index 0000000..2562c74
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$5.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$6.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$6.class
 new file mode 100644
-index 0000000..b7ed28f
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$6.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$7.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$7.class
 new file mode 100644
-index 0000000..42a603d
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$7.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$8.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$8.class
 new file mode 100644
-index 0000000..30c82b1
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$8.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$9.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$9.class
 new file mode 100644
-index 0000000..2949f51
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$9.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$CopyFileTask.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$CopyFileTask.class
 new file mode 100644
-index 0000000..1129cf7
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager$CopyFileTask.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager.class
 new file mode 100644
-index 0000000..287c0ff
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSManager.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSPackage.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSPackage.class
 new file mode 100644
-index 0000000..2a6d402
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/RNFSPackage.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadParams$onUploadBegin.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadParams$onUploadBegin.class
 new file mode 100644
-index 0000000..727771e
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadParams$onUploadBegin.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadParams$onUploadComplete.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadParams$onUploadComplete.class
 new file mode 100644
-index 0000000..713d093
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadParams$onUploadComplete.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadParams$onUploadProgress.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadParams$onUploadProgress.class
 new file mode 100644
-index 0000000..556c3b6
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadParams$onUploadProgress.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadParams.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadParams.class
 new file mode 100644
-index 0000000..ebb9eda
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadParams.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadResult.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadResult.class
 new file mode 100644
-index 0000000..a6b022a
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/UploadResult.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/Uploader$1.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/Uploader$1.class
 new file mode 100644
-index 0000000..8fcc4d6
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/Uploader$1.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/Uploader.class b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/Uploader.class
 new file mode 100644
-index 0000000..37d676f
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_dir/debug/com/rnfs/Uploader.class differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_jar/debug/classes.jar b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_jar/debug/classes.jar
 new file mode 100644
-index 0000000..9a4ca3d
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/intermediates/runtime_library_classes_jar/debug/classes.jar differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/build/intermediates/symbol_list_with_package_name/debug/package-aware-r.txt b/node_modules/react-native-fs/android/build/intermediates/symbol_list_with_package_name/debug/package-aware-r.txt
 new file mode 100644
 index 0000000..f6ba860
@@ -604,8 +527,7 @@ index 0000000..2ab1afc
 +		INJECTED from D:\ThesisFiles\SwiftShield\node_modules\react-native-fs\android\src\main\AndroidManifest.xml
 diff --git a/node_modules/react-native-fs/android/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin b/node_modules/react-native-fs/android/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin
 new file mode 100644
-index 0000000..42b78e6
-Binary files /dev/null and b/node_modules/react-native-fs/android/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin differ
+index 0000000..e69de29
 diff --git a/node_modules/react-native-fs/android/src/main/AndroidManifest.xml b/node_modules/react-native-fs/android/src/main/AndroidManifest.xml
 index 6e54f65..7ce2281 100644
 --- a/node_modules/react-native-fs/android/src/main/AndroidManifest.xml

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback  } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   StyleSheet,
   SafeAreaView,
@@ -18,7 +18,6 @@ import StatsText from "../../components/StatsText";
 import DetailsModal from "../../components/DetailsModal";
 import config from "../../config/config";
 import { useFocusEffect } from "@react-navigation/native";
-
 
 export default function Analytics({ navigation }) {
   const [analyticsData, setAnalyticsData] = useState(null); // Note: analyticsData is fetched but not used directly in rendering yet
@@ -242,14 +241,14 @@ export default function Analytics({ navigation }) {
     },
     {
       level: "High",
-      count: severityCounts?.HIGH ?? 0, 
+      count: severityCounts?.HIGH ?? 0,
       borderColor: "#EE8931",
       textColor: "#EE8931",
       countColor: "#EE8931",
     },
     {
       level: "Critical",
-      count: severityCounts?.CRITICAL ?? 0, 
+      count: severityCounts?.CRITICAL ?? 0,
       borderColor: "#ED3A3A",
       textColor: "#ED3A3A",
       countColor: "#ED3A3A",
@@ -334,7 +333,7 @@ export default function Analytics({ navigation }) {
         visible={modalVisible}
         onClose={closeModal}
         scanResult={modalData}
-        onDeletePress={handleDeleteLog}
+        //onDeletePress={handleDeleteLog}
       />
     </SafeAreaView>
   );

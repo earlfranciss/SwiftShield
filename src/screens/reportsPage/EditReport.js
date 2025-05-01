@@ -15,7 +15,8 @@ import config from "../../config/config";
 
 export default function EditReport({ navigation, route }) {
   const { report } = route.params;
-  const { isDarkMode = false, onToggleDarkMode = () => {} } = route.params || {};
+  const { isDarkMode = false, onToggleDarkMode = () => {} } =
+    route.params || {};
 
   // State for updating the status
   const [status, setStatus] = useState(report.status || "Pending");
@@ -42,49 +43,58 @@ export default function EditReport({ navigation, route }) {
           text: "Update",
           onPress: async () => {
             setIsSubmitting(true);
-            
+
             // Determine which ID field to use (some APIs return _id, others return id)
             const reportId = report._id || report.id;
-            
+
             if (!reportId) {
               Alert.alert("Error", "Report ID not found");
               setIsSubmitting(false);
               return;
             }
-            
+
             console.log("Report object:", report);
             console.log("Updating report:", { reportId, status, remarks });
 
             try {
-              const response = await fetch(`${config.BASE_URL}/reports/${reportId}`, {
-                method: "PUT",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ status, remarks }),
-              });
+              const response = await fetch(
+                `${config.BASE_URL}/reports/${reportId}`,
+                {
+                  method: "PUT",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ status, remarks }),
+                }
+              );
 
               const responseData = await response.json();
-              
+
               if (response.ok) {
                 Alert.alert("Success", "Report updated successfully", [
-                  { 
-                    text: "OK", 
+                  {
+                    text: "OK",
                     onPress: () => {
                       // Call refreshReports() to update the Reports list if available
                       if (route.params?.refreshReports) {
-                        route.params.refreshReports(); 
+                        route.params.refreshReports();
                       }
                       navigation.goBack();
-                    }
+                    },
                   },
                 ]);
               } else {
-                Alert.alert("Error", responseData.message || "Failed to update report");
+                Alert.alert(
+                  "Error",
+                  responseData.message || "Failed to update report"
+                );
               }
             } catch (error) {
               console.error("Error updating report:", error);
-              Alert.alert("Error", `Failed to connect to server: ${error.message}`);
+              Alert.alert(
+                "Error",
+                `Failed to connect to server: ${error.message}`
+              );
             } finally {
               setIsSubmitting(false);
             }
@@ -138,7 +148,7 @@ export default function EditReport({ navigation, route }) {
             {/* Update Report Status */}
             <Text style={styles.label}>Update Status</Text>
             <View style={styles.radioWrapper}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.radioContainer}
                 onPress={() => setStatus("Pending")}
               >
@@ -150,8 +160,8 @@ export default function EditReport({ navigation, route }) {
                 />
                 <Text style={styles.radioLabel}>Pending</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={styles.radioContainer}
                 onPress={() => setStatus("In Progress")}
               >
@@ -163,8 +173,8 @@ export default function EditReport({ navigation, route }) {
                 />
                 <Text style={styles.radioLabel}>In Progress</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={styles.radioContainer}
                 onPress={() => setStatus("Resolved")}
               >
@@ -190,11 +200,11 @@ export default function EditReport({ navigation, route }) {
             />
 
             {/* Update Button */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
-                styles.submitButton, 
-                isSubmitting && styles.disabledButton
-              ]} 
+                styles.submitButton,
+                isSubmitting && styles.disabledButton,
+              ]}
               onPress={handleUpdate}
               disabled={isSubmitting}
             >
@@ -202,16 +212,16 @@ export default function EditReport({ navigation, route }) {
                 {isSubmitting ? "Updating..." : "Update"}
               </Text>
             </TouchableOpacity>
-            
+
             {/* Cancel Button */}
-            <TouchableOpacity 
-              style={styles.cancelButton} 
+            <TouchableOpacity
+              style={styles.cancelButton}
               onPress={() => navigation.goBack()}
               disabled={isSubmitting}
             >
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
-            
+
             {/* Add some padding at the bottom for scrolling */}
             <View style={{ height: 40 }} />
           </ScrollView>

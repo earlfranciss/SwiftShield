@@ -21,24 +21,20 @@
 
 // export default config;
 
-
-
-
-import { Platform } from 'react-native';
+import { Platform } from "react-native";
 
 const getBaseURL = () => {
-  let baseURL; 
+  let baseURL;
 
   if (__DEV__) {
-    if (Platform.OS === 'android') {
-      baseURL = 'http://10.0.2.2:5000'; 
-      //baseURL = 'https://swiftshield.onrender.com';
+    if (Platform.OS === "android") {
+      // Replace this with your actual local IP address (same one Flask runs on)
+      baseURL = "http://192.168.0.169:5000";
     } else {
-      baseURL = 'http://localhost:5000';
-      //baseURL = 'https://swiftshield.onrender.com';
+      baseURL = "http://localhost:5000";
     }
   } else {
-    baseURL = 'https://swiftshield.onrender.com';
+    baseURL = "https://swiftshield.onrender.com"; // Production
   }
 
   return baseURL;
@@ -48,6 +44,6 @@ const config = {
   BASE_URL: getBaseURL(),
 };
 
-console.log('Using API Base URL:', config.BASE_URL); 
+console.log("Using API Base URL:", config.BASE_URL);
 
 export default config;

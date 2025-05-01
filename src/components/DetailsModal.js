@@ -22,7 +22,7 @@ const iconMap = {
 // --- Severity Colors (Text Color) ---
 // Define colors based on your requirements
 const severityTextColors = {
-  safe: "#000000", // White for Safe text
+  safe: "#20BB00", // White for Safe text
   low: "#3AED97", // Your specified Low color
   medium: "#EED531", // Your specified Medium color
   high: "#EE8931", // Your specified High color
@@ -378,9 +378,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#000000",
     fontWeight: "500",
-    textAlign: "right",
+    //textAlign: "right",
     flexShrink: 1, // Allow text to wrap if needed
-    paddingLeft: 5, // Add small gap
+    //paddingLeft: 5, // Add small gap
+    marginLeft: 45,
   },
   buttonRow: {
     flexDirection: "row",

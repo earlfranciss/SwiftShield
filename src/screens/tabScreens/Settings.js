@@ -11,6 +11,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Settings({ navigation, isDarkMode }) {
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     checkIfUserIsAdmin();
@@ -59,7 +61,7 @@ export default function Settings({ navigation, isDarkMode }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Profile Section - NOW CLICKABLE */}
+      {/* Profile Section - NOW CLICKABLE 
       <TouchableOpacity
         style={styles.profileSection}
         onPress={handleProfilePress}
@@ -70,7 +72,7 @@ export default function Settings({ navigation, isDarkMode }) {
           <Text style={styles.name}>John Doe</Text>
           <Text style={styles.email}>johndoe@email.com</Text>
         </View>
-      </TouchableOpacity>
+      </TouchableOpacity>*/}
 
       {/* Options Section */}
       <TouchableOpacity
@@ -79,12 +81,12 @@ export default function Settings({ navigation, isDarkMode }) {
       >
         <Text style={styles.optionText}>Push Notifications</Text>
       </TouchableOpacity>
-      <TouchableOpacity
+      {/*<TouchableOpacity
         style={styles.optionButton}
         onPress={() => navigation.navigate('ConnectedApps')}
       >
         <Text style={styles.optionText}>Connected Apps</Text>
-      </TouchableOpacity>
+      </TouchableOpacity>*/}
 
       {/* Manage Users Button - ONLY VISIBLE TO ADMINS */}
       {isAdmin && (
@@ -97,7 +99,7 @@ export default function Settings({ navigation, isDarkMode }) {
       )}
 
       {/* Options Footer Section */}
-      <View style={styles.footer}>
+      
         {/* *** ADDED: How to use the app Button *** */}
         <TouchableOpacity
           style={styles.optionButton}
@@ -122,7 +124,7 @@ export default function Settings({ navigation, isDarkMode }) {
           <Text style={styles.optionText}>Help and Support</Text>
         </TouchableOpacity>
 
-        {/* Privacy Policy */}
+        {/* Privacy Policy 
         <TouchableOpacity
            style={styles.optionButton}
            onPress={() => {
@@ -132,9 +134,9 @@ export default function Settings({ navigation, isDarkMode }) {
            }}
         >
           <Text style={styles.optionText}>Privacy Policy</Text>
-        </TouchableOpacity>
+        </TouchableOpacity>*/}
 
-
+        <View style={styles.footer}>
         {/* Sign-out Section */}
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
            {/* Corrected text to match image */}

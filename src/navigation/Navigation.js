@@ -31,13 +31,13 @@ import Notifications from "../screens/stackScreens/Notifications";
 import Login from "../screens/authScreens/Login";
 import Registration from "../screens/authScreens/Registration";
 import ForgotPassword from "../screens/authScreens/ForgotPassword";
-import EditProfile from "../screens/authScreens/EditProfile";
+//import EditProfile from "../screens/authScreens/EditProfile";
 //Reports Page 
 import Reports from "../screens/reportsPage/Reports";
 import CreateReport from "../screens/reportsPage/CreateReport";
 import EditReport from "../screens/reportsPage/EditReport";
 //Settings Screens
-import ConnectedAppsScreen from '../screens/settingsScreens/screens/ConnectedAppsScreen';
+//import ConnectedAppsScreen from '../screens/settingsScreens/screens/ConnectedAppsScreen';
 import PushNotificationsScreen from "../screens/settingsScreens/screens/PushNotifications";
 import ManageUsers from "../screens/stackScreens/ManageUsers";
 import OnboardingScreen from "../screens/stackScreens/OnboardingScreen";
@@ -114,15 +114,17 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
             </GradientScreen>
           )}
         </SettingsStackNav.Screen>
-        <SettingsStackNav.Screen name="ConnectedApps">
-          {/* 'props' here contains the CORRECT navigation for SettingsStackNav */}
+
+      {/* <SettingsStackNav.Screen name="ConnectedApps">
+          {/* 'props' here contains the CORRECT navigation for SettingsStackNav 
           {(props) => (
             <GradientScreen {...commonGradientProps}>
-              {/* Pass the STACK's props DOWN, remove explicit override */}
+              {/* Pass the STACK's props DOWN, remove explicit override 
               <ConnectedAppsScreen {...props} />
             </GradientScreen>
          )}
-      </SettingsStackNav.Screen>
+      </SettingsStackNav.Screen>*/}
+      
        {/* Add other screens that should be nested under Settings tab here */}
        <SettingsStackNav.Screen name="ManageUsers">
          {props => (
@@ -283,7 +285,7 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
       <Stack.Screen name="Login" component={Login} />
       <Stack.Screen name="Register" component={Registration} />
       <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
-      <Stack.Screen name="EditProfile" component={EditProfile} />
+      {/*<Stack.Screen name="EditProfile" component={EditProfile} />*/}
       <Stack.Screen name="OnboardingScreen" component={OnboardingScreen} />
       <Stack.Screen name="Tabs">
         {(props) => (
