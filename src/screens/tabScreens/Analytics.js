@@ -90,7 +90,7 @@ export default function Analytics({ navigation }) {
             ), // Fetch weekly data
           ]);
 
-          console.log("✅ Recent Activity:", logsRes);
+          // console.log("✅ Recent Activity:", logsRes);
           console.log("✅ URLs Scanned:", urlsScannedRes);
           console.log("✅ Threats Blocked:", threatsBlockedRes);
           console.log("✅ Severity Counts:", severityCountsRes);

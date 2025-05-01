@@ -2255,10 +2255,10 @@ def google_login():
         """
         # Retrieve Google client config and scopes from Flask app config
         # These should have been set in your app/__init__.py from .env
-        client_id = current_app.config.get('GOOGLE_CLIENT_ID')
-        client_secret = current_app.config.get('GOOGLE_CLIENT_SECRET')
-        redirect_uri = current_app.config.get('GOOGLE_REDIRECT_URI')
-        scopes = current_app.config.get('GOOGLE_SCOPES')
+        client_id = app.config.get('GOOGLE_CLIENT_ID')
+        client_secret = app.config.get('GOOGLE_CLIENT_SECRET')
+        redirect_uri = app.config.get('GOOGLE_REDIRECT_URI')
+        scopes = app.config.get('GOOGLE_SCOPES')
 
         if not client_id or not client_secret or not redirect_uri or not scopes:
             print("ERROR: Google OAuth configuration missing in Flask app config.")
@@ -2342,10 +2342,10 @@ def google_callback():
     # 2. --- Initialize the Flow Again ---
     # The flow object is needed again to exchange the code for tokens.
     # Use the same configuration as in the /login route.
-    client_id = current_app.config.get('GOOGLE_CLIENT_ID')
-    client_secret = current_app.config.get('GOOGLE_CLIENT_SECRET')
-    redirect_uri = current_app.config.get('GOOGLE_REDIRECT_URI')
-    scopes = current_app.config.get('GOOGLE_SCOPES')
+    client_id = app.config.get('GOOGLE_CLIENT_ID')
+    client_secret = app.config.get('GOOGLE_CLIENT_SECRET')
+    redirect_uri = app.config.get('GOOGLE_REDIRECT_URI')
+    scopes = app.config.get('GOOGLE_SCOPES')
 
     if not client_id or not client_secret or not redirect_uri or not scopes:
         print("ERROR: /google/callback - Google OAuth configuration missing.")
@@ -2438,7 +2438,191 @@ def google_callback():
         final_redirect = session.pop('final_redirect_uri', f'swiftshield://google/auth/error?reason={error_reason}')
         return redirect(final_redirect)
 
+@app.route('/exchange-auth-code', methods=['POST'])
+def exchange_auth_code():
+    """
+    Exchanges the Google authorization code for access and refresh tokens.
+    Validates the user and stores the refresh token in the database.
+    """
+    try:
+        data = request.get_json()
+        auth_code = data.get('code')
+        if not auth_code:
+            return jsonify({"success": False, "error": "Missing authorization code"}), 400
 
+        # 1. --- Get the Google OAuth Flow Object ---
+        # Use the same OAuth configuration as in the /google-login and /google-callback routes
+        client_id = current_app.config.get('GOOGLE_CLIENT_ID')
+        client_secret = current_app.config.get('GOOGLE_CLIENT_SECRET')
+        redirect_uri = current_app.config.get('GOOGLE_REDIRECT_URI')
+        scopes = current_app.config.get('GOOGLE_SCOPES')
+
+        if not client_id or not client_secret or not redirect_uri or not scopes:
+            print("ERROR: Google OAuth configuration missing in /exchange-auth-code")
+            return jsonify({"success": False, "error": "Server configuration error"}), 500
+
+        flow = Flow.from_client_config(
+             client_config={  # Construct the structure Google library expects
+                "web": {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [redirect_uri],  # Must be a list
+                }
+            },
+            scopes=scopes,
+            redirect_uri=redirect_uri
+        )
+        
+
+        # 2. --- Exchange the Code for Tokens ---
+        flow.fetch_token(code=auth_code) # Short-form for just passing code
+        credentials = flow.credentials # Get the credentials object
+        refresh_token = credentials.refresh_token  # Get the refresh token
+        access_token = credentials.token
+        #access_token = None
+
+        if not refresh_token:
+            print("ERROR: No refresh token received in /exchange-auth-code")
+            return jsonify({"success": False, "error": "Failed to retrieve refresh token"}), 500
+        
+        # 3. --- Get User Info (Email) ---
+        # To associate this Google account with a specific user in *your* app
+        google_user_email = None
+        google_user_id = None
+
+        try:
+            # Make authenticated API call (as in /google/callback)
+            user_info_service = build('oauth2', 'v2', credentials=credentials, cache_discovery=False)
+            user_info = user_info_service.userinfo().get().execute()
+            google_user_email = user_info.get('email')
+            google_user_id = user_info.get('id') # Unique Google User ID
+
+            if not google_user_email:
+                print("ERROR: Could not retrieve user email from Google API.")
+                return jsonify({"success": False, "error": "Could not retrieve user email"}), 500
+
+            print(f"DEBUG: /exchange-auth-code - Retrieved Google user info: {google_user_email} ({google_user_id})")
+
+        except Exception as api_error:
+             print(f"Error during Google API call in /exchange-auth-code: {api_error}")
+             return jsonify({"success": False, "error": f"Google API Error: {api_error}"}), 500
+
+        # 4. --- Verify User Session & Get User ID ---
+        # Get the logged-in SwiftShield user's ID (from Flask session)
+        app_user_id = session.get('user_id')
+
+        if not app_user_id:
+            print("ERROR: SwiftShield user_id not found in session (expired or missing)")
+            return jsonify({"success": False, "error": "Your session has expired. Please log in."}), 401  # Unauthorized
+
+        print(f"DEBUG: /exchange-auth-code - SwiftShield user ID in session: {app_user_id}")
+
+
+        # 5. --- Store Refresh Token (Link Google Account) in DB ---
+        # IMPORTANT: Make sure you are storing this token *securely*
+        # And linking the Google account correctly to the SwiftShield user
+
+        try:
+            update_result = users_collection.update_one(
+                {'_id': app_user_id}, # Find the user
+                {'$set': { # Set the following fields
+                    'google_refresh_token': refresh_token, # Store the refresh token
+                    'google_email': google_user_email, # Store their Google email
+                    'google_user_id': google_user_id,
+                    'google_auth_linked_on': datetime.now(PH_TZ) # Record linking time
+                    # 'google_access_token': access_token,
+                }}
+            )
+
+            if update_result.modified_count == 0:
+                print(f"WARNING: Could not update user {app_user_id} with Google token.")
+                # Decide if this is an error or a valid scenario, maybe token was the same
+
+        except Exception as db_error:
+            print(f"ERROR: Database error saving refresh token: {db_error}")
+            return jsonify({"success": False, "error": "Database error saving token"}), 500
+
+        # --- SUCCESS ---
+        print(f"✅ Google account linked and token saved for user: {app_user_id} ({google_user_email})")
+        return jsonify({
+            "success": True,
+            "message": "Google account linked successfully",
+            "email": google_user_email,
+            "userId": app_user_id
+        }), 200  # OK
+    
+    except Exception as e:
+        # Log the full traceback for easier debugging
+        import traceback
+        print(f"🔥 Error in /exchange-auth-code: {str(e)}\n{traceback.format_exc()}")
+        return jsonify({"success": False, "error": f"An error occurred: {str(e)}"}), 500
+    
+    
+
+@app.route("/fetch-new-emails", methods=["POST"])
+@login_required
+def fetch_new_emails():
+    """
+    Fetches new Gmail messages for a user after they've successfully connected their account.
+    Returns a list of email details.
+    """
+    user_id = session['user_id'] # Get logged in user ID
+
+    try:
+        # 1. Get the List of New Messages ---
+        messages = list_new_messages(user_id) # Get message summary (IDs)
+        if messages is None:
+            print("ERROR: Could not retrieve new messages from Gmail.")
+            return jsonify({"success": False, "error": "Could not retrieve new messages"}), 500
+
+        # 2. Get the details of every email in messages ---
+        email_details_list = []
+        for message_summary in messages:
+            message_id = message_summary['id'] # Extract message ID
+            email_details = get_email_details(user_id, message_id) # Call your existing function
+
+            if email_details:
+                 # Basic: Add ALL the URL's and check them individually
+                 extracted_urls = []
+                 if email_details.get('body'):
+                    extracted_urls = extract_urls_from_text(email_details.get('body'))
+                 email_details['extracted_urls'] = extracted_urls
+
+                 print(f"✅ Adding Extracted URLs: {extracted_urls}")
+
+                # Clean: Add only the valid emails
+                 if email_details.get('from'):
+                    if is_valid_email(email_details.get('from')):
+                         email_details_list.append(email_details)
+                         # Now we have a working extract for any email we analyze
+
+        print(f"✅ Returning {len(email_details_list)} email details for user: {user_id}")
+        return jsonify({"success": True, "emails": email_details_list}), 200
+
+    except Exception as e:
+        print(f"🔥 Error in /fetch-new-emails: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": f"An error occurred: {str(e)}"}), 500
+
+def is_valid_email(email):
+  """
+  Validates email addresses using a regex pattern that requires at least one character before and after the @ symbol.
+  """
+  # Regular expression for validating an Email
+  email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+  return re.match(email_pattern, email)
+
+
+
+
+
+
+
+
+    
 # --- Google Services ---
 
 def get_google_credentials(app_user_id):
