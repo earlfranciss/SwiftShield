@@ -333,7 +333,7 @@ export default function Analytics({ navigation }) {
         visible={modalVisible}
         onClose={closeModal}
         scanResult={modalData}
-        onDeletePress={handleDeleteLog}
+        //onDeletePress={handleDeleteLog}
       />
     </SafeAreaView>
   );

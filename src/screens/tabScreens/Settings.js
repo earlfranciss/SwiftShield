@@ -11,6 +11,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Settings({ navigation, isDarkMode }) {
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     checkIfUserIsAdmin();
@@ -79,12 +81,12 @@ export default function Settings({ navigation, isDarkMode }) {
       >
         <Text style={styles.optionText}>Push Notifications</Text>
       </TouchableOpacity>
-      <TouchableOpacity
+      {/*<TouchableOpacity
         style={styles.optionButton}
         onPress={() => navigation.navigate('ConnectedApps')}
       >
         <Text style={styles.optionText}>Connected Apps</Text>
-      </TouchableOpacity>
+      </TouchableOpacity>*/}
 
       {/* Manage Users Button - ONLY VISIBLE TO ADMINS */}
       {isAdmin && (
@@ -122,7 +124,7 @@ export default function Settings({ navigation, isDarkMode }) {
           <Text style={styles.optionText}>Help and Support</Text>
         </TouchableOpacity>
 
-        {/* Privacy Policy */}
+        {/* Privacy Policy 
         <TouchableOpacity
            style={styles.optionButton}
            onPress={() => {
@@ -132,7 +134,7 @@ export default function Settings({ navigation, isDarkMode }) {
            }}
         >
           <Text style={styles.optionText}>Privacy Policy</Text>
-        </TouchableOpacity>
+        </TouchableOpacity>*/}
 
 
         {/* Sign-out Section */}

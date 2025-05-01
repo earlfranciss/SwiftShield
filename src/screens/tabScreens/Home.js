@@ -48,8 +48,10 @@ export default function Home({ navigation }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
   const [fontsLoaded, setFontsLoaded] = useState(false);
-  // lmao
-  const [inputError, setInputError] = useState("");
+
+  const [inputError, setInputError] = useState(""); 
+  const [inputValue, setInputValue] = useState(''); 
+
   const [scanResultForModal, setScanResultForModal] = useState(null);
   const [isLoadingScan, setIsLoadingScan] = useState(false);
   const [isProtectionEnabled, setIsProtectionEnabled] = useState(false);
@@ -391,11 +393,14 @@ export default function Home({ navigation }) {
     }
   };
 
-  // AAAAAAAAAAAAAAAAAAAA
 
-  const removeUrlText = () => {
-    setUrl(""); // Clear the URL state
-  };
+  // Handler function to clear the input
+ /* const handleClearInput = () => {
+    setUrl(''); // Clear the state variable tied to the TextInput
+    setInputError(''); // Also clear any existing input error message
+  };*/
+  
+
   // Function called ONLY by the SMS listener callback
   const sendSmsToBackendForProcessing = async (smsData) => {
     const extractionEndpoint = `${config.BASE_URL}/classify-sms`;
@@ -508,7 +513,9 @@ export default function Home({ navigation }) {
     setSelectedLog(null);
   };
 
+
   // Delete Handler
+
   const handleDeleteLog = async (logId) => {
     if (!logId) {
       console.error("Delete failed: No log ID provided.");
@@ -600,20 +607,30 @@ export default function Home({ navigation }) {
           style={[
             styles.textInput,
             inputError ? styles.inputErrorBorder : null,
+
             inputError ? styles.inputTextError : null,
+
           ]}
           placeholder="www.malicious.link"
           placeholderTextColor="#6c757d"
           onChangeText={(text) => {
-            setUrl(text);
-            if (inputError) {
-              setInputError("");
-            }
+
+              setUrl(text);
+              if (inputError) { 
+                  setInputError("");
+              }
+              if (inputValue) {
+                setInputValue("");
+              }
+
           }}
           value={url}
           autoCapitalize="none"
           keyboardType="url"
         />
+      
+
+
         {/* --- Display Error Message Below Input --- */}
         {inputError ? <Text style={styles.errorText}>{inputError}</Text> : null}
 
@@ -624,17 +641,28 @@ export default function Home({ navigation }) {
             <Text style={styles.loadingText}>Scanning...</Text>
           </View>
         ) : (
-          <TouchableOpacity style={styles.scanButton} onPress={handleUrlScan}>
+          <><TouchableOpacity style={styles.scanButton} onPress={handleUrlScan}>
+              <LinearGradient
+                colors={["#3AED97", "#BCE26E", "#FCDE58"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.gradientButton}
+              >
+                <Text style={styles.scanButtonText}>SCAN</Text>
+              </LinearGradient>
+            </TouchableOpacity></>   
+        )}
+
+        <TouchableOpacity style={styles.clearButton} onPress={handleClearInput}>
             <LinearGradient
               colors={["#3AED97", "#BCE26E", "#FCDE58"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.gradientButton}
             >
-              <Text style={styles.scanButtonText}>SCAN</Text>
+              <Text style={styles.clearButtonText}>Clear</Text>
             </LinearGradient>
-          </TouchableOpacity>
-        )}
+        </TouchableOpacity>
       </View>
 
       <DetailsModal
@@ -642,7 +670,7 @@ export default function Home({ navigation }) {
         visible={modalVisible}
         onClose={closeModal}
         scanResult={scanResultForModal}
-        onDeletePress={handleDeleteLog}
+        //onDeletePress={handleDeleteLog}
       />
     </SafeAreaView>
   );
@@ -746,7 +774,17 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 3, // Less spacing
   },
-  removeButtonText: {
+
+  clearButton: {
+    width: "100%",
+    height: 40,
+    borderRadius: 8,
+    overflow: "hidden",
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  clearButtonText: {
+
     color: "#000000",
     // fontFamily: "Inter", // Make sure font is linked
     fontSize: 16, // Slightly smaller
