@@ -257,7 +257,7 @@ def login_required(f):
         # Check if user_id still exists in DB
         user = users_collection.find_one({"_id": session['user_id']})
         if not user:
-            session.clear()
+            # session.clear()
             print("DEBUG: Access denied. User ID from session not found in DB.")
             return jsonify({"error": "Invalid session, please log in again"}), 401
         return f(*args, **kwargs)
@@ -279,7 +279,7 @@ def admin_required(f):
         #  Check if user_id still exists in DB and role is still admin
         user = users_collection.find_one({"_id": session['user_id'], "role": "admin"})
         if not user:
-            session.clear()
+            # session.clear()
             print("DEBUG: Admin access denied. User ID from session not found in DB or role changed.")
             return jsonify({"error": "Invalid session or insufficient privileges, please log in again"}), 403
         return f(*args, **kwargs)
