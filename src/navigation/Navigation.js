@@ -7,16 +7,21 @@ import {
   Switch,
   StyleSheet,
   Image,
-  AppState
+  AppState,
 } from "react-native";
 //Components
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import GradientScreen from "../components/GradientScreen";
 import TopBar from "../components/TopBar";
 import NotificationToast from "../components/NotificationToast";
+import { useTheme } from "../components/themeContext";
 //Services - Import with error handling
 import * as NotificationService from "../services/NotificationService";
-const { requestNotificationPermissions, setupNotificationListeners, scheduleNotification } = NotificationService;
+const {
+  requestNotificationPermissions,
+  setupNotificationListeners,
+  scheduleNotification,
+} = NotificationService;
 import WebViewScreen from "../screens/WarningScreen/WebViewScreen";
 //ConfignotificationData
 import config from "../config/config";
@@ -32,15 +37,16 @@ import Login from "../screens/authScreens/Login";
 import Registration from "../screens/authScreens/Registration";
 import ForgotPassword from "../screens/authScreens/ForgotPassword";
 //import EditProfile from "../screens/authScreens/EditProfile";
-//Reports Page 
+//Reports Page
 import Reports from "../screens/reportsPage/Reports";
 import CreateReport from "../screens/reportsPage/CreateReport";
 import EditReport from "../screens/reportsPage/EditReport";
 //Settings Screens
-//import ConnectedAppsScreen from '../screens/settingsScreens/screens/ConnectedAppsScreen';
+////import ConnectedAppsScreen from '../screens/settingsScreens/screens/ConnectedAppsScreen';
 import PushNotificationsScreen from "../screens/settingsScreens/screens/PushNotifications";
 import ManageUsers from "../screens/stackScreens/ManageUsers";
 import OnboardingScreen from "../screens/stackScreens/OnboardingScreen";
+
 //Icons
 import Entypo from "react-native-vector-icons/Entypo";
 import Octicons from "react-native-vector-icons/Octicons";
@@ -81,10 +87,9 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
     };
 
     const commonTopBarProps = {
-      isDarkMode: isDarkMode,
-      onToggleDarkMode: onToggleDarkMode,
-      // Pass the PARENT navigation to TopBar (likely correct for its icons/actions)
-      navigation: navigation,
+      isDarkMode: isDarkMode, // This 'isDarkMode' is now from the prop passed by TabGroup
+      onToggleDarkMode: onToggleDarkMode, // This is now from the prop passed by TabGroup
+      navigation: navigation, // Parent navigation passed down correctly
       hasUnreadNotifications: hasUnreadNotifications,
       onNotificationRead: onNotificationRead,
     };
@@ -112,35 +117,37 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
           )}
         </SettingsStackNav.Screen>
 
-      {/* <SettingsStackNav.Screen name="ConnectedApps">
+        {/* <SettingsStackNav.Screen name="ConnectedApps">
           {/* 'props' here contains the CORRECT navigation for SettingsStackNav 
           {(props) => (
             <GradientScreen {...commonGradientProps}>
+              {/* Pass the STACK's props DOWN, remove explicit override 
               {/* Pass the STACK's props DOWN, remove explicit override 
               <ConnectedAppsScreen {...props} />
             </GradientScreen>
          )}
       </SettingsStackNav.Screen>*/}
-      
-       {/* Add other screens that should be nested under Settings tab here */}
-       <SettingsStackNav.Screen name="ManageUsers">
-         {props => (
+
+        {/* Add other screens that should be nested under Settings tab here */}
+        <SettingsStackNav.Screen name="ManageUsers">
+          {(props) => (
             <GradientScreen {...commonGradientProps}>
-                <ManageUsers {...props} />
+              <ManageUsers {...props} />
             </GradientScreen>
-         )}
-        
-         </SettingsStackNav.Screen>
-    </SettingsStackNav.Navigator>
-  );
-}
-  
+          )}
+        </SettingsStackNav.Screen>
+      </SettingsStackNav.Navigator>
+    );
+  }
 
-  const [isDarkMode, setDarkMode] = useState(false);
+  // const [isDarkMode, setDarkMode] = useState(false);
 
-  const handleToggleDarkMode = () => {
-    setDarkMode((prevMode) => !prevMode);
-  };
+  // const handleToggleDarkMode = () => {
+  //   setDarkMode((prevMode) => !prevMode);
+  // };
+
+  const { theme, toggleTheme } = useTheme(); // <<< Get theme from context
+  console.log("<<< TabGroup: Initial Mount Theme Check:", theme); // Should log 'dark'
 
   return (
     <View style={{ flex: 1 }}>
@@ -175,35 +182,35 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
             focused ? (
               <Text
                 style={{
-                  color: isDarkMode ? "#218555" : "#3AED97",
+                  // <<< CORRECTED: Use theme from context
+                  color: "#3AED97",
                   fontSize: 12,
                 }}
               >
                 {route.name}
               </Text>
             ) : null,
-
-          tabBarActiveTintColor: isDarkMode ? "#00A757" : "#3AED97",
-          tabBarInactiveTintColor: isDarkMode ? "#AAAAAA" : "#218555",
+          // <<< CORRECTED: Use theme from context
+          tabBarActiveTintColor: "#3AED97",
+          tabBarInactiveTintColor: "#3AED97",
           tabBarStyle: {
-            backgroundColor: isDarkMode ? "#FFFFFF" : "#000000",
+            // <<< CORRECTED: Use theme from context
+            backgroundColor: theme === "dark" ? "#000000" : "#FFFFFF",
             height: 56,
             borderTopWidth: 0,
           },
+          // <<< Closing parenthesis for screenOptions was missing here, added below >>>
         })}
       >
         <Tab.Screen name="Home" options={{ headerShown: false }}>
           {(props) => (
             <GradientScreen
-              // Pass props relevant to GradientScreen if needed
-              isDarkMode={isDarkMode}
-              onToggleDarkMode={handleToggleDarkMode}
-              // Pass the correct navigation object to TopBar
+              isDarkMode={theme === "light"} // <<< Use theme from context
+              onToggleDarkMode={toggleTheme} // <<< Use toggleTheme from context
               topBar={
                 <TopBar
-                  isDarkMode={isDarkMode}
-                  onToggleDarkMode={handleToggleDarkMode}
-                  // props.navigation is the navigation for the Home screen
+                  isDarkMode={theme === "light"} // <<< Use theme from context
+                  onToggleDarkMode={toggleTheme} // <<< Use toggleTheme from context
                   navigation={props.navigation}
                   hasUnreadNotifications={hasUnreadNotifications}
                   onNotificationRead={onNotificationRead}
@@ -218,13 +225,14 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
         <Tab.Screen name="Analytics" options={{ headerShown: false }}>
           {(props) => (
             <GradientScreen
-              isDarkMode={isDarkMode}
-              onToggleDarkMode={handleToggleDarkMode}
+              // <<< CORRECTED props
+              isDarkMode={theme === "light"} // Use theme from context
+              onToggleDarkMode={toggleTheme} // Use toggleTheme from context
               topBar={
                 <TopBar
-                  isDarkMode={isDarkMode}
-                  onToggleDarkMode={handleToggleDarkMode}
-                  // props.navigation is the navigation for the Analytics screen
+                  // <<< CORRECTED props
+                  isDarkMode={theme === "light"} // Use theme from context
+                  onToggleDarkMode={toggleTheme} // Use toggleTheme from context
                   navigation={props.navigation}
                   hasUnreadNotifications={hasUnreadNotifications}
                   onNotificationRead={onNotificationRead}
@@ -239,14 +247,17 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
         <Tab.Screen name="Logs" options={{ headerShown: false }}>
           {(props) => (
             <GradientScreen
-              onToggleDarkMode={handleToggleDarkMode}
-              isDarkMode={isDarkMode}
-              navigation={navigation}
+              // <<< CORRECTED props
+              isDarkMode={theme === "light"} // Use theme from context
+              onToggleDarkMode={toggleTheme} // Use toggleTheme from context
+              // Check if 'navigation' prop is needed here vs props.navigation for GradientScreen
+              navigation={navigation} // Assuming 'navigation' is the prop passed to TabGroup
               topBar={
                 <TopBar
-                  onToggleDarkMode={handleToggleDarkMode}
-                  isDarkMode={isDarkMode}
-                  navigation={props.navigation}
+                  // <<< CORRECTED props
+                  isDarkMode={theme === "light"} // Use theme from context
+                  onToggleDarkMode={toggleTheme} // Use toggleTheme from context
+                  navigation={props.navigation} // Use screen-specific navigation for TopBar actions
                   hasUnreadNotifications={hasUnreadNotifications}
                   onNotificationRead={onNotificationRead}
                 />
@@ -263,8 +274,8 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
           ) => (
             <SettingsStack
               {...props} // Pass down tab's navigation/route
-              isDarkMode={isDarkMode}
-              onToggleDarkMode={handleToggleDarkMode}
+              isDarkMode={theme === "light"} // Use theme from context
+              onToggleDarkMode={toggleTheme}
               hasUnreadNotifications={hasUnreadNotifications}
               onNotificationRead={onNotificationRead}
             />
@@ -476,22 +487,25 @@ export default function Navigation() {
       />
 
       {/* Notification Toast */}
-  {inAppNotification && (
-  <NotificationToast
-    notification={inAppNotification}
-    onPress={(notificationData) => {
-      console.log("Toast pressed, showing details modal:", notificationData); // Debug log
-      // The modal will be shown directly from NotificationToast component
-      setHasUnreadNotifications(false); // Mark as read
-    }}
-    onDismiss={() => {
-      console.log("Toast dismissed (timeout or manual)."); // Debug log
-      setInAppNotification(null);
-    }}
-    navigation={globalNavigation} // Pass the navigation prop
-  />
-  )}
-  </>
+      {inAppNotification && (
+        <NotificationToast
+          notification={inAppNotification}
+          onPress={(notificationData) => {
+            console.log(
+              "Toast pressed, showing details modal:",
+              notificationData
+            ); // Debug log
+            // The modal will be shown directly from NotificationToast component
+            setHasUnreadNotifications(false); // Mark as read
+          }}
+          onDismiss={() => {
+            console.log("Toast dismissed (timeout or manual)."); // Debug log
+            setInAppNotification(null);
+          }}
+          navigation={globalNavigation} // Pass the navigation prop
+        />
+      )}
+    </>
   );
 }
 

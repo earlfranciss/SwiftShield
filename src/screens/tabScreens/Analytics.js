@@ -1,28 +1,25 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useState, useCallback, useContext } from "react";
 import {
   StyleSheet,
   SafeAreaView,
   Text,
   View,
   ActivityIndicator,
-  TouchableOpacity,
-  FlatList,
   ScrollView,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import LineGraph from "../../components/LineGraph";
+import BarGraph from "../../components/BarGraph";
 import PieGraph from "../../components/PieGraph";
 import ThreatLevelCard from "../../components/ThreatLevelCard";
-import RecentActivityLogs from "../../components/RecentActivityLogs";
-import StatsText from "../../components/StatsText";
-import DetailsModal from "../../components/DetailsModal";
 import config from "../../config/config";
 import { useFocusEffect } from "@react-navigation/native";
+import { ThemeContext } from "../../components/themeContext";
+
+const SPACE_BETWEEN_BAR_AND_CARDS = 15; // Adjust this value (e.g., 5, 10, 15)
 
 export default function Analytics({ navigation }) {
-  const [analyticsData, setAnalyticsData] = useState(null); // Note: analyticsData is fetched but not used directly in rendering yet
+  const { theme } = useContext(ThemeContext); // <<< Use context instead of useColorScheme
   const [loading, setLoading] = useState(true);
-  const [logsData, setLogsData] = useState([]);
   const [totalUrlsScanned, setTotalUrlsScanned] = useState(0);
   const [threatsBlocked, setThreatsBlocked] = useState(0);
   const [pieChartData, setPieChartData] = useState([]);
@@ -32,184 +29,207 @@ export default function Analytics({ navigation }) {
     High: 0,
     Critical: 0,
   });
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedLog, setSelectedLog] = useState(null);
-  const [modalData, setModalData] = useState(null);
-  const [logLoading, setLogLoading] = useState(false); // Keep if needed for delete loading
-  const [weeklyThreatsData, setWeeklyThreatsData] = useState({
+  const [lineGraphData, setLineGraphData] = useState({
     labels: [],
-    data: [],
+    datasets: [], // <<< Use 'datasets' key here
   });
+  const [error, setError] = useState(null);
 
+  console.log("<<< Analytics Component Render - theme: >>>", theme);
+
+  // Replace the ENTIRE useFocusEffect in your Analytics.js with this:
   useFocusEffect(
     useCallback(() => {
-      async function fetchAnalyticsData() {
-        try {
-          setLoading(true);
+      console.log(
+        "<<< Analytics.js: useFocusEffect triggered! Current theme:",
+        theme
+      ); // <<< ADD LOG HERE
 
-          // Fetch all required APIs in parallel
+      async function fetchAnalyticsData() {
+        // Reset states at the beginning
+        setLoading(true);
+        setError(null); // Add this if you haven't already added an error state
+        setTotalUrlsScanned(0); // Keep resetting states you use
+        setThreatsBlocked(0); // Keep resetting states you use
+        setPieChartData([]);
+        setSeverityCounts({ Low: 0, Medium: 0, High: 0, Critical: 0 }); // Adjust keys if needed
+        setLineGraphData({ labels: [], datasets: [] }); // Reset with CORRECT structure
+
+        try {
+          console.log("Analytics.js: Fetching data...");
+          // Keep your Promise.all structure, but fetch pie ONCE
           const [
             logsRes,
             urlsScannedRes,
             threatsBlockedRes,
             severityCountsRes,
-            pieChartRes,
-            weeklyThreatsRes,
+            pieChartRes, // Fetch pie once
+            // Remove duplicate pie fetch result variable
+            weeklyThreatsRes, // Use your variable name
           ] = await Promise.all([
             fetch(`${config.BASE_URL}/recent-activity`).then((res) =>
               res.ok ? res.json() : { recent_activity: [] }
             ),
-            fetch(`${config.BASE_URL}/urls-scanned`).then((res) => res.json()),
+            fetch(`${config.BASE_URL}/urls-scanned`).then((res) => res.json()), // Keep if needed
             fetch(`${config.BASE_URL}/threats-blocked`).then((res) =>
               res.json()
-            ),
+            ), // Keep if needed
             fetch(`${config.BASE_URL}/severity-counts`).then((res) =>
               res.json()
-            ),
-            fetch(`${config.BASE_URL}/api/stats/scan-source-distribution`).then(
-              (res) => (res.ok ? res.json() : [])
-            ), // Fetch pie data
+            ), // Adjust error handling if needed
+            // Fetch pie data ONCE
             fetch(`${config.BASE_URL}/api/stats/scan-source-distribution`)
-              .then((res) => {
+              .then((res) => (res.ok ? res.json() : []))
+              .catch((err) => {
+                console.error("Pie fetch error:", err);
+                return [];
+              }),
+            // Fetch from /weekly-threats (expecting new structure)
+            fetch(`${config.BASE_URL}/weekly-threats`)
+              .then(async (res) => {
+                // Added async for error handling
                 if (!res.ok) {
-                  // Log error if fetch failed
+                  const errorText = await res
+                    .text()
+                    .catch(() => "Failed to read error body");
                   console.error(
-                    `Error fetching pie chart data: ${res.status} ${res.statusText}`
+                    `<<< Analytics.js: Error fetching /weekly-threats: ${res.status} - ${errorText} >>>`
                   );
-                  return []; // Return empty array on failure
+                  return null; // Indicate fetch failure
                 }
-                return res.json(); // Parse JSON on success
+                try {
+                  const jsonData = await res.json();
+                  console.log(
+                    "<<< Analytics.js: Successfully parsed JSON from /weekly-threats >>>"
+                  );
+                  return jsonData;
+                } catch (jsonError) {
+                  console.error(
+                    "<<< Analytics.js: Failed to parse JSON from /weekly-threats: >>>",
+                    jsonError
+                  );
+                  return null; // Indicate parse failure
+                }
               })
               .catch((error) => {
-                // Log error if fetch itself fails (network issue, etc.)
-                console.error("Fetch error for pie chart data:", error);
-                return []; // Return empty array on fetch error
+                console.error(
+                  "<<< Analytics.js: Network/Fetch error for /weekly-threats: >>>",
+                  error
+                );
+                return null; // Indicate fetch failure
               }),
-            fetch(`${config.BASE_URL}/weekly-threats`).then((res) =>
-              res.ok ? res.json() : { labels: [], data: [] }
-            ), // Fetch weekly data
-          ]);
+          ]); // End of Promise.all
 
-          // console.log("✅ Recent Activity:", logsRes);
-          console.log("✅ URLs Scanned:", urlsScannedRes);
-          console.log("✅ Threats Blocked:", threatsBlockedRes);
-          console.log("✅ Severity Counts:", severityCountsRes);
-          console.log("✅ Pie Chart Data:", pieChartRes);
-          console.log("✅ Weekly Threats Data:", weeklyThreatsRes);
+          console.log("Analytics.js: --- Fetch completed ---");
+          // Log the raw response received for weekly threats
+          console.log(
+            "<<< Analytics.js: Raw weeklyThreatsRes received by Analytics.js: >>>",
+            JSON.stringify(weeklyThreatsRes, null, 2)
+          );
 
-          // Set the data in state
-          setLogsData(logsRes.recent_activity || []);
-          setTotalUrlsScanned(urlsScannedRes.total_urls_scanned || 0);
-          setThreatsBlocked(threatsBlockedRes.threats_blocked || 0);
-          setSeverityCounts(severityCountsRes.severity_counts || {});
-          setPieChartData(pieChartRes || []); // Use API result directly
-          setWeeklyThreatsData(weeklyThreatsRes || { labels: [], data: [] }); // <--- Set Weekly data state
+          setTotalUrlsScanned(urlsScannedRes?.total_urls_scanned || 0);
+          setThreatsBlocked(threatsBlockedRes?.threats_blocked || 0);
+          setSeverityCounts(
+            severityCountsRes?.severity_counts || {
+              Low: 0,
+              Medium: 0,
+              High: 0,
+              Critical: 0,
+            }
+          ); // Adjust key case
+          setPieChartData(pieChartRes || []);
+
+          // ========================================================
+          // ===== THIS VALIDATION AND SETTER BLOCK WAS MISSING =====
+          // ========================================================
+          // Validate the structure received from /weekly-threats
+          const isValidLabels =
+            weeklyThreatsRes && Array.isArray(weeklyThreatsRes.labels);
+          const isValidDatasets =
+            weeklyThreatsRes && Array.isArray(weeklyThreatsRes.datasets);
+          console.log(
+            `<<< Analytics.js: Validation Check Results: isValidLabels=${isValidLabels}, isValidDatasets=${isValidDatasets} >>>`
+          );
+
+          if (isValidLabels && isValidDatasets) {
+            const isDarkMode = theme === "dark"; // Use theme from context
+
+            // --- FIX: Corrected console log (removed colorScheme) ---
+            console.log(
+              `<<< Theme Check: isDarkMode=${isDarkMode} (theme=${theme}) >>>`
+            );
+
+            const modifiedDatasets = weeklyThreatsRes.datasets.map(
+              (dataset) => {
+                let datasetColor;
+                switch (
+                  dataset.label // Explicit color handling
+                ) {
+                  case "URLs Scanned":
+                    datasetColor = isDarkMode ? "#FFFFFF" : "#000000";
+                    break;
+                  case "Phishing":
+                    datasetColor = "#ED3A3A";
+                    break;
+                  case "Safe":
+                    datasetColor = "#3AED97";
+                    break;
+                  default:
+                    datasetColor = dataset.color || "#CCCCCC";
+                }
+                console.log(
+                  `<<< Analytics.js: [${theme} mode] Calculated color for '${dataset.label}': ${datasetColor}`
+                );
+
+                return { ...dataset, color: datasetColor };
+              }
+            );
+            const finalLineGraphData = {
+              labels: weeklyThreatsRes.labels,
+              datasets: modifiedDatasets,
+            };
+
+            console.log(
+              "<<< Validation PASSED. Setting lineGraphData state. >>>"
+            );
+            setLineGraphData(finalLineGraphData); // Use final data
+          } else {
+            console.warn(
+              "<<< Validation FAILED. NOT setting lineGraphData state. >>>"
+            );
+            if (!error) {
+              setError(
+                weeklyThreatsRes === null
+                  ? "Failed to fetch graph data."
+                  : "Invalid graph data format."
+              );
+            }
+            setLineGraphData({ labels: [], datasets: [] });
+          }
+
+          // ========================================================
+          // ============= END OF MISSING BLOCK =====================
+          // ========================================================
+
         } catch (error) {
-          cconsole.error("🔥 Error fetching analytics data:", error);
-          // Reset states on error
-          setLogsData([]);
+          // Catch errors from Promise.all or JSON parsing in .then()
+          console.error("🔥 Error in fetchAnalyticsData try block:", error);
+          // Ensure you have an error state: const [error, setError] = useState(null);
+          setError(`Failed to load data: ${error.message}`);
+          // Reset states
           setTotalUrlsScanned(0);
           setThreatsBlocked(0);
-          setSeverityCounts({});
+          setSeverityCounts({ Low: 0, Medium: 0, High: 0, Critical: 0 });
           setPieChartData([]);
-          setWeeklyThreatsData({ labels: [], data: [] });
+          setLineGraphData({ labels: [], datasets: [] });
         } finally {
           setLoading(false);
         }
       }
 
       fetchAnalyticsData();
-    }, []) // Keep empty dependency array if you only want this to run once when the screen focuses
-  );
-
-  // --- Format Probability Function (keep as is) ---
-  const formatProbability = (prob) => {
-    // Check if probability exists and is a valid number
-    if (prob === null || prob === undefined || isNaN(parseFloat(prob))) {
-      return "N/A%";
-    }
-
-    // Convert to number, multiply by 100, round to integer, and add % sign
-    try {
-      const percentage = (parseFloat(prob) * 100).toFixed(0);
-      return `${percentage}%`;
-    } catch (error) {
-      console.error("Error formatting probability:", error, "Value:", prob);
-      return "N/A%";
-    }
-  };
-
-  // --- Modal Functions (keep as is) ---
-  // --- Modal Functions ---
-  const showModal = (logItem) => {
-    console.log("Log item clicked:", logItem);
-
-    // **Transform data from logItem (from /recent-activity)
-    // **into the structure expected by DetailsModal's 'scanResult' prop.**
-    const preparedModalData = {
-      log_id: logItem.log_id, // <-- Ensure this comes from backend now
-      url: logItem.url || "Unknown URL",
-      platform: logItem.platform || "Unknown",
-      // Expecting ISO string from backend now
-      date_scanned: logItem.date_scanned,
-      severity: logItem.severity || "Unknown",
-      // Convert probability score (0-1) to percentage (0-100)
-      phishing_percentage:
-        typeof logItem.phishing_probability_score === "number"
-          ? parseFloat((logItem.phishing_probability_score * 100).toFixed(1))
-          : 0, // Default to 0 if missing/invalid
-      recommended_action: logItem.recommended_action || "Unknown",
-      // Add any other fields DetailsModal might expect
-    };
-
-    console.log("Prepared data for modal:", preparedModalData);
-
-    setModalData(preparedModalData); // Set the prepared data
-    setModalVisible(true);
-  };
-
-  const closeModal = () => {
-    setModalVisible(false);
-    setModalData(null); // Clear modal data on close
-  };
-
-  // --- Delete Handler (Example - Reuse logic from Home.js if needed) ---
-  const handleDeleteLog = async (logId) => {
-    if (!logId) {
-      console.error("Delete failed: No log ID provided.");
-      Alert.alert("Error", "Cannot delete log without an ID.");
-      return;
-    }
-    console.log("Attempting to delete log from Analytics:", logId);
-    setLogLoading(true); // Use logLoading state
-    try {
-      const deleteUrl = `${config.BASE_URL}/logs/${logId}`;
-      const response = await fetch(deleteUrl, { method: "DELETE" });
-      const result = await response.json();
-
-      if (!response.ok || result.error) {
-        throw new Error(
-          result.error || `Failed to delete (Status: ${response.status})`
-        );
-      }
-
-      Alert.alert("Success", "Log deleted successfully.");
-      closeModal(); // Close modal after successful deletion
-
-      // **Refresh the logs list** by removing the deleted item
-      setLogsData((prevLogs) => prevLogs.filter((log) => log.log_id !== logId));
-    } catch (err) {
-      console.error("Delete failed:", err);
-      Alert.alert("Error", `Could not delete log: ${err.message}`);
-    } finally {
-      setLogLoading(false);
-    }
-  };
-
-  console.log(
-    "Rendering Analytics. Severity Counts State:",
-    JSON.stringify(severityCounts)
-  );
+    }, [theme]) // Keep dependency array empty
+  ); // End of useFocusEffect
 
   // --- Loading State ---
   if (loading) {
@@ -222,6 +242,21 @@ export default function Analytics({ navigation }) {
       </SafeAreaView>
     );
   }
+
+  // --- Prepare data for BarGraph ---
+  // Ensure keys match the case returned by the backend ('Low', 'Medium', etc.)
+  // --- Prepare data for BarGraph ---
+  // Ensure keys match the case returned by the backend ('Low', 'Medium', etc.)
+  const barGraphData = [
+    { label: "Low", value: severityCounts?.LOW ?? 0, color: "#3AED97" }, // Green
+    { label: "Medium", value: severityCounts?.MEDIUM ?? 0, color: "#EED531" }, // Yellow
+    { label: "High", value: severityCounts?.HIGH ?? 0, color: "#EE8931" }, // Orange
+    {
+      label: "Critical",
+      value: severityCounts?.CRITICAL ?? 0,
+      color: "#ED3A3A",
+    }, // Red
+  ];
 
   const threatData = [
     {
@@ -264,17 +299,6 @@ export default function Analytics({ navigation }) {
     JSON.stringify(severityCounts)
   );
 
-  const statsData = [
-    { label: "URLs Scanned", value: totalUrlsScanned },
-    { label: "Threats Detected", value: threatsBlocked },
-  ];
-
-  const viewabilityConfig = {
-    itemVisiblePercentThreshold: 100,
-  };
-
-  const message = "Status: OK";
-
   return (
     // SafeAreaView provides the fixed padding
     <SafeAreaView style={styles.container}>
@@ -282,10 +306,40 @@ export default function Analytics({ navigation }) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContentContainer} // Use for bottom padding if needed
       >
+        {/* Section 1: Weekly Threat Analysis */}
         <View style={styles.componentWrapper}>
-          <Text style={styles.debugTitle}>Weekly Threat Analysis:</Text>
+          <Text style={styles.sectionTitle}>Weekly Threat Analysis:</Text>
 
-          <LineGraph data={analyticsData?.weekly_threats || []} />
+          {/* Render the chart */}
+          <LineGraph
+            key={JSON.stringify(lineGraphData.datasets)} // Force re-mount on dataset change
+            data={lineGraphData}
+          />
+
+          {/* Legend View Block */}
+          <View style={styles.legendContainer}>
+            {(lineGraphData.datasets || []).map((dataset) => (
+              <View key={dataset.label} style={styles.legendItem}>
+                {/* Text Label: Always use the fixed green color */}
+                <Text
+                  style={[
+                    styles.legendText,
+                    { color: "#3AED97" }, // <<< FIXED: Use standard green for text
+                  ]}
+                >
+                  {dataset.label}: {/* Colon and space */}
+                </Text>
+                {/* Color Box: Use the dynamic dataset color */}
+                <View
+                  style={[
+                    styles.legendColorBox,
+                    { backgroundColor: dataset.color || "#CCCCCC" }, // Box color still dynamic
+                  ]}
+                />
+              </View>
+            ))}
+          </View>
+          {/* End Legend View Block */}
         </View>
 
         <View style={styles.componentWrapper}>
@@ -293,48 +347,20 @@ export default function Analytics({ navigation }) {
           <PieGraph data={pieChartData} />
         </View>
 
+        {/* Section 3: Severity Index (Bar Graph) */}
         <View style={styles.componentWrapper}>
-          {/* StatsText needs to handle its internal side-by-side layout responsively */}
-          <StatsText stats={statsData} />
+          <Text style={styles.debugTitle}>Severity Index:</Text>
+          {/* Pass the prepared barGraphData */}
+          <BarGraph data={barGraphData} />
         </View>
+
+        <View style={{ height: SPACE_BETWEEN_BAR_AND_CARDS }} />
 
         <View style={styles.componentWrapper}>
           {/* ThreatLevelCard needs to handle its internal horizontal layout responsively (e.g., flexWrap) */}
           <ThreatLevelCard data={threatData} />
         </View>
-
-        {/* --- Recent Activity Section --- */}
-        <View style={styles.recentActivitySection}>
-          <Text style={styles.recentActivityTitle}>Recent Activity:</Text>
-          {logsData?.length > 0 ? (
-            // Map logsData to render RecentActivityLogs components
-            logsData.map((item, index) => (
-              <TouchableOpacity
-                key={item.id?.toString() || `log-${index}`}
-                onPress={() => showModal(item)}
-                style={styles.logItemTouchable} // For spacing BETWEEN items
-              >
-                {/* RecentActivityLogs needs internal styling & responsiveness */}
-                <RecentActivityLogs logItem={item} />
-              </TouchableOpacity>
-            ))
-          ) : (
-            <Text style={styles.noActivityText}>
-              No recent activity available.
-            </Text>
-          )}
-        </View>
-        {/* --- End Recent Activity Section --- */}
       </ScrollView>
-
-      {/* --- Modal remains outside ScrollView --- */}
-      <DetailsModal
-        navigation={navigation}
-        visible={modalVisible}
-        onClose={closeModal}
-        scanResult={modalData}
-        //onDeletePress={handleDeleteLog}
-      />
     </SafeAreaView>
   );
 }
@@ -354,6 +380,13 @@ const styles = StyleSheet.create({
   componentWrapper: {
     // Simple wrapper for spacing below each main component/section
     marginBottom: 5, // Adjust spacing as needed
+  },
+  sectionTitle: {
+    // Ensure this style definition exists
+    color: "#3AED97", // Your standard green title color
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 15, // Standard margin below titles
   },
   debugTitle: {
     // Temporary style for section titles (like in image) - adjust as needed
@@ -389,5 +422,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 20,
     marginBottom: 20,
+  },
+  legendContainer: {
+    flexDirection: "row", // Arrange items horizontally
+    justifyContent: "center", // Center items horizontally
+    alignItems: "center",
+    marginTop: 5, // Space above the legend
+    marginBottom: 15, // Space below the legend before next section
+    flexWrap: "wrap", // Allow items to wrap to next line if needed
+    paddingHorizontal: 10, // Prevent items sticking to screen edges
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 30, // Space between legend items
+    marginBottom: 5, // Space below items if they wrap
+  },
+  legendColorBox: {
+    width: 12, // Size of the color square
+    height: 12,
+    marginRight: 6, // Space between square and text
+    borderRadius: 2, // Optional: slightly rounded corners
+    // Background color is set dynamically in JSX
+  },
+  legendText: {
+    fontSize: 12,
+    // Color is set dynamically in JSX to match the line color
   },
 });
