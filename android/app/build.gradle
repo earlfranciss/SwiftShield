@@ -160,6 +160,7 @@ dependencies {
     implementation project(':react-native-notification-sounds')
     implementation project(':react-native-sound')
     // implementation project(':react-native-make')
+    implementation project(':react-native-share')
 
     // SoLoader (required by React Native) - Check compatibility if needed
     implementation('com.facebook.soloader:soloader:0.10.5') // Example version

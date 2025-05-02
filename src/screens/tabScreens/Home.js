@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback  } from "react";
 import {
   StyleSheet,
   SafeAreaView,
@@ -50,6 +50,7 @@ export default function Home({ navigation }) {
   const [selectedLog, setSelectedLog] = useState(null);
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [inputError, setInputError] = useState(""); 
+  const [inputValue, setInputValue] = useState(''); 
   const [scanResultForModal, setScanResultForModal] = useState(null);
   const [isLoadingScan, setIsLoadingScan] = useState(false); 
   const [isProtectionEnabled, setIsProtectionEnabled] = useState(false); 
@@ -60,7 +61,7 @@ export default function Home({ navigation }) {
   // This state tracks if CORE SMS permissions are granted
   const [smsPermissionGranted, setSmsPermissionGranted] = useState(false);
   const smsSubscriptionRef = useRef(null);
-
+  const [isGmailConnected, setIsGmailConnected] = useState(false); 
 
   // Initialize SafeRNFS
   useEffect(() => {
@@ -80,6 +81,60 @@ export default function Home({ navigation }) {
   useEffect(() => {
     checkPermissions(); 
   }, []);
+
+  useEffect(() => {
+    const loadGmailConnectionState = async () => {
+      try {
+        const storedValue = await AsyncStorage.getItem('isGmailConnected');
+        if (storedValue !== null) {
+          setIsGmailConnected(JSON.parse(storedValue));
+        }
+      } catch (error) {
+        console.error("Failed to load Gmail connection state from AsyncStorage", error);
+      }
+    };
+
+    loadGmailConnectionState();
+  }, []);
+
+  // Save the Gmail connection state to AsyncStorage whenever it changes
+  useEffect(() => {
+    const saveGmailConnectionState = async () => {
+      try {
+        await AsyncStorage.setItem('isGmailConnected', JSON.stringify(isGmailConnected));
+      } catch (error) {
+        console.error("Failed to save Gmail connection state to AsyncStorage", error);
+      }
+    };
+
+    saveGmailConnectionState();
+  }, [isGmailConnected]);
+
+
+  // Use useFocusEffect to handle the incoming deep link
+  useEffect(
+    useCallback(() => {
+      const linkingSubscription = Linking.addEventListener('url', (event) => {
+        console.log('Using Event URL', event.url);
+        handleDeepLink(event.url);
+      });
+
+      // Check for initial URL in case the app was opened via deep link
+      const getInitialURL = async () => {
+        const initialURL = await Linking.getInitialURL();
+        if (initialURL) {
+          console.log('Using Initial URL');
+          handleDeepLink(initialURL);
+        }
+      };
+      getInitialURL();
+
+
+      return () => {
+        linkingSubscription.remove();
+      };
+    }, [handleDeepLink])
+  );
 
 
 
@@ -278,6 +333,9 @@ export default function Home({ navigation }) {
         }
       }
 
+      handleConnectGmail()
+
+
       setIsProtectionEnabled(prevState => !prevState);
 
     } catch (error) {
@@ -296,7 +354,7 @@ export default function Home({ navigation }) {
   const handleUrlScan = async () => {
     setInputError(""); 
     const trimmedUrl = url.trim();
-  
+     
     // --- Frontend Validation ---
     if (!trimmedUrl) {
       setInputError("Please enter a URL to scan.");
@@ -360,8 +418,13 @@ export default function Home({ navigation }) {
       setInputError(error.message || "An error occurred. Check connection or URL.");
     }
   };
-  
 
+  // Handler function to clear the input
+ /* const handleClearInput = () => {
+    setUrl(''); // Clear the state variable tied to the TextInput
+    setInputError(''); // Also clear any existing input error message
+  };*/
+  
   // Function called ONLY by the SMS listener callback
   const sendSmsToBackendForProcessing = async (smsData) => {
     const extractionEndpoint = `${config.BASE_URL}/classify-sms`;
@@ -406,52 +469,135 @@ export default function Home({ navigation }) {
   };
 
 
-  // --- Unified Scan Function (Called by handleUrlScan and sendSmsToBackendForProcessing) ---
-  const unifiedScan = async (payload) => {
-    // 'payload' will be either { url: "..." }
-    // OR { url: "...", sender: "..." } <- from extracted SMS URL
-    const endpoint = `${config.BASE_URL}/scan`;
-    console.log(`Sending to ${endpoint} for scanning:`, JSON.stringify({ url: payload.url }));
+  const handleConnectGmail = async () => {
+    console.log("handleConnectGmail: Starting Gmail connection flow...");
+    if (isGmailConnected) {
+      // Alert.alert("Gmail", "Gmail is already connected.");
+      setIsGmailConnected(false);
+      return;
+    }
+    console.log("Is Gmail Connected: ", isGmailConnected);
+    const finalRedirect = encodeURIComponent('swiftshield://google/auth/success'); 
+    const googleLoginUrl = `https://swiftshield.onrender.com/google-login?final_redirect=${finalRedirect}`;
 
-    try {
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: payload.url }), // Send ONLY {url: ...}
+    console.log("Opening Google Login URL:", googleLoginUrl);
+
+    // Open the URL in the system browser or an in-app browser
+    Linking.openURL(googleLoginUrl).catch(err => {
+       console.error("Failed to open URL", err);
+       Alert.alert("Error", "Could not open the connection page.");
+       return;
+    });
+
+    // setIsGmailConnected(true);
+    // handleDeepLink(googleLoginUrl);
+    console.log("handleConnectGmail: Finished opening Google Login URL."); 
+
+  };
+
+
+  const handleDeepLink = useCallback(async (url) => {
+    console.log("handleDeepLink called with URL:", url);
+
+    if (url && url.startsWith('swiftshield://google/auth/success')) {
+      console.log("Deep Link URL matches expected pattern.");
+      console.log("Extracted url: ", url);
+
+      const queryString = url.split('?')[1];
+      console.log("Extracted queryString: ", queryString);
+      let authCode = null;
+      if (queryString) {
+        const params = queryString.split('&');
+        for (const param of params) {
+          const [key, value] = param.split('=');
+          if (key === 'code') {
+            authCode = value;
+            break;
+          }
+        } 
+      }
+      console.log("Extracted authCode: ", authCode);
+
+      // const parsed = new URL(url);
+      // const authCode = parsed.searchParams.get('code');
+      // const state = parsed.searchParams.get('state');
+      // console.log("Extracted authCode: ", authCode);
+
+      if (!authCode) {
+        console.error("Missing authCode in deep link URL");
+        Alert.alert("Gmail Connection Error", "Missing authorization code in deep link.");
+        return; // IMPORTANT: Return early if authCode is missing
+      }
+
+      try {
+        console.log("Sending request to /exchange-auth-code with authCode:", authCode);
+        const response = await fetch(`${config.BASE_URL}/exchange-auth-code`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ authCode }),
         });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`Backend Scan Error (${response.status}):`, errorText);
-             let errorJson = { error: `Backend error: ${response.status}` };
-             try { errorJson = JSON.parse(errorText); } catch (e) {}
-            throw new Error(errorJson.error || `Backend error: ${response.status}`);
-        }
+        console.log("Received response from /exchange-auth-code. Status:", response.status);
 
         const data = await response.json();
-        console.log("Unified Scan Result:", data);
+        console.log("Response from /exchange-auth-code:", data);
 
-        // Add sender info back if it came from an SMS payload for notification context
-        const resultDataForNotification = { ...data };
-        if (payload.sender) {
-            resultDataForNotification.sender = payload.sender;
+        if (response.ok && data.success) {
+          console.log("Gmail connected successfully (backend confirmed).");
+
+          // Update the isGmailConnected state.
+          console.log("About to set isGmailConnected to true and save to AsyncStorage");
+          setIsGmailConnected(true); // NOW set to true!
+          try {
+            await AsyncStorage.setItem('isGmailConnected', 'true');
+            console.log("isGmailConnected set to true and saved to AsyncStorage");
+          } catch (storageError) {
+            console.error("Error saving isGmailConnected to AsyncStorage:", storageError);
+            Alert.alert("Gmail Connection Error", "Error saving connection status.");
+            return; // Stop here if AsyncStorage fails
+          }
+          Alert.alert("Gmail Connected", "Gmail connected successfully!");
+
+
+          // --- FETCH NEW EMAILS AFTER SUCCESSFUL CONNECTION ---
+          // Call /fetch-new-emails API
+          console.log('Calling /fetch-new-emails to retrieve new emails...');
+          const fetchEmailsResponse = await fetch(`${config.BASE_URL}/fetch-new-emails`, {
+            method: 'POST',  // Or GET, depending on your preference
+            headers: { 'Content-Type': 'application/json' },
+            // No body needed if it's a GET request
+          });
+
+          const fetchEmailsData = await fetchEmailsResponse.json();
+
+          if (fetchEmailsResponse.ok && fetchEmailsData.success) {
+              // Display the emails in the UI (replace with your rendering logic)
+              console.log('Successfully fetched new emails:', fetchEmailsData.emails);
+              Alert.alert('New Emails', `Received ${fetchEmailsData.emails.length} new emails`);
+
+          } else {
+              console.error('Failed to fetch new emails:', fetchEmailsData);
+              Alert.alert('Error Fetching Emails', fetchEmailsData.error || 'Could not retrieve new emails.');
+          }
+
+        } else {
+          // Handle the error response.
+          console.error("Failed to connect Gmail:", data);
+          Alert.alert("Gmail Connection Error", data.error || "Failed to connect Gmail.");
         }
-
-        // Call the context handler with the backend result (and added sender if applicable)
-        handleNewScanResult(resultDataForNotification);
-
-        // Show modal only for direct URL scans (when sender is NOT in original payload)
-        // if (payload.url && !payload.sender && data.log_details) {
-        //     showModal(data.log_details);
-        // }
-
-    } catch (error) {
-        console.error("Error during unified scan:", error.message);
-        if (payload.url && !payload.sender) { // Only show alert for manual URL scans
-           Alert.alert('Scan Error', `Scan failed: ${error.message}`);
-        }
+      } catch (error) {
+        console.error("Error during token exchange:", error);
+        Alert.alert("Gmail Connection Error", "An error occurred during token exchange.");
+      }
+    } else {
+      console.log("Deep Link URL does not match expected pattern.");
     }
-  };
+  }, [setIsGmailConnected]);
+
+
+
+
+
+
 
   // --- Modal Functions ---
   const showModal = (log) => {
@@ -526,7 +672,7 @@ export default function Home({ navigation }) {
           >
             <Image
               source={
-                isProtectionEnabled
+                isSmsListening
                   ? require("../../assets/images/enableButton.png")
                   : require("../../assets/images/disableButton.png")
               }
@@ -562,10 +708,14 @@ export default function Home({ navigation }) {
           placeholder="www.malicious.link"
           placeholderTextColor="#6c757d"
           onChangeText={(text) => {
-            setUrl(text);
-            if (inputError) {
-              setInputError("");
-            }
+              setUrl(text);
+              if (inputError) { 
+                  setInputError("");
+              }
+              if (inputValue) {
+                setInputValue("");
+              }
+
           }}
           value={url}
           autoCapitalize="none"
@@ -584,19 +734,19 @@ export default function Home({ navigation }) {
             <Text style={styles.loadingText}>Scanning...</Text>
           </View>
         ) : (
-          <TouchableOpacity style={styles.scanButton} onPress={handleUrlScan}>
-            <LinearGradient
-              colors={["#3AED97", "#BCE26E", "#FCDE58"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.gradientButton}
-            >
-              <Text style={styles.scanButtonText}>SCAN</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+          <><TouchableOpacity style={styles.scanButton} onPress={handleUrlScan}>
+              <LinearGradient
+                colors={["#3AED97", "#BCE26E", "#FCDE58"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.gradientButton}
+              >
+                <Text style={styles.scanButtonText}>SCAN</Text>
+              </LinearGradient>
+            </TouchableOpacity></>   
         )}
 
-        <TouchableOpacity style={styles.clearButton} onPress={handleClearInput}>
+        {/* <TouchableOpacity style={styles.clearButton} onPress={handleClearInput}>
             <LinearGradient
               colors={["#3AED97", "#BCE26E", "#FCDE58"]}
               start={{ x: 0, y: 0 }}
@@ -605,7 +755,7 @@ export default function Home({ navigation }) {
             >
               <Text style={styles.clearButtonText}>Clear</Text>
             </LinearGradient>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       <DetailsModal
@@ -613,7 +763,7 @@ export default function Home({ navigation }) {
         visible={modalVisible}
         onClose={closeModal}
         scanResult={scanResultForModal}
-        onDeletePress={handleDeleteLog}
+        //onDeletePress={handleDeleteLog}
       />
     </SafeAreaView>
   );
@@ -797,5 +947,52 @@ const styles = StyleSheet.create({
   //   } catch (error) {
   //     setLoading(false);
   //     console.error("Error sending SMS to backend:", error);
+  //   }
+  // };
+
+    // // --- Unified Scan Function (Called by handleUrlScan and sendSmsToBackendForProcessing) ---
+  // const unifiedScan = async (payload) => {
+  //   // 'payload' will be either { url: "..." }
+  //   // OR { url: "...", sender: "..." } <- from extracted SMS URL
+  //   const endpoint = `${config.BASE_URL}/scan`;
+  //   console.log(`Sending to ${endpoint} for scanning:`, JSON.stringify({ url: payload.url }));
+
+  //   try {
+  //       const response = await fetch(endpoint, {
+  //           method: 'POST',
+  //           headers: { 'Content-Type': 'application/json' },
+  //           body: JSON.stringify({ url: payload.url }), // Send ONLY {url: ...}
+  //       });
+
+  //       if (!response.ok) {
+  //           const errorText = await response.text();
+  //           console.error(`Backend Scan Error (${response.status}):`, errorText);
+  //            let errorJson = { error: `Backend error: ${response.status}` };
+  //            try { errorJson = JSON.parse(errorText); } catch (e) {}
+  //           throw new Error(errorJson.error || `Backend error: ${response.status}`);
+  //       }
+
+  //       const data = await response.json();
+  //       console.log("Unified Scan Result:", data);
+
+  //       // Add sender info back if it came from an SMS payload for notification context
+  //       const resultDataForNotification = { ...data };
+  //       if (payload.sender) {
+  //           resultDataForNotification.sender = payload.sender;
+  //       }
+
+  //       // Call the context handler with the backend result (and added sender if applicable)
+  //       handleNewScanResult(resultDataForNotification);
+
+  //       // Show modal only for direct URL scans (when sender is NOT in original payload)
+  //       // if (payload.url && !payload.sender && data.log_details) {
+  //       //     showModal(data.log_details);
+  //       // }
+
+  //   } catch (error) {
+  //       console.error("Error during unified scan:", error.message);
+  //       if (payload.url && !payload.sender) { // Only show alert for manual URL scans
+  //          Alert.alert('Scan Error', `Scan failed: ${error.message}`);
+  //       }
   //   }
   // };

@@ -8,9 +8,13 @@ import {
   Alert // Import Alert if you use it in handleSignOut
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import config from '../../config/config'
+
 
 export default function Settings({ navigation, isDarkMode }) {
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     checkIfUserIsAdmin();
@@ -35,16 +39,48 @@ export default function Settings({ navigation, isDarkMode }) {
 
   const handleSignOut = async () => {
     console.log("LOGOUT: handleSignOut function initiated.");
+    
+    // Always clear local storage first to ensure client-side logout succeeds
     try {
-        console.log("LOGOUT: Attempting to remove 'userData' from AsyncStorage...");
-        await AsyncStorage.removeItem('userData');
-        console.log("LOGOUT: Successfully removed 'userData'. Navigating to Login.");
-        navigation.replace("Login");
-    } catch (error) {
-        console.error("LOGOUT ERROR: Failed to remove 'userData' from AsyncStorage:", error);
-        Alert.alert("Logout Error", "Could not clear session data. Please try again.");
-        navigation.replace("Login");
+      console.log("LOGOUT: Removing userData from AsyncStorage...");
+      await AsyncStorage.removeItem('userData');
+      console.log("LOGOUT: Successfully removed userData locally.");
+    } catch (storageError) {
+      console.error("LOGOUT ERROR: Failed to remove userData from AsyncStorage:", storageError);
     }
+    
+    // Then try server-side logout (but don't block on it)
+    try {
+      console.log("LOGOUT: Sending logout request to server...");
+      
+      // Get stored session token if you have one (adjust based on your auth system)
+      const userDataString = await AsyncStorage.getItem('sessionToken');
+      const sessionToken = userDataString || '';
+      
+      const response = await fetch(`${config.BASE_URL}/Logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // If using token-based auth:
+          'Authorization': sessionToken ? `Bearer ${sessionToken}` : '',
+        },
+        credentials: 'include', // For cookie-based sessions
+      });
+      
+      if (response.ok) {
+        console.log("LOGOUT: Server-side logout successful.");
+      } else {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.warn(`LOGOUT: Server-side logout failed: ${response.status} (${errorText})`);
+      }
+    } catch (serverError) {
+      console.warn("LOGOUT: Server communication error:", serverError.message);
+      // This is non-blocking, we've already cleared local storage
+    }
+    
+    // Always navigate to login screen, regardless of server response
+    console.log("LOGOUT: Navigating to Login screen.");
+    navigation.replace("Login");
   };
 
   const handleProfilePress = () => {
@@ -59,7 +95,7 @@ export default function Settings({ navigation, isDarkMode }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Profile Section - NOW CLICKABLE */}
+      {/* Profile Section - NOW CLICKABLE 
       <TouchableOpacity
         style={styles.profileSection}
         onPress={handleProfilePress}
@@ -70,7 +106,7 @@ export default function Settings({ navigation, isDarkMode }) {
           <Text style={styles.name}>John Doe</Text>
           <Text style={styles.email}>johndoe@email.com</Text>
         </View>
-      </TouchableOpacity>
+      </TouchableOpacity>*/}
 
       {/* Options Section */}
       <TouchableOpacity
@@ -79,12 +115,12 @@ export default function Settings({ navigation, isDarkMode }) {
       >
         <Text style={styles.optionText}>Push Notifications</Text>
       </TouchableOpacity>
-      <TouchableOpacity
+      {/*<TouchableOpacity
         style={styles.optionButton}
         onPress={() => navigation.navigate('ConnectedApps')}
       >
         <Text style={styles.optionText}>Connected Apps</Text>
-      </TouchableOpacity>
+      </TouchableOpacity>*/}
 
       {/* Manage Users Button - ONLY VISIBLE TO ADMINS */}
       {isAdmin && (
@@ -97,7 +133,7 @@ export default function Settings({ navigation, isDarkMode }) {
       )}
 
       {/* Options Footer Section */}
-      <View style={styles.footer}>
+      
         {/* *** ADDED: How to use the app Button *** */}
         <TouchableOpacity
           style={styles.optionButton}
@@ -122,7 +158,7 @@ export default function Settings({ navigation, isDarkMode }) {
           <Text style={styles.optionText}>Help and Support</Text>
         </TouchableOpacity>
 
-        {/* Privacy Policy */}
+        {/* Privacy Policy 
         <TouchableOpacity
            style={styles.optionButton}
            onPress={() => {
@@ -132,9 +168,9 @@ export default function Settings({ navigation, isDarkMode }) {
            }}
         >
           <Text style={styles.optionText}>Privacy Policy</Text>
-        </TouchableOpacity>
+        </TouchableOpacity>*/}
 
-
+        <View style={styles.footer}>
         {/* Sign-out Section */}
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
            {/* Corrected text to match image */}

@@ -1,4 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, flash, Blueprint, current_app
+import io
+import csv
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, flash, Blueprint, current_app, Response, session
 from difflib import SequenceMatcher
 from pytz import timezone
 from pymongo import MongoClient
@@ -18,7 +20,8 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build 
 from google.auth.transport.requests import Request 
 from functools import wraps
-from flask_login import login_required, logout_user, current_user
+from flask import Flask, session, jsonify, request
+from flask_login import LoginManager, logout_user, current_user, login_required
 import email as email_parser
 import numpy as np
 import pandas as pd
@@ -37,6 +40,7 @@ import tldextract
 import whois
 import re
 import traceback
+
 
 # Import your feature extraction class
 try:
@@ -65,6 +69,8 @@ if not app.config["SECRET_KEY"]:
 app.config["SESSION_TYPE"] = "mongodb" 
 app.config["SESSION_PERMANENT"] = True
 app.config["SESSION_USE_SIGNER"] = True 
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Or 'Strict' depending on your needs
+app.config['SESSION_COOKIE_SECURE'] = True  # Only set to True in production over HTTPS
 # If using mongodb session type:
 app.config["SESSION_MONGODB_DB"] = 'SwiftShield'
 app.config["SESSION_MONGODB_COLLECT"] = 'sessions'
@@ -101,6 +107,9 @@ cache = Cache(config={"CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300}
 cache.init_app(app)
 
 warnings.filterwarnings('ignore')
+
+login_manager = LoginManager()
+login_manager.init_app(app)
 
 # --- Load ML Model ---
 model_path = os.path.join(os.path.dirname(__file__), "../ai-models/pickle/stackmodel.pkl")
@@ -248,7 +257,7 @@ def login_required(f):
         # Check if user_id still exists in DB
         user = users_collection.find_one({"_id": session['user_id']})
         if not user:
-            session.clear()
+            # session.clear()
             print("DEBUG: Access denied. User ID from session not found in DB.")
             return jsonify({"error": "Invalid session, please log in again"}), 401
         return f(*args, **kwargs)
@@ -270,7 +279,7 @@ def admin_required(f):
         #  Check if user_id still exists in DB and role is still admin
         user = users_collection.find_one({"_id": session['user_id'], "role": "admin"})
         if not user:
-            session.clear()
+            # session.clear()
             print("DEBUG: Admin access denied. User ID from session not found in DB or role changed.")
             return jsonify({"error": "Invalid session or insufficient privileges, please log in again"}), 403
         return f(*args, **kwargs)
@@ -677,6 +686,166 @@ def extract_urls_from_text(text_body):
     
     
 # --- ENDPOINT DEFINITIONS  ---
+
+# --- NEW EXPORT ENDPOINT ---
+@app.route('/api/export/report', methods=['GET'])
+@login_required # Uncomment if you have login setup
+def export_analytics_report_xlsx(): # Renamed slightly for clarity
+    # --- Simulate session for testing if login_required is commented out ---
+    if 'user_id' not in session:
+         session['user_id'] = 'test_user_id' # Replace with actual logic
+         session['role'] = 'admin' # Or 'user'
+         session['email'] = 'test@example.com'
+    # --- End simulation ---
+
+    user_id = session.get('user_id', 'unknown')
+    role = session.get('role', 'unknown')
+    email = session.get('email', user_id)
+    print(f"DEBUG /api/export/report: User: {email}, Role: {role}")
+
+    try:
+        # --- 1. Fetch ALL the data needed for the report (Same queries as before) ---
+        base_query = {}
+        if role == 'user':
+            base_query['user_id'] = user_id
+
+        total_urls_scanned = detection_collection.count_documents(base_query)
+        threats_blocked_query = {**base_query, "severity": {"$in": ["HIGH", "CRITICAL"]}}
+        total_threats_blocked = detection_collection.count_documents(threats_blocked_query)
+
+        severity_levels = ["SAFE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        severity_match_stage = {"severity": {"$in": severity_levels}}
+        if role == 'user': severity_match_stage['user_id'] = user_id
+        severity_pipeline = [ {"$match": severity_match_stage}, {"$group": {"_id": "$severity", "count": {"$sum": 1}}} ]
+        severity_results = list(detection_collection.aggregate(severity_pipeline))
+        severity_counts = {level: 0 for level in severity_levels}
+        for result in severity_results: severity_counts[result.get("_id", "N/A")] = result.get("count", 0)
+
+        sources_to_count = ["User Scan", "SMS", "Email"]
+        source_display_names = {"User Scan": "Manual Scans", "SMS": "SMS Scans", "Email": "Email Scans"}
+        source_counts = {}
+        for source in sources_to_count:
+            count = detection_collection.count_documents({**base_query, "metadata.source": source})
+            source_counts[source_display_names.get(source, source)] = count # Use display name as key
+
+        ph_tz = pytz.timezone("Asia/Manila")
+        today = datetime.now(ph_tz).date()
+        start_date = today - timedelta(days=6)
+        start_datetime = datetime.combine(start_date, datetime.min.time(), tzinfo=ph_tz)
+        weekly_match_stage = {"timestamp": {"$gte": start_datetime}}
+        if role == 'user': weekly_match_stage['user_id'] = user_id
+        weekly_pipeline = [
+            {"$match": weekly_match_stage},
+            {"$project": {"dayOfWeek": {"$dayOfWeek": {"date": "$timestamp", "timezone": "Asia/Manila"}}}},
+            {"$group": {"_id": "$dayOfWeek", "scan_count": {"$sum": 1}}},
+            {"$sort": {"_id": 1}} ]
+        weekly_results = list(detection_collection.aggregate(weekly_pipeline))
+        days_map = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"}
+        weekly_data_dict = {days_map[i]: 0 for i in range(1, 8)}
+        for entry in weekly_results: weekly_data_dict[days_map.get(entry["_id"])] = entry.get("scan_count", 0)
+        weekly_data_list = []
+        for i in range(7):
+            current_day = start_datetime + timedelta(days=i)
+            day_abbr = current_day.strftime("%a") # e.g., "Mon"
+            weekly_data_list.append({'Day': day_abbr, 'Scans': weekly_data_dict.get(day_abbr, 0)})
+
+        # Fetch recent logs (ensure fetch_logs_rb exists and works)
+        try:
+            # Assuming fetch_logs_rb is defined elsewhere and handles RBAC
+            recent_logs = fetch_logs_rb(user_id=user_id, role=role, limit=100)
+             # Select and rename columns for the report for clarity
+            logs_for_report = []
+            log_headers = ['Timestamp', 'URL', 'Platform', 'Severity', 'Verdict', 'Probability (%)']
+            for log in recent_logs:
+                prob_score = log.get('phishing_probability_score', 0.0)
+                prob_percent = round(prob_score * 100, 1) if isinstance(prob_score, (int, float)) else 'N/A'
+                logs_for_report.append({
+                    'Timestamp': log.get('date_scanned', 'N/A'),
+                    'URL': log.get('url', 'N/A'),
+                    'Platform': log.get('platform', 'N/A'),
+                    'Severity': log.get('severity', 'N/A'),
+                    'Verdict': log.get('title', 'N/A'), # Using title as verdict
+                    'Probability (%)': prob_percent
+                })
+        except NameError:
+             print("WARNING: fetch_logs_rb function not found. Skipping recent logs.")
+             logs_for_report = [] # Set empty list if function doesn't exist
+             log_headers = []
+
+
+        # --- 2. Format the data using Pandas DataFrames ---
+
+        # Summary DataFrame
+        summary_data = [
+            {'Metric': 'Report Generated For', 'Value': email},
+            {'Metric': 'Report Generated At', 'Value': datetime.now(ph_tz).strftime('%Y-%m-%d %H:%M:%S %Z')},
+            {'Metric': 'Total URLs Scanned', 'Value': total_urls_scanned},
+            {'Metric': 'Total Threats Detected (High/Critical)', 'Value': total_threats_blocked},
+        ]
+        for level in severity_levels:
+            summary_data.append({'Metric': f'Severity - {level.capitalize()}', 'Value': severity_counts.get(level, 0)})
+        for source_name, count in source_counts.items():
+             summary_data.append({'Metric': f'Source - {source_name}', 'Value': count})
+        summary_df = pd.DataFrame(summary_data)
+
+        # Weekly Scans DataFrame
+        weekly_df = pd.DataFrame(weekly_data_list) if weekly_data_list else pd.DataFrame(columns=['Day', 'Scans'])
+
+        # Recent Logs DataFrame
+        logs_df = pd.DataFrame(logs_for_report) if logs_for_report else pd.DataFrame(columns=log_headers)
+
+
+        # --- 3. Write DataFrames to an in-memory XLSX file ---
+        output_buffer = io.BytesIO() # Use BytesIO for binary XLSX data
+
+        # Use ExcelWriter context manager (automatically saves)
+        with pd.ExcelWriter(output_buffer, engine='openpyxl') as writer:
+            summary_df.to_excel(writer, sheet_name='Summary', index=False)
+            weekly_df.to_excel(writer, sheet_name='Weekly Scans', index=False)
+            if not logs_df.empty:
+                 logs_df.to_excel(writer, sheet_name='Recent Logs', index=False)
+            # You could add more sheets or formatting here using writer.sheets['SheetName'] and openpyxl
+
+        # Get the XLSX data from the buffer
+        xlsx_data = output_buffer.getvalue()
+
+        # Save the generated file locally on the server for inspection
+        temp_filename = "temp_debug_report.xlsx"
+        try:
+            with open(temp_filename, "wb") as f: # Use 'wb' for binary write
+                f.write(xlsx_data)
+            print(f"DEBUG: Successfully saved temporary file: {os.path.abspath(temp_filename)}")
+            print(f"DEBUG: Temporary file size: {len(xlsx_data)} bytes") # Log size
+            if len(xlsx_data) == 0:
+                 print("ERROR: Generated XLSX data is empty!")
+        except Exception as save_err:
+            print(f"ERROR: Could not save temporary debug file: {save_err}")
+        # --- *** END TEMPORARY DEBUGGING STEP *** ---
+
+        # Check if data is empty before sending
+        if not xlsx_data:
+             print("ERROR: xlsx_data is empty before creating Response!")
+             return jsonify({"error": "Generated report data is empty."}), 500
+
+
+        # --- Return the XLSX data in a Flask Response ---
+        return Response(
+            xlsx_data,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition":
+                     "attachment; filename=SwiftShield_Analytics_Report.xlsx"}
+        )
+
+    except pymongo.errors.PyMongoError as dbe:
+        print(f"🔥 Database error generating XLSX report: {str(dbe)}")
+        traceback.print_exc()
+        return jsonify({"error": f"Database error generating report: {str(dbe)}"}), 500
+    except Exception as e:
+        print(f"🔥 Unexpected error generating XLSX report: {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"Error generating report: {e}"}), 500
+
+# --- End of endpoint ---
 
 @app.route("/scan", methods=["POST"])
 def index():
@@ -1166,7 +1335,8 @@ def Login():
     session['role'] = user.get('role', 'user') # Get role, default to 'user' if missing
     session['email'] = user['email']
     session['firstName'] = user.get('firstName', '') # Store first name if available
-
+    session.permanent = True  
+    
     # Update last login time
     users_collection.update_one(
         {'_id': user['_id']},
@@ -1184,41 +1354,31 @@ def Login():
     }), 200
 
 
+
+# User loader function
+@login_manager.user_loader
+def load_user(user_id):
+    # Return a user object from your database
+    return users_collection.find_one({'_id': user_id})
+
+# Then your logout route
 @app.route("/Logout", methods=['POST'])
-@login_required # Still good practice: only logged-in users can logout
 def Logout():
-    # Get user identifier *before* logging out for logging purposes
-    # Uses Flask-Login's current_user proxy if available
-    user_identifier = 'Unknown User'
-    if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
-         # Try getting email or id, common user attributes
-         user_identifier = getattr(current_user, 'email', getattr(current_user, 'id', 'Authenticated User'))
-
     try:
-        # *** 2. Use Flask-Login's logout_user() function ***
-        logout_user()
-        # This function handles clearing the relevant session keys for Flask-Login
-        # (like user_id, _fresh, etc.)
-
-        # session.clear() # Generally redundant if using logout_user() unless you store
-                        # OTHER non-auth related things in the session you also want cleared.
-                        # If only using session for Flask-Login, logout_user() is sufficient.
-
-        print(f"✅ User logged out via backend: {user_identifier}")
-
-        # Important: The backend's main job here is clearing its *own* session state.
-        # The React Native frontend is responsible for clearing its AsyncStorage.
+        # Simple session clearing - this always works
+        session.clear()
+        
+        # Try Flask-Login logout if available
+        try:
+            if current_user.is_authenticated:
+                logout_user()
+        except:
+            pass  # Ignore Flask-Login errors
+            
         return jsonify({"message": "Logout successful"}), 200
-
     except Exception as e:
-        # Basic error handling for unexpected issues during logout
-        print(f"❌ Error during server-side logout for user {user_identifier}: {e}")
-        # You might want more specific error handling depending on your setup
+        print(f"Error during logout: {str(e)}")
         return jsonify({"message": "Server error during logout"}), 500
-
-
-
-
 # --- Analytics Endpoints (RBAC Applied) ---
 
 @app.route('/api/stats/scan-source-distribution', methods=['GET'])
@@ -1587,7 +1747,6 @@ def fetch_logs_rb(user_id=None, role='user', limit=None, search_query=None):
                  continue
 
     return formatted_logs
-
 
 # GET Recent Activity (Logs Page) - Applies RBAC and Search
 @app.route("/recent-activity", methods=["GET"])
@@ -2088,16 +2247,17 @@ if __name__ == "__main__":
 @app.route("/google-login")
 def google_login():
     try:
+        print(f"DEBUG: /google/login")
         """
         Initiates the Google OAuth 2.0 flow.
         Redirects the user to Google's consent screen.
         """
         # Retrieve Google client config and scopes from Flask app config
         # These should have been set in your app/__init__.py from .env
-        client_id = current_app.config.get('GOOGLE_CLIENT_ID')
-        client_secret = current_app.config.get('GOOGLE_CLIENT_SECRET')
-        redirect_uri = current_app.config.get('GOOGLE_REDIRECT_URI')
-        scopes = current_app.config.get('GOOGLE_SCOPES')
+        client_id = app.config.get('GOOGLE_CLIENT_ID')
+        client_secret = app.config.get('GOOGLE_CLIENT_SECRET')
+        redirect_uri = app.config.get('GOOGLE_REDIRECT_URI')
+        scopes = app.config.get('GOOGLE_SCOPES')
 
         if not client_id or not client_secret or not redirect_uri or not scopes:
             print("ERROR: Google OAuth configuration missing in Flask app config.")
@@ -2119,7 +2279,7 @@ def google_login():
             scopes=scopes,
             redirect_uri=redirect_uri
         )
-        
+        print(f"DEBUG: /google/login - Flow:  {flow}")
         # Generate the URL the user needs to visit to grant permission
         # access_type='offline' is crucial to get a refresh_token
         # prompt='consent' ensures the user sees the consent screen even if previously granted,
@@ -2130,6 +2290,8 @@ def google_login():
             include_granted_scopes='true'
         )
 
+        print(f"DEBUG: /google/login - authorization_url {authorization_url}")
+        
         # Store the 'state' value in the user's session.
         # This is a security measure to prevent Cross-Site Request Forgery (CSRF).
         # The same state value must be returned by Google in the callback.
@@ -2181,10 +2343,10 @@ def google_callback():
     # 2. --- Initialize the Flow Again ---
     # The flow object is needed again to exchange the code for tokens.
     # Use the same configuration as in the /login route.
-    client_id = current_app.config.get('GOOGLE_CLIENT_ID')
-    client_secret = current_app.config.get('GOOGLE_CLIENT_SECRET')
-    redirect_uri = current_app.config.get('GOOGLE_REDIRECT_URI')
-    scopes = current_app.config.get('GOOGLE_SCOPES')
+    client_id = app.config.get('GOOGLE_CLIENT_ID')
+    client_secret = app.config.get('GOOGLE_CLIENT_SECRET')
+    redirect_uri = app.config.get('GOOGLE_REDIRECT_URI')
+    scopes = app.config.get('GOOGLE_SCOPES')
 
     if not client_id or not client_secret or not redirect_uri or not scopes:
         print("ERROR: /google/callback - Google OAuth configuration missing.")
@@ -2234,10 +2396,25 @@ def google_callback():
         if not google_user_email:
              raise ValueError("Could not retrieve user email from Google API.")
 
+
+        user = users_collection.find_one({'email': google_user_email})
+
+        if not user:
+            print(f"DEBUG: Login failed - No user found with email: {google_user_email}")
+            return jsonify({"error": "Invalid email or password"}), 401 # Use generic error for security
+
+        # --- Login Successful - Set Session ---
+        session['user_id'] = str(user['_id'])
+    
+        print(f"DEBUG: /google-callback - User ID: {session.get('user_id')}")
+
+
         # 6. --- Retrieve *Your* Application's User ID from Flask Session ---
         # This is the user who was logged into SwiftShield when they clicked "Connect Gmail"
         app_user_id = session.get('user_id') # Reads the 'user_id' stored by your /auth/Login route
 
+        print(f"DEBUG: /google-callback - App User ID: {app_user_id}")
+        
         if not app_user_id:
             # If the user's SwiftShield session expired or is missing
             print("ERROR: /google-callback - SwiftShield user_id not found in Flask session.")
@@ -2265,8 +2442,19 @@ def google_callback():
         print(f"SUCCESS: Stored Google refresh token for SwiftShield user: {app_user_id} ({google_user_email})")
 
         # 8. --- Redirect Back to Frontend App (Success) ---
-        final_redirect = session.pop('final_redirect_uri', 'swiftshield://google/auth/success') # Get success URL
-        return redirect(final_redirect)
+        # final_redirect = session.pop('final_redirect_uri', 'swiftshield://google/auth/success') # Get success URL
+        # return redirect(final_redirect)
+
+        final_redirect_base = session.pop('final_redirect_uri', 'swiftshield://google/auth/success')
+
+        # Re-attach the code and state to the deep link
+        code = request.args.get('code')
+        state = received_state
+
+        # Make sure to add them as query parameters
+        redirect_url = f"{final_redirect_base}?code={code}&state={state}"
+        return redirect(redirect_url)
+
 
     except Exception as e:
         # Catch any errors during token exchange, user info fetch, or DB update
@@ -2277,7 +2465,231 @@ def google_callback():
         final_redirect = session.pop('final_redirect_uri', f'swiftshield://google/auth/error?reason={error_reason}')
         return redirect(final_redirect)
 
+@app.route('/exchange-auth-code', methods=['POST'])
+def exchange_auth_code():
+    """
+    Exchanges the Google authorization code for access and refresh tokens.
+    Validates the user and stores the refresh token in the database.
+    """
+    try:
+        data = request.get_json()
+        auth_code = data.get('authCode')
+        if not auth_code:
+            return jsonify({"success": False, "error": "Missing authorization code"}), 400
+        print(f"DEBUG: /exchange-auth-code - Auth Code: {auth_code}")
+        # 1. --- Get the Google OAuth Flow Object ---
+        # Use the same OAuth configuration as in the /google-login and /google-callback routes
+        client_id = app.config.get('GOOGLE_CLIENT_ID')
+        client_secret = app.config.get('GOOGLE_CLIENT_SECRET')
+        redirect_uri = app.config.get('GOOGLE_REDIRECT_URI')
+        scopes = app.config.get('GOOGLE_SCOPES')
 
+        if not client_id or not client_secret or not redirect_uri or not scopes:
+            print("ERROR: Google OAuth configuration missing in /exchange-auth-code")
+            return jsonify({"success": False, "error": "Server configuration error"}), 500
+
+        flow = Flow.from_client_config(
+             client_config={  # Construct the structure Google library expects
+                "web": {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    # "redirect_uris": [redirect_uri],  # Must be a list
+                }
+            },
+            # scopes=scopes,
+            # redirect_uri=redirect_uri,
+            scopes=["https://www.googleapis.com/auth/gmail.readonly"],
+            redirect_uri = "swiftshield://google/auth/success" 
+        )
+        print(f"DEBUG: /exchange-auth-code - Flow: {flow}")
+
+        # flow.redirect_uri = "swiftshield://google/auth/success" 
+        # 2. --- Exchange the Code for Tokens ---
+        # flow.fetch_token(code=auth_code) # Short-form for just passing code
+        flow.fetch_token(
+            code=auth_code,
+            client_id=client_id,
+            client_secret=client_secret
+        )
+
+        credentials = flow.credentials # Get the credentials object
+        refresh_token = credentials.refresh_token  # Get the refresh token
+        access_token = credentials.token
+        #access_token = None
+
+        if not refresh_token:
+            print("ERROR: No refresh token received in /exchange-auth-code")
+            return jsonify({"success": False, "error": "Failed to retrieve refresh token"}), 500
+        
+        # 3. --- Get User Info (Email) ---
+        # To associate this Google account with a specific user in *your* app
+        google_user_email = None
+        google_user_id = None
+
+        try:
+            # Make authenticated API call (as in /google/callback)
+            user_info_service = build('oauth2', 'v2', credentials=credentials, cache_discovery=False)
+            user_info = user_info_service.userinfo().get().execute()
+            google_user_email = user_info.get('email')
+            google_user_id = user_info.get('id') # Unique Google User ID
+
+            if not google_user_email:
+                print("ERROR: Could not retrieve user email from Google API.")
+                return jsonify({"success": False, "error": "Could not retrieve user email"}), 500
+
+            print(f"DEBUG: /exchange-auth-code - Retrieved Google user info: {google_user_email} ({google_user_id})")
+
+        except Exception as api_error:
+             print(f"Error during Google API call in /exchange-auth-code: {api_error}")
+             return jsonify({"success": False, "error": f"Google API Error: {api_error}"}), 500
+
+        # 4. --- Verify User Session & Get User ID ---
+        # Get the logged-in SwiftShield user's ID (from Flask session)
+        
+        if not google_user_email:
+             raise ValueError("Could not retrieve user email from Google API.")
+
+
+        user = users_collection.find_one({'email': google_user_email})
+
+        if not user:
+            print(f"DEBUG: Login failed - No user found with email: {google_user_email}")
+            return jsonify({"error": "Invalid email or password"}), 401 # Use generic error for security
+
+        # --- Login Successful - Set Session ---
+        session['user_id'] = str(user['_id'])
+    
+        print(f"DEBUG: /exchange-auth-code - User ID: {session.get('user_id')}")
+        
+        
+        app_user_id = session.get('user_id')
+
+        if not app_user_id:
+            print("ERROR: SwiftShield user_id not found in session (expired or missing)")
+            return jsonify({"success": False, "error": "Your session has expired. Please log in."}), 401  # Unauthorized
+
+        print(f"DEBUG: /exchange-auth-code - SwiftShield user ID in session: {app_user_id}")
+
+
+        # 5. --- Store Refresh Token (Link Google Account) in DB ---
+        # IMPORTANT: Make sure you are storing this token *securely*
+        # And linking the Google account correctly to the SwiftShield user
+
+        try:
+            update_result = users_collection.update_one(
+                {'_id': app_user_id}, # Find the user
+                {'$set': { # Set the following fields
+                    'google_refresh_token': refresh_token, # Store the refresh token
+                    'google_email': google_user_email, # Store their Google email
+                    'google_user_id': google_user_id,
+                    'google_auth_linked_on': datetime.now(PH_TZ) # Record linking time
+                    # 'google_access_token': access_token,
+                }}
+            )
+
+            if update_result.modified_count == 0:
+                print(f"WARNING: Could not update user {app_user_id} with Google token.")
+                # Decide if this is an error or a valid scenario, maybe token was the same
+
+        except Exception as db_error:
+            print(f"ERROR: Database error saving refresh token: {db_error}")
+            return jsonify({"success": False, "error": "Database error saving token"}), 500
+
+        # --- SUCCESS ---
+        print(f"✅ Google account linked and token saved for user: {app_user_id} ({google_user_email})")
+        return jsonify({
+            "success": True,
+            "message": "Google account linked successfully",
+            "email": google_user_email,
+            "userId": app_user_id
+        }), 200  # OK
+    
+    except Exception as e:
+        # Log the full traceback for easier debugging
+        import traceback
+        print(f"🔥 Error in /exchange-auth-code: {str(e)}\n{traceback.format_exc()}")
+        return jsonify({"success": False, "error": f"An error occurred: {str(e)}"}), 500
+    
+    
+
+@app.route("/fetch-new-emails", methods=["POST"])
+@login_required
+def fetch_new_emails():
+    """
+    Fetches new Gmail messages for a user after they've successfully connected their account.
+    Returns a list of email details.
+    """
+    
+
+        # user = users_collection.find_one({'email': google_user_email})
+
+        # if not user:
+        #     print(f"DEBUG: Login failed - No user found with email: {google_user_email}")
+        #     return jsonify({"error": "Invalid email or password"}), 401 # Use generic error for security
+
+        # # --- Login Successful - Set Session ---
+        # session['user_id'] = str(user['_id'])
+    
+        # print(f"DEBUG: /exchange-auth-code - User ID: {session.get('user_id')}")
+        
+        
+    user_id = session['user_id'] # Get logged in user ID
+
+    try:
+        # 1. Get the List of New Messages ---
+        messages = list_new_messages(user_id) # Get message summary (IDs)
+        if messages is None:
+            print("ERROR: Could not retrieve new messages from Gmail.")
+            return jsonify({"success": False, "error": "Could not retrieve new messages"}), 500
+
+        # 2. Get the details of every email in messages ---
+        email_details_list = []
+        for message_summary in messages:
+            message_id = message_summary['id'] # Extract message ID
+            email_details = get_email_details(user_id, message_id) # Call your existing function
+
+            if email_details:
+                 # Basic: Add ALL the URL's and check them individually
+                 extracted_urls = []
+                 if email_details.get('body'):
+                    extracted_urls = extract_urls_from_text(email_details.get('body'))
+                 email_details['extracted_urls'] = extracted_urls
+
+                 print(f"✅ Adding Extracted URLs: {extracted_urls}")
+
+                # Clean: Add only the valid emails
+                 if email_details.get('from'):
+                    if is_valid_email(email_details.get('from')):
+                         email_details_list.append(email_details)
+                         # Now we have a working extract for any email we analyze
+
+        print(f"✅ Returning {len(email_details_list)} email details for user: {user_id}")
+        return jsonify({"success": True, "emails": email_details_list}), 200
+
+    except Exception as e:
+        print(f"🔥 Error in /fetch-new-emails: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": f"An error occurred: {str(e)}"}), 500
+
+def is_valid_email(email):
+  """
+  Validates email addresses using a regex pattern that requires at least one character before and after the @ symbol.
+  """
+  # Regular expression for validating an Email
+  email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+  return re.match(email_pattern, email)
+
+
+
+
+
+
+
+
+    
 # --- Google Services ---
 
 def get_google_credentials(app_user_id):
