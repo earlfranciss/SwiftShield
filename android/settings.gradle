@@ -22,11 +22,16 @@ dependencyResolutionManagement {
 
 includeBuild('../node_modules/@react-native/gradle-plugin')
 
+
 include ':react-native-sound'
 project(':react-native-sound').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-sound/android')
 
 include ':react-native-notification-sounds'
 project(':react-native-notification-sounds').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-notification-sounds/android')
+
+include ':react-native-share'
+project(':react-native-share').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-share/android')
+
 
 include ':react-native-async-storage_async-storage'
 project(':react-native-async-storage_async-storage').projectDir = new File(rootProject.projectDir, '../node_modules/@react-native-async-storage/async-storage/android')
