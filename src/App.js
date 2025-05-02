@@ -1,66 +1,64 @@
-import React, { useEffect } from "react";
-import { NavigationContainer } from "@react-navigation/native";
-import "react-native-gesture-handler";
-import Navigation from "./navigation/Navigation";
-import {
-  NotificationProvider,
-  useNotifications,
-} from "./utils/NotificationContext";
-import NotificationToast from "./components/NotificationToast";
-import { ThemeProvider } from "./components/themeContext"; // <<< CORRECT IMPORT ADDED
+import React, {useEffect} from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import 'react-native-gesture-handler';
+import Navigation from './navigation/Navigation';
+import { NotificationProvider, useNotifications } from './utils/NotificationContext'; 
+import NotificationToast from './components/NotificationToast'; 
+
 
 const AppContent = () => {
-  const { inAppNotification, setInAppNotification, setHasUnreadNotifications } =
-    useNotifications();
+  const { inAppNotification, setInAppNotification, setHasUnreadNotifications } = useNotifications();
+
 
   return (
     <>
-      <ThemeProvider>
-        <NavigationContainer>
-          <Navigation />
-        </NavigationContainer>
-      </ThemeProvider>
+      <NavigationContainer>
+        <Navigation />
+      </NavigationContainer>
 
       {/* Notification Toast */}
       {inAppNotification && (
         <NotificationToast
           notification={inAppNotification}
           onPress={(notification) => {
-            // Handle navigation carefully
+            // Handle navigation carefully 
             console.log("Toast pressed, navigate if possible");
             // globalNavigation?.navigate(...);
             setInAppNotification(null);
-            // setHasUnreadNotifications(false);
+            // setHasUnreadNotifications(false); 
           }}
           onDismiss={() => setInAppNotification(null)}
         />
       )}
     </>
   );
-};
+}
 
 const App = () => {
   return (
     <NotificationProvider>
-      <AppContent />
+       <AppContent />
     </NotificationProvider>
   );
 };
 
 export default App;
 
+
 // import "react-native-gesture-handler";
-// import Navigation from './navigation/Navigation';
+// import Navigation from './navigation/Navigation'; 
 
 // export default function App() {
 //   return <Navigation />;
 // }
 
+
+
 //Version 2
 // import React from 'react';
 // import { NavigationContainer } from '@react-navigation/native';
 // import "react-native-gesture-handler";
-// import Navigation from './navigation/Navigation';
+// import Navigation from './navigation/Navigation'; 
 
 // const App = () => {
 //   console.log('App component with Navigation rendering');
@@ -72,6 +70,8 @@ export default App;
 // };
 
 // export default App;
+
+
 
 //Testing
 // import React, { useEffect } from 'react';

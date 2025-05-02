@@ -1,176 +1,174 @@
 import React, { useState, useCallback, useMemo } from "react";
-import {
-  View,
-  Text,
-  Dimensions,
-  ActivityIndicator,
-  StyleSheet,
-  useColorScheme,
-} from "react-native";
+import { View, Text, Dimensions, ActivityIndicator, StyleSheet, useColorScheme  } from "react-native";
 import { LineChart } from "react-native-chart-kit";
-import { useFocusEffect } from "@react-navigation/native";
-import config from "../config/config";
+import { useFocusEffect } from "@react-navigation/native"; 
+import config from "../config/config"; 
 
 const screenWidth = Dimensions.get("window").width;
-// --- Helper function to convert hex color to rgba ---
-// (Needed because chart-kit requires color as a function)
-const hexToRgba = (hex, opacity = 1) => {
-  if (!hex || !hex.startsWith("#") || (hex.length !== 7 && hex.length !== 4)) {
-    console.warn(`Invalid hex color: ${hex}, using grey.`);
-    return `rgba(170, 170, 170, ${opacity})`;
-  }
-  let shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
-  hex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
-  let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!result) return `rgba(170, 170, 170, ${opacity})`;
-  const r = parseInt(result[1], 16);
-  const g = parseInt(result[2], 16);
-  const b = parseInt(result[3], 16);
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-};
-// --- End helper ---
 
-const LineGraph = ({ data }) => {
+const LineGraph = () => {
+
   const colorScheme = useColorScheme(); // Gets 'light', 'dark', or null
-
+  
   // State variables
-  // const [chartData, setChartData] = useState(null); // Holds formatted data for the chart
-  // const [loading, setLoading] = useState(false); // Tracks if data is being fetched
-  // const [error, setError] = useState(null); // Stores error message if fetching fails
+  const [chartData, setChartData] = useState(null); // Holds formatted data for the chart
+  const [loading, setLoading] = useState(false);   // Tracks if data is being fetched
+  const [error, setError] = useState(null);       // Stores error message if fetching fails
 
   const chartConfig = useMemo(() => {
-    const isDarkMode = colorScheme === "dark";
+    const isDarkMode = colorScheme === 'dark';
 
     return {
       // Transparency settings (using opacity is more robust)
       backgroundGradientFrom: "#000000", // Base color (will be transparent)
-      backgroundGradientTo: "#000000", // Base color (will be transparent)
-      backgroundGradientFromOpacity: 0, // Make gradient start transparent
-      backgroundGradientToOpacity: 0, // Make gradient end transparent
-      backgroundColor: "transparent", // Make solid background transparent
+      backgroundGradientTo: "#000000",   // Base color (will be transparent)
+      backgroundGradientFromOpacity: 0,   // Make gradient start transparent
+      backgroundGradientToOpacity: 0,     // Make gradient end transparent
+      backgroundColor: "transparent",     // Make solid background transparent
 
       decimalPlaces: 0,
       // Dynamic colors based on the theme
-      // Color for AXES/LABELS ONLY (line color comes from dataset)
-      color: () => `rgba(0, 0, 0, 0)`, // Black for light mode
+      color: (opacity = 1) => isDarkMode
+        ? `rgba(255, 255, 255, ${opacity})` // White for dark mode
+        : `rgba(0, 0, 0, ${opacity})`,      // Black for light mode
+      labelColor: (opacity = 1) => isDarkMode
+        ? `rgba(58, 237, 151, ${opacity})` // Green for dark mode
+        : `rgba(0, 100, 0, ${opacity})`,   // Darker Green for light mode (adjust as needed)
 
-      // Color for LABELS (e.g., "Sat", "Sun")
-      // Ignore opacity param, force alpha to 1 for solid grey
-      labelColor: () => `rgba(58, 237, 151, 1)`, // Force solid green
       propsForBackgroundLines: { stroke: "none" },
-      // Optional: Dot styling if needed
-      // propsForDots: { r: "3", strokeWidth: "1", stroke: "#CCCCCC" }
-
-      fillShadowGradientFromOpacity: 0, // Default might be non-zero
-      fillShadowGradientToOpacity: 0, // Default might be non-zero
     };
   }, [colorScheme]);
 
-  let processedChartData = null;
-  let validationError = null; // Optional: track validation errors
+  // useFocusEffect runs the fetch logic when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      // Define the asynchronous function to fetch data
+      const fetchThreatData = async () => {
+        setLoading(true);     // Indicate loading started
+        setError(null);       // Clear any previous errors
+        setChartData(null);   // Clear previous chart data to avoid showing stale info
 
-  console.log(
-    "<<< LineGraph [Props]: Received data prop: >>>",
-    JSON.stringify(data, null, 2)
-  );
+        try {
+          console.log("LineGraph: Fetching updated data from /weekly-threats...");
+          const response = await fetch(`${config.BASE_URL}/weekly-threats`); // Fetch from backend
 
-  // Validate the incoming prop data structure
-  const isDataValid =
-    data &&
-    Array.isArray(data.labels) &&
-    Array.isArray(data.datasets) && // Check for datasets
-    data.labels.length > 0 &&
-    data.datasets.length > 0 &&
-    data.datasets.every(
-      // Checks EVERY item in datasets
-      (ds) =>
-        ds &&
-        Array.isArray(ds.data) && // Does each item have a 'data' array?
-        ds.data.length === data.labels.length && // Does length match labels?
-        ds.color && // Does each item have a 'color'?
-        ds.label // Does each item have a 'label'?
-    );
+          // Check for network/HTTP errors (e.g., 404, 500)
+          if (!response.ok) {
+            throw new Error(`HTTP Error fetching weekly threats: ${response.status}`);
+          }
 
-  if (isDataValid) {
-    try {
-      // Format datasets for react-native-chart-kit
-      const formattedChartDatasets = data.datasets.map((ds) => {
-        // Log the color being processed
-        console.log(
-          `<<< LineGraph [Props]: Processing dataset '${ds.label}', color: ${ds.color} >>>`
-        );
+          // Parse the JSON response from the backend
+          const data = await response.json();
+          console.log("LineGraph: Raw API Response:", JSON.stringify(data)); // Log raw data
 
-        // --- FIX: Ensure 'color' function is included in returned object ---
-        return {
-          // This is the object returned for each dataset
-          data: ds.data.map((point) => {
-            // Sanitize points
-            const num = Number(point);
-            return Number.isFinite(num) ? num : 0;
-          }),
-          color: () => hexToRgba(ds.color, 1), // <<< ADD THIS LINE BACK
-          strokeWidth: 1, // Your chosen width (e.g., 4)
-        };
-        // --- END FIX ---
-      }); // End of .map()
+          // --- Data Validation & Sanitization ---
+          let sanitizedLabels = [];
+          let sanitizedDataPoints = [];
+          let isValidDataStructure = false; // Flag to track if data is usable
 
-      processedChartData = {
-        labels: data.labels.map((label) => String(label ?? "")), // Sanitize labels
-        datasets: formattedChartDatasets, // Assign the correctly formatted array
+          // Check if the basic structure (labels/data arrays of same length) is correct
+          if (
+            data &&
+            Array.isArray(data.labels) &&
+            Array.isArray(data.data) &&
+            data.labels.length === data.data.length
+          ) {
+            // If structure is okay, proceed with sanitizing
+            isValidDataStructure = true;
+
+            // Ensure all labels are strings (important for the chart library)
+            sanitizedLabels = data.labels.map(label => String(label ?? '')); // Use String() and handle potential null/undefined labels
+
+            // Ensure all data points are valid finite numbers (not NaN, Infinity, null, etc.)
+            // Replace any invalid points with 0 to prevent chart errors
+            sanitizedDataPoints = data.data.map(point => {
+              const num = Number(point); // Attempt conversion to number
+              return Number.isFinite(num) ? num : 0; // Use 0 if not a valid finite number
+            });
+
+            console.log("LineGraph: Sanitized Labels:", sanitizedLabels);
+            console.log("LineGraph: Sanitized Data Points:", sanitizedDataPoints);
+
+          } else {
+            // If the structure from the API is invalid or inconsistent
+            console.error("LineGraph: Invalid or mismatched data structure received:", data);
+            // Option 1: Throw an error to show error message
+            throw new Error("Received invalid data structure for chart.");
+            // Option 2: Silently fail and show "No data available" (by leaving isValidDataStructure = false)
+          }
+          // --- End Data Validation & Sanitization ---
+
+          // Only update the chart state if the data was valid and sanitized
+          if (isValidDataStructure) {
+            setChartData({
+              labels: sanitizedLabels, // Use the validated/sanitized labels
+              datasets: [
+                {
+                  data: sanitizedDataPoints, // Use the validated/sanitized data points
+                  color: (opacity = 1) => `rgba(58, 237, 151, ${opacity})`, // Line color
+                  strokeWidth: 3 // Thickness of the line
+                }
+              ],
+              // legend: ["Weekly Threats"] // Optional: Add a legend
+            });
+          } else {
+            // If data structure was bad, ensure chartData remains null
+            // This will trigger the "No data available" text in the return statement
+            setChartData(null);
+          }
+
+        } catch (err) { // Catch any error from try block (fetch, parse, validation)
+          console.error("LineGraph: Error fetching or processing chart data:", err);
+          setError(err.message); // Set the error message state
+          setChartData(null); // Ensure no chart is shown on error
+        } finally {
+          // This runs regardless of success or error
+          setLoading(false); // Indicate loading finished
+        }
       };
-      // Log the final processed data
-      console.log(
-        "<<< LineGraph [Props]: Final processedChartData for rendering: >>>",
-        JSON.stringify(processedChartData, null, 2)
-      );
-    } catch (processingError) {
-      console.error(
-        "LineGraph [Props]: Error processing prop data:",
-        processingError
-      );
-      validationError = "Error processing chart data.";
-    }
-  } else {
-    // ... (handle invalid data prop) ...
-    if (data && (data.labels || data.datasets)) {
-      validationError = "Invalid chart data structure received.";
-    }
-  }
+
+      fetchThreatData(); // Call the fetch function when the effect runs
+
+      // Return a cleanup function (optional, useful if you needed to cancel fetches)
+      // return () => { console.log("LineGraph: Cleaning up effect"); };
+
+    }, []) // Empty dependency array means the fetchThreatData callback is memoized and doesn't re-run unnecessarily
+  );
 
   // --- Render the component ---
   return (
     // Use a container View. Apply styles if needed.
     <View style={styles.container}>
-      {/* Conditional rendering based on processedChartData */}
-      {console.log(
-        "<<< LineGraph [Render]: Rendering chart with processed data:",
-        processedChartData ? "Exists" : "null"
-      )}
-
-      {processedChartData ? (
+      {/* Conditional rendering based on state */}
+      {loading ? (
+        // Show loading indicator while fetching
+        <ActivityIndicator style={styles.indicator} size="large" color="#3AED97" />
+      ) : error ? (
+        // Show error message if fetch failed (ensure wrapped in Text!)
+        <Text style={styles.errorText}>Error: {error}</Text>
+      ) : chartData ? (
+        // Render the LineChart if data is successfully fetched and processed
         <LineChart
-          data={processedChartData} // Use the processed data from props
-          width={screenWidth * 0.95} // Adjust width as needed
-          height={180} // Adjusted height
+          data={chartData}
+          width={screenWidth * 0.95} // Make chart slightly less than full width for padding
+          height={180}
           chartConfig={chartConfig}
-          bezier={false}
-          style={styles.chartStyle}
-          withInnerLines={false}
-          withOuterLines={false}
-          withHorizontalLabels={false} // Show X labels
-          withVerticalLabels={true} // Hide Y labels
-          fromZero={true}
-          withDots={false}
+          bezier // Makes the line smooth
+          style={styles.chartStyle} // Apply styles for margin, etc.
+          // Chart-specific props for appearance:
+          withInnerLines={false}      // Hide horizontal grid lines inside chart area
+          withOuterLines={false}      // Hide lines framing the chart
+          withVerticalLines={false}   // Hide vertical grid lines
+          withHorizontalLabels={false} // Show labels below chart (e.g., Fri, Sat)
+          withVerticalLabels={true}   // Show labels on the Y-axis (counts)
+          fromZero={true}           // Ensure Y-axis starts at 0
+          // yAxisInterval={1} // Optional: Control spacing of Y-axis labels
+          // formatYLabel={(y) => Math.round(y)} // Optional: Format Y-axis labels (e.g., round numbers)
+          // segments={4} // Optional: Suggest number of horizontal lines/labels on Y-axis
         />
       ) : (
-        // Show placeholder (consider showing specific error if validationError is set)
-        <View style={styles.placeholderContainer}>
-          <Text style={styles.noDataText}>
-            {validationError // <<< This variable is set when isDataValid is false
-              ? `Error: ${validationError}` // <<< THIS IS THE TEXT BEING DISPLAYED
-              : "Waiting for chart data..."}
-          </Text>
-        </View>
+        // Show "No data" message if not loading, no error, but no data available (initial or after validation fail)
+        <Text style={styles.noDataText}>No weekly threat data available</Text>
       )}
     </View>
   );
@@ -180,21 +178,13 @@ const styles = StyleSheet.create({
   container: {
     // Add styles for the container if needed, e.g., alignment, padding
     // Example:
-    alignItems: "center", // Center chart/indicator horizontally
-    justifyContent: "center", // Center vertically if needed (depends on parent layout)
-    minHeight: 200, // Ensure container has height even when loading/error
-    // marginBottom: 10 // If spacing needed below this component
-  },
-  placeholderContainer: {
-    // Added style for placeholder view
-    height: 220, // Match chart height
-    width: screenWidth - 40, // Match chart width (use same calculation as chart)
-    alignItems: "center",
-    justifyContent: "center",
-    // borderWidth: 1, borderColor: 'grey' // Optional for debugging layout
+     alignItems: 'center', // Center chart/indicator horizontally
+     justifyContent: 'center', // Center vertically if needed (depends on parent layout)
+     minHeight: 200, // Ensure container has height even when loading/error
+     // marginBottom: 10 // If spacing needed below this component
   },
   indicator: {
-    marginTop: 10, // Add some spacing for the loader
+      marginTop: 10, // Add some spacing for the loader
   },
   errorText: {
     textAlign: "center",
@@ -212,7 +202,7 @@ const styles = StyleSheet.create({
     marginVertical: 5,
     borderRadius: 12, // Slightly rounded corners for the chart background
     // Adjust left margin if needed for alignment within parent
-    marginLeft: -30, // Example if chart needs shifting left
+    marginLeft: -30 // Example if chart needs shifting left
   },
 });
 
