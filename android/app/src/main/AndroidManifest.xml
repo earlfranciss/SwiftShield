@@ -35,11 +35,12 @@
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
       </intent-filter>
-      <intent-filter android:label="SwiftShieldDeepLink">
+      <intent-filter android:label=".DeepLinkingActivity" android:exported="true">
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="swiftshield"/>
+        <data android:scheme="swiftshield" android:host="google" android:pathPrefix="/auth/success" />
+        <!-- <data android:scheme="swiftshield"/> -->
         <!-- Remove redundant/incorrect schemes unless specifically needed -->
             <!-- <data android:scheme="com.anonymous.SwiftShield"/> -->
             <!-- <data android:scheme="com.anonymous.swiftshield"/> -->

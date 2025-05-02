@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import config from "../../config/config";
 
+
 const ReportDetails = ({ visible, report, onClose, navigation, refreshReports }) => {
   if (!report) return null; // Prevent errors when report is null
 
