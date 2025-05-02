@@ -682,8 +682,8 @@ def extract_urls_from_text(text_body):
 
 # --- NEW EXPORT ENDPOINT ---
 @app.route('/api/export/report', methods=['GET'])
-@login_required # Uncomment if you have login setup
-def export_analytics_report_xlsx(): # Renamed slightly for clarity
+@login_required # Uncomment if using flask_login
+def export_analytics_report_xlsx():
     # --- Simulate session for testing if login_required is commented out ---
     if 'user_id' not in session:
          session['user_id'] = 'test_user_id' # Replace with actual logic
@@ -694,17 +694,17 @@ def export_analytics_report_xlsx(): # Renamed slightly for clarity
     user_id = session.get('user_id', 'unknown')
     role = session.get('role', 'unknown')
     email = session.get('email', user_id)
-    print(f"DEBUG /api/export/report: User: {email}, Role: {role}")
+    print(f"DEBUG /api/export/report (XLSX): User: {email}, Role: {role}")
 
     try:
-        # --- 1. Fetch ALL the data needed for the report (Same queries as before) ---
+        # --- 1. Fetch Summary Data (Same as before) ---
         base_query = {}
         if role == 'user':
             base_query['user_id'] = user_id
 
-        total_urls_scanned = detection_collection.count_documents(base_query)
-        threats_blocked_query = {**base_query, "severity": {"$in": ["HIGH", "CRITICAL"]}}
-        total_threats_blocked = detection_collection.count_documents(threats_blocked_query)
+        # total_urls_scanned = detection_collection.count_documents(base_query)
+        # threats_blocked_query = {**base_query, "severity": {"$in": ["HIGH", "CRITICAL"]}}
+        # total_threats_blocked = detection_collection.count_documents(threats_blocked_query)
 
         severity_levels = ["SAFE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
         severity_match_stage = {"severity": {"$in": severity_levels}}
@@ -715,113 +715,156 @@ def export_analytics_report_xlsx(): # Renamed slightly for clarity
         for result in severity_results: severity_counts[result.get("_id", "N/A")] = result.get("count", 0)
 
         sources_to_count = ["User Scan", "SMS", "Email"]
-        source_display_names = {"User Scan": "Manual Scans", "SMS": "SMS Scans", "Email": "Email Scans"}
+        source_display_names = {"User Scan": "User Scans", "SMS": "SMS", "Email": "Email"}
         source_counts = {}
         for source in sources_to_count:
             count = detection_collection.count_documents({**base_query, "metadata.source": source})
-            source_counts[source_display_names.get(source, source)] = count # Use display name as key
+            source_counts[source_display_names.get(source, source)] = count
 
-        ph_tz = pytz.timezone("Asia/Manila")
+        # --- 2. Fetch and Process Weekly Data (Adapted from /weekly-threats) ---
+        ph_tz = pytz.timezone("Asia/Manila") # Define timezone
         today = datetime.now(ph_tz).date()
         start_date = today - timedelta(days=6)
         start_datetime = datetime.combine(start_date, datetime.min.time(), tzinfo=ph_tz)
+
+        # Base Match Stage for weekly pipeline
         weekly_match_stage = {"timestamp": {"$gte": start_datetime}}
-        if role == 'user': weekly_match_stage['user_id'] = user_id
+        if role == 'user':
+            weekly_match_stage['user_id'] = user_id
+            print(f"DEBUG Weekly Data: Applying user filter: {user_id}")
+
+        # Aggregation pipeline to group by day AND severity
         weekly_pipeline = [
             {"$match": weekly_match_stage},
-            {"$project": {"dayOfWeek": {"$dayOfWeek": {"date": "$timestamp", "timezone": "Asia/Manila"}}}},
-            {"$group": {"_id": "$dayOfWeek", "scan_count": {"$sum": 1}}},
-            {"$sort": {"_id": 1}} ]
+            {
+                "$project": {
+                    "dayOfWeek": {"$dayOfWeek": {"date": "$timestamp", "timezone": "Asia/Manila"}},
+                    "severity": 1 # Keep the severity field
+                }
+            },
+            {
+                # Group by both day and severity
+                "$group": {
+                    "_id": {
+                        "day": "$dayOfWeek",
+                        "severity": "$severity"
+                    },
+                    "count": {"$sum": 1}
+                }
+            },
+            {
+                "$sort": {"_id.day": 1, "_id.severity": 1} # Sort by day, then severity
+            }
+        ]
+        print(f"DEBUG Weekly Data: Aggregation pipeline: {weekly_pipeline}")
         weekly_results = list(detection_collection.aggregate(weekly_pipeline))
-        days_map = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"}
-        weekly_data_dict = {days_map[i]: 0 for i in range(1, 8)}
-        for entry in weekly_results: weekly_data_dict[days_map.get(entry["_id"])] = entry.get("scan_count", 0)
-        weekly_data_list = []
-        for i in range(7):
-            current_day = start_datetime + timedelta(days=i)
-            day_abbr = current_day.strftime("%a") # e.g., "Mon"
-            weekly_data_list.append({'Day': day_abbr, 'Scans': weekly_data_dict.get(day_abbr, 0)})
+        print(f"DEBUG Weekly Data: Raw aggregation results: {weekly_results}")
 
-        # Fetch recent logs (ensure fetch_logs_rb exists and works)
+        # Process results into daily counts for each category
+        days_map = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"}
+        daily_total_scans = {days_map[i]: 0 for i in range(1, 8)}
+        daily_phishing_scans = {days_map[i]: 0 for i in range(1, 8)} # High + Critical
+        daily_safe_scans = {days_map[i]: 0 for i in range(1, 8)}     # Safe
+
+        for entry in weekly_results:
+            day_num = entry["_id"].get("day")
+            severity = entry["_id"].get("severity")
+            count = entry.get("count", 0)
+            day_name = days_map.get(day_num)
+
+            if day_name:
+                daily_total_scans[day_name] += count
+                if severity in ["HIGH", "CRITICAL"]:
+                    daily_phishing_scans[day_name] += count
+                if severity == "SAFE":
+                    daily_safe_scans[day_name] += count
+
+        # Generate list of dictionaries for the DataFrame (last 7 days ordered)
+        weekly_data_for_df = []
+        for i in range(7):
+            current_day_dt = start_datetime + timedelta(days=i)
+            day_abbr = current_day_dt.strftime("%a") # Get "Sun", "Mon", etc.
+            weekly_data_for_df.append({
+                'Day': day_abbr,
+                'Total Scans': daily_total_scans.get(day_abbr, 0),
+                'Phishing Scans': daily_phishing_scans.get(day_abbr, 0),
+                'Safe Scans': daily_safe_scans.get(day_abbr, 0)
+            })
+
+        # --- 3. Fetch Recent Logs (Same as before) ---
         try:
-            # Assuming fetch_logs_rb is defined elsewhere and handles RBAC
             recent_logs = fetch_logs_rb(user_id=user_id, role=role, limit=100)
-             # Select and rename columns for the report for clarity
             logs_for_report = []
             log_headers = ['Timestamp', 'URL', 'Platform', 'Severity', 'Verdict', 'Probability (%)']
             for log in recent_logs:
-                prob_score = log.get('phishing_probability_score', 0.0)
-                prob_percent = round(prob_score * 100, 1) if isinstance(prob_score, (int, float)) else 'N/A'
-                logs_for_report.append({
-                    'Timestamp': log.get('date_scanned', 'N/A'),
-                    'URL': log.get('url', 'N/A'),
-                    'Platform': log.get('platform', 'N/A'),
-                    'Severity': log.get('severity', 'N/A'),
-                    'Verdict': log.get('title', 'N/A'), # Using title as verdict
-                    'Probability (%)': prob_percent
-                })
+                 prob_score = log.get('phishing_probability_score', 0.0)
+                 prob_percent = round(prob_score * 100, 1) if isinstance(prob_score, (int, float)) else 'N/A'
+                 logs_for_report.append({
+                     'Timestamp': log.get('date_scanned', 'N/A'),
+                     'URL': log.get('url', 'N/A'),
+                     'Platform': log.get('platform', 'N/A'),
+                     'Severity': log.get('severity', 'N/A'),
+                     'Verdict': log.get('title', 'N/A'), # Using title as verdict
+                     'Probability (%)': prob_percent
+                 })
         except NameError:
              print("WARNING: fetch_logs_rb function not found. Skipping recent logs.")
-             logs_for_report = [] # Set empty list if function doesn't exist
+             logs_for_report = []
              log_headers = []
 
 
-        # --- 2. Format the data using Pandas DataFrames ---
-
-        # Summary DataFrame
+        # --- 4. Format DataFrames for Excel ---
+        # Summary DataFrame (Same as before)
         summary_data = [
             {'Metric': 'Report Generated For', 'Value': email},
             {'Metric': 'Report Generated At', 'Value': datetime.now(ph_tz).strftime('%Y-%m-%d %H:%M:%S %Z')},
-            {'Metric': 'Total URLs Scanned', 'Value': total_urls_scanned},
-            {'Metric': 'Total Threats Detected (High/Critical)', 'Value': total_threats_blocked},
+            # {'Metric': 'Total URLs Scanned', 'Value': total_urls_scanned},  # <-- THIS LINE IS COMMENTED OUT
+            # {'Metric': 'Total Threats Detected (High/Critical)', 'Value': total_threats_blocked}, # <-- THIS LINE IS COMMENTED OUT
         ]
-        for level in severity_levels:
-            summary_data.append({'Metric': f'Severity - {level.capitalize()}', 'Value': severity_counts.get(level, 0)})
-        for source_name, count in source_counts.items():
-             summary_data.append({'Metric': f'Source - {source_name}', 'Value': count})
+        # These loops add the Severity and Source rows
+        for level in severity_levels: summary_data.append({'Metric': f'Severity - {level.capitalize()}', 'Value': severity_counts.get(level, 0)})
+        for source_name, count in source_counts.items(): summary_data.append({'Metric': f'Source - {source_name}', 'Value': count})
         summary_df = pd.DataFrame(summary_data)
 
-        # Weekly Scans DataFrame
-        weekly_df = pd.DataFrame(weekly_data_list) if weekly_data_list else pd.DataFrame(columns=['Day', 'Scans'])
+        # Weekly Scans DataFrame (NOW uses the detailed data)
+        weekly_df_columns = ['Day', 'Total Scans', 'Phishing Scans', 'Safe Scans']
+        weekly_df = pd.DataFrame(weekly_data_for_df) if weekly_data_for_df else pd.DataFrame(columns=weekly_df_columns)
 
-        # Recent Logs DataFrame
+
+        # Recent Logs DataFrame (Same as before)
         logs_df = pd.DataFrame(logs_for_report) if logs_for_report else pd.DataFrame(columns=log_headers)
 
 
-        # --- 3. Write DataFrames to an in-memory XLSX file ---
-        output_buffer = io.BytesIO() # Use BytesIO for binary XLSX data
-
-        # Use ExcelWriter context manager (automatically saves)
-        with pd.ExcelWriter(output_buffer, engine='openpyxl') as writer:
-            summary_df.to_excel(writer, sheet_name='Summary', index=False)
-            weekly_df.to_excel(writer, sheet_name='Weekly Scans', index=False)
-            if not logs_df.empty:
-                 logs_df.to_excel(writer, sheet_name='Recent Logs', index=False)
-            # You could add more sheets or formatting here using writer.sheets['SheetName'] and openpyxl
-
-        # Get the XLSX data from the buffer
-        xlsx_data = output_buffer.getvalue()
-
-        # Save the generated file locally on the server for inspection
-        temp_filename = "temp_debug_report.xlsx"
+        # --- 5. Write DataFrames to an in-memory XLSX file ---
+        output_buffer = io.BytesIO()
         try:
-            with open(temp_filename, "wb") as f: # Use 'wb' for binary write
-                f.write(xlsx_data)
-            print(f"DEBUG: Successfully saved temporary file: {os.path.abspath(temp_filename)}")
-            print(f"DEBUG: Temporary file size: {len(xlsx_data)} bytes") # Log size
-            if len(xlsx_data) == 0:
-                 print("ERROR: Generated XLSX data is empty!")
-        except Exception as save_err:
-            print(f"ERROR: Could not save temporary debug file: {save_err}")
-        # --- *** END TEMPORARY DEBUGGING STEP *** ---
+            with pd.ExcelWriter(output_buffer, engine='openpyxl') as writer:
+                if not summary_df.empty:
+                     summary_df.to_excel(writer, sheet_name='Summary', index=False)
+                # Write the NEW weekly data
+                if not weekly_df.empty:
+                    weekly_df.to_excel(writer, sheet_name='Weekly Scans', index=False)
+                if not logs_df.empty:
+                     logs_df.to_excel(writer, sheet_name='Recent Logs', index=False)
 
-        # Check if data is empty before sending
-        if not xlsx_data:
-             print("ERROR: xlsx_data is empty before creating Response!")
-             return jsonify({"error": "Generated report data is empty."}), 500
+            xlsx_data = output_buffer.getvalue()
+            print(f"DEBUG: Generated XLSX data size: {len(xlsx_data)} bytes")
 
+        except Exception as excel_err:
+             print(f"ERROR: Failed during ExcelWriter process: {excel_err}")
+             traceback.print_exc()
+             return jsonify({"error": "Failed to generate Excel structure."}), 500
 
-        # --- Return the XLSX data in a Flask Response ---
+        # --- 6. Check and Return Response (Same as before) ---
+        if not xlsx_data or len(xlsx_data) < 50:
+            print(f"ERROR: Generated XLSX data seems invalid or empty (size: {len(xlsx_data)}).")
+            return jsonify({"error": "Generated report file is invalid or empty."}), 500
+
+        # (Remove the temporary file save debug step if you don't need it anymore)
+        try:
+            with open("temp_debug_report.xlsx", "wb") as f: f.write(xlsx_data)
+        except Exception as save_err: pass # Ignore save error for prod
+
         return Response(
             xlsx_data,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -829,6 +872,7 @@ def export_analytics_report_xlsx(): # Renamed slightly for clarity
                      "attachment; filename=SwiftShield_Analytics_Report.xlsx"}
         )
 
+    # --- Error Handling (Same as before) ---
     except pymongo.errors.PyMongoError as dbe:
         print(f"🔥 Database error generating XLSX report: {str(dbe)}")
         traceback.print_exc()
@@ -1393,11 +1437,11 @@ def get_scan_source_distribution():
     try:
         # Define sources and their presentation details
         sources_to_count = ["User Scan", "SMS", "Email"] # Keep these consistent
-        source_labels = { "User Scan": "Manual Scans", "SMS": "SMS Scans", "Email": "Email Scans" }
+        source_labels = { "User Scan": "User Scans", "SMS": "SMS", "Email": "Email" }
         source_styles = {
-            "User Scan": {"color": "#4CAF50", "legendFontColor": "#7F7F7F", "legendFontSize": 15},
-            "SMS": {"color": "#2196F3", "legendFontColor": "#7F7F7F", "legendFontSize": 15},
-            "Email": {"color": "#FF9800", "legendFontColor": "#7F7F7F", "legendFontSize": 15}
+            "SMS": {"color": "#febd59", "legendFontColor": "#3AED97", "legendFontSize": 15},
+            "Email": {"color": "#ff914c", "legendFontColor": "#3AED97", "legendFontSize": 15},
+            "User Scan": {"color": "#ffde59", "legendFontColor": "#3AED97", "legendFontSize": 15},
         }
 
         pie_chart_data = []
@@ -1545,76 +1589,126 @@ def get_threats_blocked():
 
 @app.route("/weekly-threats", methods=["GET"])
 @login_required
-def get_weekly_threats():
+def get_weekly_threats(): # Keep the function name and route
     user_id = session['user_id']
     role = session['role']
-    print(f"DEBUG /weekly-threats: User: {user_id}, Role: {role}")
+    print(f"DEBUG /weekly-threats (MODIFIED): User: {user_id}, Role: {role}")
 
     try:
         today = datetime.now(PH_TZ).date()
         start_date = today - timedelta(days=6)
-        # Ensure comparison uses timezone-aware datetimes
         start_datetime = datetime.combine(start_date, datetime.min.time(), tzinfo=PH_TZ)
 
         # --- Base Match Stage ---
-        match_stage = {"timestamp": {"$gte": start_datetime}} # Filter by date range
+        match_stage = {"timestamp": {"$gte": start_datetime}}
         if role == 'user':
-            match_stage['user_id'] = user_id # Add user filter for 'user' role
+            match_stage['user_id'] = user_id
             print(f"DEBUG: Applying user filter: {user_id}")
 
+        # --- NEW AGGREGATION: Group by day AND severity ---
         pipeline = [
-            {"$match": match_stage}, # Apply date and potentially user filter
+            {"$match": match_stage},
             {
                 "$project": {
-                    # Use timezone in projection for consistency
-                    "dayOfWeek": {"$dayOfWeek": {"date": "$timestamp", "timezone": "Asia/Manila"}}
+                    "dayOfWeek": {"$dayOfWeek": {"date": "$timestamp", "timezone": "Asia/Manila"}},
+                    "severity": 1 # Keep the severity field
                 }
             },
             {
+                # Group by both day and severity to count occurrences of each severity per day
                 "$group": {
-                    "_id": "$dayOfWeek",
-                    "threat_count": {"$sum": 1}
+                    "_id": {
+                        "day": "$dayOfWeek",
+                        "severity": "$severity"
+                    },
+                    "count": {"$sum": 1}
                 }
             },
-            {"$sort": {"_id": 1}}
+            {
+                # Sort primarily by day, then by severity (optional but helps visualization)
+                "$sort": {"_id.day": 1, "_id.severity": 1}
+            }
         ]
-        print(f"DEBUG /weekly-threats: Aggregation pipeline: {pipeline}")
+        print(f"DEBUG /weekly-threats (MODIFIED): Aggregation pipeline: {pipeline}")
 
         results = list(detection_collection.aggregate(pipeline))
-        print(f"DEBUG /weekly-threats: Raw aggregation results: {results}")
+        print(f"DEBUG /weekly-threats (MODIFIED): Raw aggregation results: {results}")
 
+        # --- Process Results to Create 3 Datasets ---
         days_map = {1: "Sun", 2: "Mon", 3: "Tue", 4: "Wed", 5: "Thu", 6: "Fri", 7: "Sat"}
-        weekly_data = {days_map[i]: 0 for i in range(1, 8)}
+
+        # Initialize dictionaries to hold daily counts for each category
+        daily_total_scans = {days_map[i]: 0 for i in range(1, 8)}
+        daily_phishing_scans = {days_map[i]: 0 for i in range(1, 8)} # High + Critical
+        daily_safe_scans = {days_map[i]: 0 for i in range(1, 8)}     # Safe
 
         for entry in results:
-            day_name = days_map.get(entry["_id"])
+            day_num = entry["_id"].get("day")
+            severity = entry["_id"].get("severity")
+            count = entry.get("count", 0)
+            day_name = days_map.get(day_num)
+
             if day_name:
-                weekly_data[day_name] = entry["threat_count"]
+                # Add to total scans for that day
+                daily_total_scans[day_name] += count
 
-        ordered_days = []
-        ordered_values = []
+                # Add to phishing count if severity is HIGH or CRITICAL
+                if severity in ["HIGH", "CRITICAL"]:
+                    daily_phishing_scans[day_name] += count
+
+                # Add to safe count if severity is SAFE
+                if severity == "SAFE":
+                    daily_safe_scans[day_name] += count
+
+        # --- Generate Ordered Labels and Data Arrays ---
+        ordered_labels = []
+        total_data = []
+        phishing_data = []
+        safe_data = []
+
         for i in range(7):
-            # Generate day names based on the start date in PH Timezone
-            current_day = start_datetime + timedelta(days=i)
-            day_abbr = current_day.strftime("%a") # Get "Sun", "Mon", etc.
-            ordered_days.append(day_abbr)
-            ordered_values.append(weekly_data.get(day_abbr, 0))
+            current_day_dt = start_datetime + timedelta(days=i)
+            day_abbr = current_day_dt.strftime("%a") # Get "Sun", "Mon", etc.
+            ordered_labels.append(day_abbr)
 
+            total_data.append(daily_total_scans.get(day_abbr, 0))
+            phishing_data.append(daily_phishing_scans.get(day_abbr, 0))
+            safe_data.append(daily_safe_scans.get(day_abbr, 0))
+
+        # --- Construct the Final Response JSON ---
+        # This matches the structure the frontend expects for the multi-line chart
         response = {
-            "labels": ordered_days,
-            "data": ordered_values
+            "labels": ordered_labels,
+            "datasets": [
+                {
+                    "label": "URLs Scanned", # Name for the legend
+                    "data": total_data,       # The calculated daily totals
+                    "color": "#FFFFFF"        # Assign color (e.g., White/Grey)
+                },
+                {
+                    "label": "Phishing",      # Name for the legend
+                    "data": phishing_data,    # The calculated daily High/Critical counts
+                    "color": "#ED3A3A"        # Assign color (e.g., Red)
+                },
+                {
+                    "label": "Safe",          # Name for the legend
+                    "data": safe_data,        # The calculated daily Safe counts
+                    "color": "#3AED97"        # Assign color (e.g., Green)
+                }
+            ]
         }
-        print(f"✅ Weekly Threats (Role: {role}): {response}")
-        return jsonify(response)
+        print(f"✅ Weekly Summary (Modified /weekly-threats, Role: {role}): {response}")
+        return jsonify(response) # Return the new structure
 
     except pymongo.errors.PyMongoError as dbe:
-        print(f"🔥 Database error in /weekly-threats: {str(dbe)}")
+        print(f"🔥 Database error in /weekly-threats (MODIFIED): {str(dbe)}")
         return jsonify({"error": "Database query error"}), 500
     except Exception as e:
-        print(f"🔥 Error in /weekly-threats: {str(e)}")
+        print(f"🔥 Error in /weekly-threats (MODIFIED): {str(e)}")
         import traceback
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        # Return an empty structure on error so frontend doesn't break badly
+        return jsonify({"labels": [], "datasets": []}), 500
 
 
 # --- Logs Endpoints (RBAC Applied) ---
