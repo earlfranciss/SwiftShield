@@ -37,7 +37,7 @@ import Login from "../screens/authScreens/Login";
 import Registration from "../screens/authScreens/Registration";
 import ForgotPassword from "../screens/authScreens/ForgotPassword";
 //import EditProfile from "../screens/authScreens/EditProfile";
-//Reports Page
+//Reports Page 
 import Reports from "../screens/reportsPage/Reports";
 import CreateReport from "../screens/reportsPage/CreateReport";
 import EditReport from "../screens/reportsPage/EditReport";
@@ -117,7 +117,7 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
           )}
         </SettingsStackNav.Screen>
 
-        {/* <SettingsStackNav.Screen name="ConnectedApps">
+      {/* <SettingsStackNav.Screen name="ConnectedApps">
           {/* 'props' here contains the CORRECT navigation for SettingsStackNav 
           {(props) => (
             <GradientScreen {...commonGradientProps}>
@@ -126,10 +126,10 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
             </GradientScreen>
          )}
       </SettingsStackNav.Screen>*/}
-
-        {/* Add other screens that should be nested under Settings tab here */}
-        <SettingsStackNav.Screen name="ManageUsers">
-          {(props) => (
+      
+       {/* Add other screens that should be nested under Settings tab here */}
+       <SettingsStackNav.Screen name="ManageUsers">
+         {props => (
             <GradientScreen {...commonGradientProps}>
               <ManageUsers {...props} />
             </GradientScreen>
@@ -292,7 +292,7 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
       <Stack.Screen name="Login" component={Login} />
       <Stack.Screen name="Register" component={Registration} />
       <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
-      <Stack.Screen name="EditProfile" component={EditProfile} />
+      {/*<Stack.Screen name="EditProfile" component={EditProfile} />*/}
       <Stack.Screen name="OnboardingScreen" component={OnboardingScreen} />
       <Stack.Screen name="Tabs">
         {(props) => (

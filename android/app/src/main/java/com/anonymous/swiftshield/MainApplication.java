@@ -12,7 +12,7 @@ import java.util.List;
 import com.anonymous.swiftshield.BackgroundMonitorPackage;
 import com.reactnativecommunity.clipboard.ClipboardPackage;
 
-
+// import com.reactnative.share.SharePackage;
 
 
 // import com.centaurwarchief.smslistener.SmsListenerPackage;
@@ -36,6 +36,7 @@ public class MainApplication extends Application implements ReactApplication {
           packages.add(new BackgroundMonitorPackage()); 
 
           //packages.add(new ClipboardPackage());
+          // packages.add(new SharePackage()); 
           return packages;
         }
 

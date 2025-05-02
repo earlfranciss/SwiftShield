@@ -210,6 +210,7 @@ export default function Analytics({ navigation }) {
           // ========================================================
           // ============= END OF MISSING BLOCK =====================
           // ========================================================
+
         } catch (error) {
           // Catch errors from Promise.all or JSON parsing in .then()
           console.error("🔥 Error in fetchAnalyticsData try block:", error);
