@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; 
 import { View, Text, StyleSheet, TouchableOpacity, Image, Animated } from 'react-native';
 import DetailsModal from './DetailsModal'; 
 
@@ -8,7 +8,7 @@ const iconMap = {
   "safe-icon": require("../assets/images/safe-icon.png"),
 };
 
-// Helper function to format time (same as in Notifications.js)
+// Helper function to format time
 const formatTimeAgo = (timestamp) => {
   try {
     // Check if timestamp is valid
@@ -16,7 +16,7 @@ const formatTimeAgo = (timestamp) => {
       return "Unknown time";
     }
     
-    // Convert to Date object if it's not already
+    // Convert to Date object if it's not already 
     const scanTime = new Date(timestamp);
     
     // Check if date is valid
@@ -44,31 +44,31 @@ const formatTimeAgo = (timestamp) => {
 };
 
 const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => {
-  const slideAnim = new Animated.Value(-100);
+  // State for modal visibility and animation
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
+  const slideAnim = useRef(new Animated.Value(-100)).current;
 
+  // Animation effect
   useEffect(() => {
-    // Slide in
+    // Animation logic
     Animated.timing(slideAnim, {
       toValue: 0,
       duration: 300,
       useNativeDriver: true,
     }).start();
 
-    // Auto dismiss after 5 seconds
+    // Auto-dismiss timer
     const timer = setTimeout(() => {
       Animated.timing(slideAnim, {
         toValue: -100,
         duration: 300,
         useNativeDriver: true,
-      }).start(() => {
-        if (onDismiss) onDismiss();
-      });
+      }).start(() => onDismiss?.());
     }, 5000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [notification, slideAnim, onDismiss]);
 
   const isMalicious = notification.icon === "suspicious-icon";
   const title = isMalicious ? "Warning: Malicious Link Detected" : "Safe Link Verified";
@@ -76,9 +76,6 @@ const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => 
   
   // Handle notification press to open the modal
   const handleNotificationPress = () => {
-    // Stop auto-dismiss timer when the notification is pressed
-    clearTimeout(slideAnim._startTime);
-    
     // Convert notification to format expected by DetailsModal
     const scanResult = {
       log_id: notification.id,
@@ -94,7 +91,7 @@ const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => 
     setSelectedNotification({ ...notification, ...scanResult, read: true });
     setModalVisible(true);
     
-    // Call the original onPress if needed (you can disable this if you only want the modal)
+    // Call the original onPress if needed
     if (onPress) onPress(notification);
   };
 
@@ -186,7 +183,7 @@ const NotificationToast = ({ notification, onPress, onDismiss, navigation }) => 
 const styles = StyleSheet.create({
   toastContainer: {
     position: 'absolute',
-    top: 15, // Adjust this value to move it higher (was likely 60 or more)
+    top: 15,
     left: 0,
     right: 0,
     backgroundColor: '#3AED97',
