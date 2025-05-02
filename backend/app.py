@@ -2495,15 +2495,15 @@ def exchange_auth_code():
                     "client_secret": client_secret,
                     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                     "token_uri": "https://oauth2.googleapis.com/token",
-                    # "redirect_uris": [redirect_uri],  # Must be a list
+                    "redirect_uris": [redirect_uri],  # Must be a list
                 }
             },
             scopes=scopes,
-            # redirect_uri=redirect_uri
+            redirect_uri=redirect_uri
         )
         print(f"DEBUG: /exchange-auth-code - Flow: {flow}")
 
-        flow.redirect_uri = "swiftshield://google/auth/success" 
+        # flow.redirect_uri = "swiftshield://google/auth/success" 
         # 2. --- Exchange the Code for Tokens ---
         flow.fetch_token(code=auth_code) # Short-form for just passing code
         
