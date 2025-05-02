@@ -36,7 +36,7 @@ import Notifications from "../screens/stackScreens/Notifications";
 import Login from "../screens/authScreens/Login";
 import Registration from "../screens/authScreens/Registration";
 import ForgotPassword from "../screens/authScreens/ForgotPassword";
-////import EditProfile from "../screens/authScreens/EditProfile";
+//import EditProfile from "../screens/authScreens/EditProfile";
 //Reports Page
 import Reports from "../screens/reportsPage/Reports";
 import CreateReport from "../screens/reportsPage/CreateReport";
@@ -116,9 +116,6 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
             </GradientScreen>
           )}
         </SettingsStackNav.Screen>
-
-        {/* <SettingsStackNav.Screen name="ConnectedApps">
-          {/* 'props' here contains the CORRECT navigation for SettingsStackNav 
 
         {/* <SettingsStackNav.Screen name="ConnectedApps">
           {/* 'props' here contains the CORRECT navigation for SettingsStackNav 
