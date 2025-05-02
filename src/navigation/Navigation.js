@@ -36,16 +36,17 @@ import Notifications from "../screens/stackScreens/Notifications";
 import Login from "../screens/authScreens/Login";
 import Registration from "../screens/authScreens/Registration";
 import ForgotPassword from "../screens/authScreens/ForgotPassword";
-// import EditProfile from "../screens/authScreens/EditProfile";
+//import EditProfile from "../screens/authScreens/EditProfile";
 //Reports Page
-// import Reports from "../screens/reportsPage/Reports";
+import Reports from "../screens/reportsPage/Reports";
 import CreateReport from "../screens/reportsPage/CreateReport";
 import EditReport from "../screens/reportsPage/EditReport";
 //Settings Screens
-// import ConnectedAppsScreen from "../screens/settingsScreens/screens/ConnectedAppsScreen";
+//import ConnectedAppsScreen from '../screens/settingsScreens/screens/ConnectedAppsScreen';
 import PushNotificationsScreen from "../screens/settingsScreens/screens/PushNotifications";
 import ManageUsers from "../screens/stackScreens/ManageUsers";
 import OnboardingScreen from "../screens/stackScreens/OnboardingScreen";
+
 //Icons
 import Entypo from "react-native-vector-icons/Entypo";
 import Octicons from "react-native-vector-icons/Octicons";
@@ -126,6 +127,7 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
          )}
       </SettingsStackNav.Screen>*/}
 
+        {/* Add other screens that should be nested under Settings tab here */}
         <SettingsStackNav.Screen name="ManageUsers">
           {(props) => (
             <GradientScreen {...commonGradientProps}>
