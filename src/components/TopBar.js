@@ -38,14 +38,6 @@ function TopBar({
   const route = useRoute();
   const [isExporting, setIsExporting] = useState(false); // <-- ADD THIS LINE
 
-  const handleThemeTogglePress = () => {
-    console.log("<<< TopBar.js: Theme toggle icon pressed!"); // <<< THE LOG
-    if (onToggleDarkMode) {
-      // Good practice to check if prop exists
-      onToggleDarkMode(); // Call the function passed via props
-    }
-  };
-
   // --- MODIFIED: Report Handler using RNFS ---
   const handleGenerateReport = useCallback(async () => {
     setIsExporting(true);
@@ -187,22 +179,22 @@ function TopBar({
     }
   }, [config.BASE_URL]); // Removed requestStoragePermission dependency
 
-  const topBarElementColor = "#3AED97"; // Always use green
-
   // --- Rest of your TopBar component (JSX) remains the same ---
   return (
     <View style={styles.topBar}>
       {/* App Name */}
-      <Text style={[styles.logoText, { color: topBarElementColor }]}>
+      <Text
+        style={[styles.logoText, { color: isDarkMode ? "black" : "#3AED97" }]}
+      >
         SwiftShield
       </Text>
       <View style={styles.topBarIcons}>
         {/* Toggle Dark Mode */}
-        <TouchableOpacity onPress={handleThemeTogglePress}>
+        <TouchableOpacity onPress={onToggleDarkMode}>
           <Ionicons
             name={isDarkMode ? "sunny-outline" : "moon-outline"}
             size={24}
-            color={topBarElementColor}
+            color={isDarkMode ? "black" : "#3AED97"}
           />
         </TouchableOpacity>
 
@@ -220,7 +212,7 @@ function TopBar({
           <Ionicons
             name="notifications-outline"
             size={24}
-            color={topBarElementColor}
+            color={isDarkMode ? "black" : "#3AED97"}
           />
           {hasUnreadNotifications && (
             <View
@@ -247,7 +239,7 @@ function TopBar({
               <Ionicons
                 name="download-outline"
                 size={24}
-                color={topBarElementColor}
+                color={isDarkMode ? "black" : "#3AED97"}
               />
             )}
           </TouchableOpacity>
