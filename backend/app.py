@@ -2498,8 +2498,9 @@ def exchange_auth_code():
                     # "redirect_uris": [redirect_uri],  # Must be a list
                 }
             },
-            scopes=scopes,
-            # redirect_uri=redirect_uri
+            # scopes=scopes,
+            # redirect_uri=redirect_uri,
+            scopes=["https://www.googleapis.com/auth/gmail.readonly"],
             redirect_uri = "swiftshield://google/auth/success" 
         )
         print(f"DEBUG: /exchange-auth-code - Flow: {flow}")
