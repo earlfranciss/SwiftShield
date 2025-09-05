@@ -14,8 +14,8 @@ Its main goal is to **detect and prevent phishing attacks** using **machine lear
 - **Frontend:** React Native (mobile app)  
 - **Backend:** Flask (Python API)  
 - **Machine Learning:** Scikit-learn, TensorFlow/Keras (for classifiers)  
-- **Database:** SQLite / MySQL (configurable)  
-- **Cloud & Hosting:** (Optional) AWS / Azure / GCP for deployment  
+- **Database:** MongoDB (configurable)  
+- **Cloud & Hosting:** Render and Android APK for deployment  
 
 ## 🎯 Objective
 SwiftShield is built to help **students, professionals, and organizations** stay protected against phishing threats by combining **artificial intelligence with practical security features**.  
