@@ -93,35 +93,35 @@ const OptionsMenu = ({
   // Works reliably for http/https. Custom schemes might work if app is installed,
   // but less predictable without specific native declarations (which we're removing).
   const openInBrowser = () => {
-    const urlToOpen = url; // Ensure 'url' holds the correct link
-    console.log("Checking if URL can be opened:", urlToOpen);
+    const urlToOpen = url; // Get the URL passed via props
 
-    Linking.canOpenURL(urlToOpen)
-      .then((supported) => {
-        if (supported) {
-          console.log("URL is supported, opening...");
-          Linking.openURL(urlToOpen); // Open the link if supported
-        } else {
-          // This alert should now hopefully not appear for https links in your working environment
-          Alert.alert(
-            "Cannot Open Link",
-            `The operating system doesn't know how to open this type of URL: ${urlToOpen}`
-          );
-          console.log("Linking.canOpenURL returned false for: " + urlToOpen);
-        }
-      })
-      .catch((err) => {
-        // Alert on other errors during the check or opening
-        Alert.alert(
-          "Error",
-          "An error occurred while trying to open the link."
-        );
-        console.error(
-          "An error occurred checking or opening URL with Linking:",
-          err
-        );
-      });
-    onClose(); // Close menu after action
+    // 1. Basic Validation: Ensure we have a string URL
+    if (!urlToOpen || typeof urlToOpen !== "string") {
+      console.error("Invalid URL provided to openInBrowser:", urlToOpen);
+      Alert.alert("Error", "Cannot open an invalid link.");
+      onClose(); // Close the menu even if there's an error
+      return; // Stop execution
+    }
+
+    console.log(`Attempting to open URL in system browser: ${urlToOpen}`);
+
+    // 2. Directly attempt to open the URL
+    // We skip Linking.canOpenURL for https based on prior successful testing
+    // of Linking.openURL in the target environment (e.g., development build).
+    Linking.openURL(urlToOpen).catch((err) => {
+      // 3. Handle potential errors from Linking.openURL itself
+      console.error("Linking.openURL failed:", err);
+      Alert.alert(
+        "Error Opening Link",
+        `Could not open the link. Please check the URL or try again.\n(${
+          err.message || "Unknown error"
+        })` // Show error to user
+      );
+      // Note: onClose() is called outside the catch block anyway.
+    });
+
+    // 4. Close the menu immediately after initiating the open action
+    onClose();
   };
 
   // Behavior: Copies the URL to the clipboard WITHOUT showing a success alert.

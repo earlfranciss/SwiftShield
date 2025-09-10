@@ -34,8 +34,11 @@ import Reports from "./screens/reportsPage/Reports";
 import CreateReport from "./screens/reportsPage/CreateReport";
 import EditReport from "./screens/reportsPage/EditReport";
 import EditProfile from "./screens/EditProfile";
+import WebViewScreen from "./screens/WebViewScreen/WebViewScreen";
 import ManageUsers from "./screens/ManageUsers";
 import OnboardingScreen from "./screens/OnboardingScreen";
+import ConnectedAppsScreen from "./screens/Settings/screens/ConnectedAppsScreen";
+import PushNotificationsScreen from "./screens/Settings/screens/PushNotifications";
 
 //Icons
 import { Entypo } from "@expo/vector-icons";
@@ -114,21 +117,19 @@ function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
               {/* Pass the STACK's props DOWN, remove explicit override */}
               <ConnectedAppsScreen {...props} />
             </GradientScreen>
-         )}
-      </SettingsStackNav.Screen>
-       {/* Add other screens that should be nested under Settings tab here */}
-       <SettingsStackNav.Screen name="ManageUsers">
-         {props => (
+          )}
+        </SettingsStackNav.Screen>
+        {/* Add other screens that should be nested under Settings tab here */}
+        <SettingsStackNav.Screen name="ManageUsers">
+          {(props) => (
             <GradientScreen {...commonGradientProps}>
-                <ManageUsers {...props} />
+              <ManageUsers {...props} />
             </GradientScreen>
-         )}
-        
-         </SettingsStackNav.Screen>
-    </SettingsStackNav.Navigator>
-  );
-}
-  
+          )}
+        </SettingsStackNav.Screen>
+      </SettingsStackNav.Navigator>
+    );
+  }
 
   const [isDarkMode, setDarkMode] = useState(false);
 
@@ -297,7 +298,15 @@ function MainStack({ hasUnreadNotifications, onNotificationRead }) {
         options={{ animation: "slide_from_right" }}
       />
 
-      
+      <Stack.Screen
+        name="WebViewScreen" // Name used in navigation.navigate('WebViewScreen', ...)
+        component={WebViewScreen}
+        options={{
+          headerShown: false, // Use the custom header inside WebViewScreen
+          presentation: "modal", // Optional: Makes it slide up like a modal
+          animation: "slide_from_bottom", // Explicitly define modal animation
+        }}
+      />
     </Stack.Navigator>
   );
 }
@@ -462,22 +471,36 @@ export default function Navigation() {
       />
 
       {/* Notification Toast */}
-  {inAppNotification && (
-  <NotificationToast
-    notification={inAppNotification}
-    onPress={(notificationData) => {
-      console.log("Toast pressed, showing details modal:", notificationData); // Debug log
-      // The modal will be shown directly from NotificationToast component
-      setHasUnreadNotifications(false); // Mark as read
-    }}
-    onDismiss={() => {
-      console.log("Toast dismissed (timeout or manual)."); // Debug log
-      setInAppNotification(null);
-    }}
-    navigation={globalNavigation} // Pass the navigation prop
-  />
-  )}
-  </>
+      {inAppNotification && (
+        <NotificationToast
+          notification={inAppNotification}
+          onPress={(notificationData) => {
+            // Renamed param for clarity
+            console.log(
+              "Toast pressed. Navigating with data:",
+              notificationData
+            ); // Debug log
+            if (globalNavigation) {
+              // Pass the specific notification data needed by the screen
+              globalNavigation.navigate("Notifications", {
+                notificationIdToHighlight: notificationData.id, // Example: pass ID to highlight
+                // Pass other relevant props if Notifications screen needs them
+              });
+              setInAppNotification(null); // Dismiss toast after navigation
+              setHasUnreadNotifications(false); // Mark as read
+            } else {
+              console.warn(
+                "Cannot navigate from toast press: globalNavigation not set."
+              );
+            }
+          }}
+          onDismiss={() => {
+            console.log("Toast dismissed (timeout or manual)."); // Debug log
+            setInAppNotification(null);
+          }}
+        />
+      )}
+    </>
   );
 }
 

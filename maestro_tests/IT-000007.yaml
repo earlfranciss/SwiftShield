@@ -1,0 +1,94 @@
+# Target the Expo Go client application
+appId: host.exp.exponent
+
+---
+# --- IT-000007: Analytics - Share weekly threat analysis, Threats by source, URLs Scanned, Threats blocked, Recent Activity ---
+
+# --- Part 1: Login Flow ---
+# (Same login steps as before)
+- assertVisible:
+    id: "android:id/content"
+- assertVisible: "Remember me"
+- assertVisible: "Forgot Password?"
+- assertVisible: "Don't have an account? "
+- assertVisible: "Register"
+- assertVisible: "Email"
+- tapOn: { point: "50%,46%" }
+- inputText: "test-bot@admin.com"
+- assertVisible: { text: ".*test-bot@admin.com.*" }
+- hideKeyboard
+- assertVisible: "Password"
+- tapOn: { point: "50%,55%" }
+- inputText: "lhnRW?324r|{"
+- assertVisible: { text: ".*••••••••••••.*" }
+- hideKeyboard
+- assertVisible: ""
+- tapOn: { point: "84%,55%" }
+- assertVisible: { text: "lhnRW?324r|{" }
+- assertVisible: "LOGIN"
+- tapOn: { point: "50%,65%" }
+
+# --- Part 2: Post-Login Assertions (Verify Home screen) ---
+# (Same post-login checks as before)
+- assertVisible: "SwiftShield"
+- assertVisible: ""
+- assertVisible: ""
+- assertVisible: "Web Protection"
+- assertVisible: "Enabled"
+- assertVisible: "Scan URL:"
+- assertVisible: "www.malicious.link"
+- assertVisible: "SCAN"
+- assertVisible: ", Home"
+- assertVisible: "" # Analytics Icon
+- assertVisible: "" # Logs Icon
+- assertVisible: "" # Settings Icon
+
+# --- Part 3: Navigate to and Verify Analytics Screen (Initial View) ---
+
+# 1. Navigate to Analytics Screen
+- tapOn: "" # Tap Analytics Icon
+- assertVisible: "Loading Analytics..."
+
+# 2. Verify Analytics Screen Content is Visible
+- assertVisible: "Weekly Threat Analysis:"
+- assertVisible: "Threats by Source:"
+- assertVisible: "SMS:"
+- assertVisible: "Email:"
+- assertVisible: "Manual Scan:"
+
+# Verify aggregate counts using REGEX \d+
+- assertVisible: { text: "URLs Scanned: \\d+" } # Check label + any number
+- assertVisible: { text: "Threats Blocked: \\d+" } # Check label + any number
+
+# Verify Risk Category boxes (checking labels AND using regex for numbers within them)
+# This is slightly more complex with text selectors, assumes number is clearly associated
+- assertVisible: "Low"
+- assertVisible: { text: "\\d+", below: "Low" } # Check for a number below "Low" text
+- assertVisible: "Medium"
+- assertVisible: { text: "\\d+", below: "Medium" } # Check for a number below "Medium" text
+- assertVisible: "High"
+- assertVisible: { text: "\\d+", below: "High" } # Check for a number below "High" text
+- assertVisible: "Critical"
+- assertVisible: { text: "\\d+", below: "Critical" } # Check for a number below "Critical" text
+# Note: The relative 'below' checks are still layout-dependent. testIDs are better.
+
+# Verify "Recent Activity" section header is visible before scrolling
+- assertVisible: "Recent Activity:"
+
+# --- Part 4: Scroll "Recent Activity" and Find Specific Entries ---
+
+# 1. Scroll down until a "Safe Link Verified" entry is found
+- scrollUntilVisible:
+    element: "Safe Link Verified"
+    direction: DOWN
+- assertVisible: "Safe Link Verified" # Confirm it was found
+
+# 2. Continue scrolling down until a "Phishing Detected" entry is found
+- scrollUntilVisible:
+    element: "Phishing Detected" #
+    direction: DOWN
+- assertVisible: "Phishing Detected" #
+
+# --- Take a screenshot for verification ---
+- takeScreenshot: screenshots/IT00007_Analytics_Scrolled_Regex
+# --- End of Test IT-00007 ---

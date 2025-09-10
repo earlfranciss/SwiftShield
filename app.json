@@ -24,7 +24,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./frontend/assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.digitaldreamers.swiftshield"
     },
     "web": {
       "favicon": "./frontend/assets/images/favicon.png"

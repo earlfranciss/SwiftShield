@@ -1,0 +1,167 @@
+# Target the Expo Go client application
+appId: host.exp.exponent
+
+---
+# --- IT-000008: Manage Reports - System displays reports from stored data ---
+
+# --- Part 1: Login Flow ---
+# (Assuming login steps from previous scripts)
+- assertVisible: { id: "android:id/content" }
+- assertVisible: "Remember me"
+- assertVisible: "Forgot Password?"
+- assertVisible: "Don't have an account? "
+- assertVisible: "Register"
+- assertVisible: "Email"
+- tapOn: { point: "50%,46%" }
+- inputText: "test-bot@admin.com"
+- assertVisible: { text: ".*test-bot@admin.com.*" }
+- hideKeyboard
+- assertVisible: "Password"
+- tapOn: { point: "50%,55%" }
+- inputText: "lhnRW?324r|{"
+- assertVisible: { text: ".*••••••••••••.*" }
+- hideKeyboard
+- assertVisible: ""
+- tapOn: { point: "84%,55%" }
+- assertVisible: { text: "lhnRW?324r|{" }
+- assertVisible: "LOGIN"
+- tapOn: { point: "50%,65%" } # Tap LOGIN button coord
+
+# --- Part 2: Post-Login Assertions (Verify Home screen) ---
+- assertVisible: "SwiftShield"
+- assertVisible: ""
+- assertVisible: ""
+- assertVisible: "Web Protection"
+- assertVisible: "Enabled"
+- assertVisible: "Scan URL:"
+- assertVisible: "www.malicious.link"
+- assertVisible: "SCAN"
+- assertVisible: ", Home"
+- assertVisible: ""
+- assertVisible: ""
+- assertVisible: "" # Settings Icon
+
+# --- Part 3: Navigate to Settings and Verify ---
+- tapOn: "" # Tap Settings Icon
+- assertVisible: "John Doe"
+- assertVisible: "johndoe@email.com"
+- assertVisible: "Push Notifications"
+- assertVisible: "Connected Apps"
+- assertVisible: "How to use the app"
+- assertVisible: "Help and Support"
+- assertVisible: "Privacy Policy"
+- assertVisible: "Log out"
+
+# --- Part 4: Navigate to Help/Support (Reports) and View Initial Items ---
+- tapOn: "Help and Support"
+# Verify Reports screen elements
+- assertVisible: ""
+- assertVisible: "Reports"
+- assertVisible: ""
+# Verify filter tabs
+- assertVisible: "Recent"
+- assertVisible: "Pending"
+- assertVisible: { text: "In Progress", index: 0 } # Using index is risky
+- assertVisible: { text: "Resolved", index: 0 } # Using index is risky
+
+# Verify and View first report item ("Test2", Resolved)
+- assertVisible: "Test2"
+- assertVisible: { text: "Resolved", index: 1 } # Using index is risky
+- tapOn: { point: "50%,30%" } # Tap using coordinates
+# Verify details
+- assertVisible: "Test2"
+- assertVisible: "Description:"
+- assertVisible: "Testing\nApril 14, 2025"
+- assertVisible: "Status:"
+- assertVisible: "Resolved"
+- assertVisible: "Created At:"
+- assertVisible: "Edit Report"
+- assertVisible: "Close"
+- tapOn: "Close" # Close the detail view
+
+# Verify second report item ("Test1", Resolved) - Optional: View details if needed
+- assertVisible: "Test1"
+- assertVisible: { text: "Resolved", index: 2 } # Using index is risky
+# - tapOn: { point: "50%,38%" } # Optional: Tap to view details
+# - ... (assert details for Test1) ...
+# - tapOn: "Close" # Optional: Close details
+
+# --- Part 5: Interact with Filter Tabs ---
+
+# Tap the "Pending" filter tab
+- tapOn: "Pending"
+# Verify the "Change password" item is visible in the Pending list
+- assertVisible: "Change password"
+- assertVisible: { text: "Pending", index: 1 } # Using index is risky
+# Optional: Tap the item BY TEXT now (more reliable than coordinate after filtering)
+# - tapOn: "Change password"
+# - ... (assert details) ...
+# - tapOn: "Close"
+
+# Tap the "In Progress" filter tab
+- tapOn: "In Progress"
+# Verify the "Test 13" item is visible in the In Progress list
+- assertVisible: "Test 13"
+- assertVisible: { text: "In Progress", index: 1 } # Using index is risky
+# Optional: Tap the item BY TEXT
+# - tapOn: "Test 13"
+# - ... (assert details) ...
+# - tapOn: "Close"
+
+# Tap the "Resolved" filter tab
+- tapOn: "Resolved"
+# Verify the "Test2" item is visible in the Resolved list
+- assertVisible: "Test2"
+- assertVisible: { text: "Resolved", index: 1 } # Using index is risky
+# Optional: Tap the item BY TEXT
+# - tapOn: "Test2"
+# - ... (assert details) ...
+# - tapOn: "Close"
+
+# Tap the "Recent" filter tab to return to default view
+- tapOn: "Recent"
+
+# --- Part 6: Interact with Search (within Recent/All view) ---
+
+# Tap search input/icon (assuming "Search report" text exists to tap)
+- tapOn: "Search report"
+# Enter search term "Test2"
+- inputText: "Test2"
+# Tap the search submit icon ""
+- tapOn: ""
+# Verify "Test2" item is visible in search results list
+- assertVisible: "Test2"
+- assertVisible: { text: "Resolved" } # Check status without relying on index
+# Optional: Tap the search result BY TEXT to view details
+# - tapOn: "Test2"
+# - ... (assert details) ...
+# - tapOn: "Close"
+
+# Clear the search (This part is guesswork based on your previous script)
+# Tapping the text might not work. May need specific clear icon or back button.
+- tapOn: { text: "Test2", index: 0 } # Action unclear, might not clear search
+- eraseText # Erase text from the input field
+- tapOn: "" # Tap search icon again, might clear/exit search mode
+
+# --- Part 7: Search within Filtered Tabs (Example: Search "Test 13" in "In Progress") ---
+
+# Go to In Progress Tab first
+- tapOn: "In Progress"
+# Initiate search
+- tapOn: "Search report" # Or tap search icon "" if already visible
+- inputText: "Test 13"
+# Submit search
+- tapOn: ""
+# Verify "Test 13" item is visible in the filtered search results
+- assertVisible: "Test 13"
+- assertVisible: { text: "In Progress" } # Check status without index
+# Optional: Tap result BY TEXT to view details
+# - tapOn: "Test 13"
+# - ... (assert details) ...
+# - tapOn: "Close"
+
+# Clear search (Again, specific clear mechanism might be needed)
+- tapOn: { text: "Test 13", index: 0 } # Action unclear
+- eraseText
+- tapOn: ""
+# --- End of Test IT-00008 ---
