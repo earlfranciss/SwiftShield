@@ -129,7 +129,7 @@ android {
     //          path file('src/main/cpp/CMakeLists.txt') // Assuming this path exists
     //      }
     //  }
-}
+}  
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
@@ -157,6 +157,8 @@ dependencies {
     implementation project(':react-native-vector-icons')
     implementation project(':react-native-webview')
     implementation project(':react-native-clipboard_clipboard')
+    implementation project(':react-native-notification-sounds')
+    implementation project(':react-native-sound')
     // implementation project(':react-native-make')
     implementation project(':react-native-share')
     implementation project(':react-native-notification-sounds')

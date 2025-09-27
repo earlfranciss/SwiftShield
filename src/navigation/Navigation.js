@@ -61,9 +61,9 @@ let globalNavigation = null;
 //Bottom Tab Bar Component
 // TabGroup component
 function TabGroup({ navigation, hasUnreadNotifications, onNotificationRead }) {
-  // Store the navigation prop globally when this component mounts
   useEffect(() => {
     globalNavigation = navigation;
+    return () => { globalNavigation = null; };
   }, [navigation]);
 
   // Define the Settings Stack function
@@ -412,7 +412,6 @@ export default function Navigation() {
     }
   }, [inAppNotification]);
 
-
   useEffect(() => {
     requestNotificationPermissions();
     const cleanupListeners = setupNotificationListeners(
@@ -427,13 +426,16 @@ export default function Navigation() {
 
 
     // ENABLE NOTIFICATION POLLING
+
     // const checkInterval = setInterval(checkForNewNotifications, 30000);
     // checkForNewNotifications();
+
 
     // Clean up on unmount
     return () => {
       cleanupListeners();
       // clearInterval(checkInterval);
+
     };
   }, []);
 
