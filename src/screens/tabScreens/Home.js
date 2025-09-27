@@ -21,6 +21,10 @@ import { useNotifications } from "../../utils/NotificationContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native"; 
 
+import Sound from 'react-native-sound';
+Sound.setCategory('Playback');
+
+
 // Instead of importing RNFS directly, create a wrapper with safety checks
 const SafeRNFS = {
   isAvailable: false,
@@ -63,6 +67,58 @@ export default function Home({ navigation }) {
   const smsSubscriptionRef = useRef(null);
   const [isGmailConnected, setIsGmailConnected] = useState(false); 
 
+  // Sound references for different notification types
+  const soundsRef = useRef({
+    normal: null,
+    warning: null
+  });
+
+  useEffect(() => {
+    // Preload all notification sounds
+    const loadSounds = () => {
+      // Load standard notification sound (.wav file)
+      soundsRef.current.normal = new Sound(
+        'notification.wav', // For Android: specify the full filename with extension
+        '',  // Empty string for Android raw resource directory
+        (error) => {
+          if (error) {
+            console.error('❌ Normal Sound INIT Error:', error);
+            soundsRef.current.normal = null;
+          } else {
+            console.log('🔊 Normal Sound INIT Success! Duration:', soundsRef.current.normal.getDuration());
+          }
+        }
+      );
+      
+      // Load warning notification sound (.mp3 file)
+      soundsRef.current.warning = new Sound(
+        'warning.mp3', // For Android: specify the full filename with extension
+        '',  // Empty string for Android raw resource directory
+        (error) => {
+          if (error) {
+            console.error('❌ Warning Sound INIT Error:', error);
+            soundsRef.current.warning = null;
+          } else {
+            console.log('🔊 Warning Sound INIT Success! Duration:', soundsRef.current.warning.getDuration());
+          }
+        }
+      );
+    };
+    
+    loadSounds();
+  
+    return () => {
+      // Release all sounds on unmount
+      Object.values(soundsRef.current).forEach(sound => {
+        if (sound) {
+          sound.release();
+        }
+      });
+    };
+  }, [])
+
+
+
   // Initialize SafeRNFS
   useEffect(() => {
     SafeRNFS.initialize();
@@ -82,59 +138,59 @@ export default function Home({ navigation }) {
     checkPermissions(); 
   }, []);
 
-  useEffect(() => {
-    const loadGmailConnectionState = async () => {
-      try {
-        const storedValue = await AsyncStorage.getItem('isGmailConnected');
-        if (storedValue !== null) {
-          setIsGmailConnected(JSON.parse(storedValue));
-        }
-      } catch (error) {
-        console.error("Failed to load Gmail connection state from AsyncStorage", error);
-      }
-    };
+  // useEffect(() => {
+  //   const loadGmailConnectionState = async () => {
+  //     try {
+  //       const storedValue = await AsyncStorage.getItem('isGmailConnected');
+  //       if (storedValue !== null) {
+  //         setIsGmailConnected(JSON.parse(storedValue));
+  //       }
+  //     } catch (error) {
+  //       console.error("Failed to load Gmail connection state from AsyncStorage", error);
+  //     }
+  //   };
 
-    loadGmailConnectionState();
-  }, []);
+  //   loadGmailConnectionState();
+  // }, []);
 
   // Save the Gmail connection state to AsyncStorage whenever it changes
-  useEffect(() => {
-    const saveGmailConnectionState = async () => {
-      try {
-        await AsyncStorage.setItem('isGmailConnected', JSON.stringify(isGmailConnected));
-      } catch (error) {
-        console.error("Failed to save Gmail connection state to AsyncStorage", error);
-      }
-    };
+  // useEffect(() => {
+  //   const saveGmailConnectionState = async () => {
+  //     try {
+  //       await AsyncStorage.setItem('isGmailConnected', JSON.stringify(isGmailConnected));
+  //     } catch (error) {
+  //       console.error("Failed to save Gmail connection state to AsyncStorage", error);
+  //     }
+  //   };
 
-    saveGmailConnectionState();
-  }, [isGmailConnected]);
+  //   saveGmailConnectionState();
+  // }, [isGmailConnected]);
 
 
   // Use useFocusEffect to handle the incoming deep link
-  useEffect(
-    useCallback(() => {
-      const linkingSubscription = Linking.addEventListener('url', (event) => {
-        console.log('Using Event URL', event.url);
-        handleDeepLink(event.url);
-      });
+  // useEffect(
+  //   useCallback(() => {
+  //     const linkingSubscription = Linking.addEventListener('url', (event) => {
+  //       console.log('Using Event URL', event.url);
+  //       handleDeepLink(event.url);
+  //     });
 
-      // Check for initial URL in case the app was opened via deep link
-      const getInitialURL = async () => {
-        const initialURL = await Linking.getInitialURL();
-        if (initialURL) {
-          console.log('Using Initial URL');
-          handleDeepLink(initialURL);
-        }
-      };
-      getInitialURL();
+  //     // Check for initial URL in case the app was opened via deep link
+  //     const getInitialURL = async () => {
+  //       const initialURL = await Linking.getInitialURL();
+  //       if (initialURL) {
+  //         console.log('Using Initial URL');
+  //         handleDeepLink(initialURL);
+  //       }
+  //     };
+  //     getInitialURL();
 
 
-      return () => {
-        linkingSubscription.remove();
-      };
-    }, [handleDeepLink])
-  );
+  //     return () => {
+  //       linkingSubscription.remove();
+  //     };
+  //   }, [handleDeepLink])
+  // );
 
 
 
@@ -333,7 +389,7 @@ export default function Home({ navigation }) {
         }
       }
 
-      handleConnectGmail()
+      // handleConnectGmail()
 
 
       setIsProtectionEnabled(prevState => !prevState);
@@ -413,6 +469,16 @@ export default function Home({ navigation }) {
       // handleNewScanResult(resultDataForNotification);
       // setUrl("");
       showModal(data);
+      const isMalicious = data.severity === 'CRITICAL' || data.phishing_percentage > 70;
+      const soundToPlay = isMalicious ? soundsRef.current.warning : soundsRef.current.normal;
+
+      if (soundToPlay) {
+        soundToPlay.stop(() => {
+          soundToPlay.play(success => {
+            if (!success) console.error('Sound playback failed');
+          });
+        });
+      }
 
     } catch (error) { 
       setInputError(error.message || "An error occurred. Check connection or URL.");
@@ -461,7 +527,16 @@ export default function Home({ navigation }) {
       //handleNewScanResult(resultDataForNotification);
 
       showModal(data);
+      const isMalicious = data.severity === 'CRITICAL' || data.phishing_percentage > 70;
+      const soundToPlay = isMalicious ? soundsRef.current.warning : soundsRef.current.normal;
 
+      if (soundToPlay) {
+        soundToPlay.stop(() => {
+          soundToPlay.play(success => {
+            if (!success) console.error('Sound playback failed');
+          });
+        });
+      }
 
   } catch(textError) {
       console.error("Error calling SMS text classification endpoint:", textError);

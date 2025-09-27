@@ -1,10 +1,13 @@
-import React, {useEffect} from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import 'react-native-gesture-handler';
-import Navigation from './navigation/Navigation';
-import { NotificationProvider, useNotifications } from './utils/NotificationContext'; 
-import NotificationToast from './components/NotificationToast'; 
-
+import React, { useEffect } from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import "react-native-gesture-handler";
+import Navigation from "./navigation/Navigation";
+import {
+  NotificationProvider,
+  useNotifications,
+} from "./utils/NotificationContext";
+import NotificationToast from "./components/NotificationToast";
+import { ThemeProvider } from "./components/themeContext"; 
 
 const AppContent = () => {
   const { inAppNotification, setInAppNotification, setHasUnreadNotifications } = useNotifications();
@@ -12,10 +15,11 @@ const AppContent = () => {
 
   return (
     <>
-      <NavigationContainer>
-        <Navigation />
-      </NavigationContainer>
-
+      <ThemeProvider>
+        <NavigationContainer>
+          <Navigation />
+        </NavigationContainer>
+      </ThemeProvider>
       {/* Notification Toast */}
       {inAppNotification && (
         <NotificationToast
